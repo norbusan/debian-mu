@@ -1,0 +1,5 @@
+maildir-utils (0.4-1) unstable; urgency=low
+
+  * First release (Closes: #500194)
+
+ -- Norbert Preining <preining@debian.org>  Thu, 04 Dec 2008 19:13:08 +0100

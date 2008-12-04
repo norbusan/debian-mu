@@ -1,0 +1,35 @@
+This package was debianized by Norbert Preining <preining@debian.org> on
+Thu Sep 25 22:38:46 CEST 2008.
+
+The original source was downloaded from
+  http://code.google.com/p/mu0/downloads/list
+
+The contents of the debian/ directory is released under the GNU
+General Public Licence version 2 or (at your option) any later
+version, unless otherwise explicitly stated in the file in question.
+The files under debian/ are under Copyright by:
+
+        Norbert Preining <preining@debian.org> (2008)
+	
+** Copyright (C) 2008 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+**
+** This program is free software; you can redistribute it and/or modify it
+** under the terms of the GNU General Public License as published by the
+** Free Software Foundation; either version 3, or (at your option) any
+** later version.
+**
+** This program is distributed in the hope that it will be useful,
+** but WITHOUT ANY WARRANTY; without even the implied warranty of
+** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+** GNU General Public License for more details.
+**
+** You should have received a copy of the GNU General Public License
+** along with this program; if not, write to the Free Software Foundation,
+** Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.  
+
+
+On Debian GNU/Linux systems, the complete text of the GNU General
+Public License v3 can be found in `/usr/share/common-licenses/GPL-3' file, 
+and the complete text of the GNU General Public License v2 can be found
+in `/usr/share/common-licenses/GPL-2' file.
+

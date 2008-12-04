@@ -1,0 +1,32 @@
+Refer to mu.conf and not to mu-conf as config file
+---
+ man/mu-find.1  |    2 +-
+ man/mu-index.1 |    2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+Index: maildir-utils-0.4/man/mu-find.1
+===================================================================
+--- maildir-utils-0.4.orig/man/mu-find.1	2008-11-01 10:00:45.000000000 +0100
++++ maildir-utils-0.4/man/mu-find.1	2008-12-04 20:18:31.000000000 +0100
+@@ -425,7 +425,7 @@
+ .SH CONFIGURATION
+ Instead of specifying the options on the command line, you can also specify
+ them in the
+-.B mu-conf
++.B mu.conf
+ configuration file, in the mu-home directory (by default,
+ .B ~/.mu
+ ). The
+Index: maildir-utils-0.4/man/mu-index.1
+===================================================================
+--- maildir-utils-0.4.orig/man/mu-index.1	2008-10-21 22:54:32.000000000 +0200
++++ maildir-utils-0.4/man/mu-index.1	2008-12-04 20:18:31.000000000 +0100
+@@ -170,7 +170,7 @@
+ .SH CONFIGURATION
+ Instead of specifying the options on the command line, you can also specify
+ them in the
+-.B mu-conf
++.B mu.conf
+ configuration file, in the mu home directory (by default,
+ .B ~/.mu
+ ). The
