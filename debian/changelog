@@ -1,3 +1,9 @@
+maildir-utils (0.4-2) unstable; urgency=low
+
+  * fix watch file
+
+ -- Norbert Preining <preining@debian.org>  Sun, 28 Dec 2008 22:57:46 +0100
+
 maildir-utils (0.4-1) unstable; urgency=low
 
   * First release (Closes: #500194)

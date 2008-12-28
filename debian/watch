@@ -1,3 +1,4 @@
 # watch control file for uscan
 version=3
-http://mu0.googlecode.com/files/mu-(.*)\.tar\.gz
+http://code.google.com/p/mu0/downloads/list	\
+	http://mu0.googlecode.com/files/mu-(.*)\.tar\.gz
