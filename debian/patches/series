@@ -1,2 +1,5 @@
 fix-man-mu-conf
 fix-man-man-errors
+fix-index-q-segfault
+fix-mu-find-p-P
+xapian-cleanup-transaction

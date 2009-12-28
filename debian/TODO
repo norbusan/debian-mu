@@ -1,3 +1,5 @@
+* build with --enable-gtk ???
+
 * fix linking with libz etc (dh_shlibs warning):
 dpkg-shlibdeps: warning: dependency on libz.so.1 could be avoided if "debian/mu/usr/bin/mu-msginfo debian/mu/usr/bin/mu-index debian/mu/usr/bin/mu-find" were not uselessly linked against it (they use none of its symbols).
 dpkg-shlibdeps: warning: dependency on libdl.so.2 could be avoided if "debian/mu/usr/bin/mu-msginfo debian/mu/usr/bin/mu-index debian/mu/usr/bin/mu-find" were not uselessly linked against it (they use none of its symbols).

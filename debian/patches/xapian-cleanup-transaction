@@ -1,0 +1,155 @@
+Index: maildir-utils/index/mu-index.c
+===================================================================
+--- maildir-utils.orig/index/mu-index.c	2009-12-27 01:44:11.000000000 +0900
++++ maildir-utils/index/mu-index.c	2009-12-27 01:44:17.000000000 +0900
+@@ -366,6 +366,7 @@
+ 	cb_data._user_data = user_data;
+ #ifdef MU_HAVE_XAPIAN
+ 	cb_data._xapian    = index->_xapian;
++	mu_storage_xapian_transaction_begin(index->_xapian);
+ #endif /*MU_HAVE_XAPIAN*/
+ 		
+ 	cb_data._stats     = stats;
+@@ -373,6 +374,12 @@
+ 		(index->_sqlite,
+ 		 (MuStorageSQLiteCleanupCallback)sqlite_remove_callback,
+ 		 &cb_data);
++#ifdef MU_HAVE_XAPIAN
++	if (result == MU_OK)
++		mu_storage_xapian_transaction_commit(index->_xapian);
++	else
++		mu_storage_xapian_transaction_rollback(index->_xapian);
++#endif /*MU_HAVE_XAPIAN*/
+ 	
+ 	return result;
+ }
+Index: maildir-utils/index/mu-storage-xapian.cc
+===================================================================
+--- maildir-utils.orig/index/mu-storage-xapian.cc	2009-12-27 01:43:05.000000000 +0900
++++ maildir-utils/index/mu-storage-xapian.cc	2009-12-27 01:44:17.000000000 +0900
+@@ -26,10 +26,6 @@
+ #include "msg/mu-msg-gmime.h"
+ #include "mu-storage-xapian.h"
+ 
+-static bool transaction_begin (MuStorageXapian *storage);
+-static bool transaction_commit (MuStorageXapian *storage);
+-static bool transaction_rollback (MuStorageXapian *storage);
+-
+ struct _MuStorageXapian {
+ 	Xapian::WritableDatabase *_db;
+ 
+@@ -97,7 +93,7 @@
+ 
+ 	try { 	
+ 		if (storage->_in_transaction)
+-			transaction_commit (storage);
++			mu_storage_xapian_transaction_commit (storage);
+ 
+ 		delete storage->_db;
+ 		g_free (storage);
+@@ -113,8 +109,8 @@
+ 	}
+ }
+ 
+-static bool
+-transaction_begin (MuStorageXapian *storage)
++int
++mu_storage_xapian_transaction_begin (MuStorageXapian *storage)
+ {
+ 	if (storage->_in_transaction) {
+ 		g_warning ("%s: already in a transaction", __FUNCTION__);
+@@ -141,8 +137,8 @@
+ }
+ 
+ 
+-static bool
+-transaction_commit (MuStorageXapian *storage)
++int
++mu_storage_xapian_transaction_commit (MuStorageXapian *storage)
+ {
+ 	if (!storage->_in_transaction) {
+ 		g_warning ("%s: not in a tranction", __FUNCTION__);
+@@ -169,8 +165,8 @@
+ }
+ 
+ 
+-static bool
+-transaction_rollback (MuStorageXapian *storage)
++int
++mu_storage_xapian_transaction_rollback (MuStorageXapian *storage)
+ {
+ 	if (!storage->_in_transaction) {
+ 		g_warning ("%s: not in a tranction", __FUNCTION__);
+@@ -224,7 +220,8 @@
+ 		Xapian::TermGenerator termgen;
+ 
+ 		/* start transaction if needed */
+-		if (!storage->_in_transaction && !transaction_begin (storage)) {
++		if (!storage->_in_transaction &&
++		    !mu_storage_xapian_transaction_begin (storage)) {
+ 			g_warning ("%s: failed to start transaction", __FUNCTION__);
+ 			return MU_ERROR;
+ 		}
+@@ -253,14 +250,14 @@
+ 		if (id == 0) {
+ 			g_warning ("%s: failed to store document data", 
+ 				   __FUNCTION__);
+-			transaction_rollback (storage);
++			mu_storage_xapian_transaction_rollback (storage);
+ 			return MU_OK;
+ 		}
+ 		g_debug ("%s: stored document with id %u",__FUNCTION__, 
+ 			 (unsigned int)id);
+ 		
+ 		if ((++storage->_processed % storage->_transaction_size) == 0)
+-			if (!transaction_commit (storage)) {
++			if (!mu_storage_xapian_transaction_commit (storage)) {
+ 				g_warning ("%s: commit failed", __FUNCTION__);
+ 				return MU_ERROR;
+ 			}
+@@ -298,14 +295,12 @@
+ 		enq.set_query(q);
+ 		matches = enq.get_mset(0, 1); 
+ 		
+-		transaction_begin (storage);
+ 		for (Xapian::MSet::const_iterator ci = matches.begin();
+ 		     ci != matches.end(); ++ci) {
+ 			Xapian::docid id (ci.get_document().get_docid());
+ 			g_message ("xapian: deleting document %u", (guint)id);
+ 			storage->_db->delete_document(id);
+ 		}		
+-		transaction_commit (storage);
+ 		return MU_OK;
+ 
+ 	} catch (const Xapian::Error &err) {
+@@ -313,16 +308,10 @@
+ 			   __FUNCTION__, err.get_msg().c_str(), 
+ 			   err.get_error_string());
+ 		
+-		if (storage->_in_transaction)
+-			transaction_rollback (storage);
+-
+ 		return MU_ERROR;
+ 	} catch (...) {
+ 		g_warning ("%s: caught exception", __FUNCTION__);
+ 		
+-		if (storage->_in_transaction)
+-			transaction_rollback (storage);
+-
+ 		return MU_ERROR;
+ 	}
+ 
+Index: maildir-utils/index/mu-storage-xapian.h
+===================================================================
+--- maildir-utils.orig/index/mu-storage-xapian.h	2009-12-27 01:43:05.000000000 +0900
++++ maildir-utils/index/mu-storage-xapian.h	2009-12-27 01:44:17.000000000 +0900
+@@ -49,6 +49,9 @@
+ 					     MuMsgGMime *msg);
+ MuResult          mu_storage_xapian_cleanup (MuStorageXapian *storage, 
+ 					     const char* msgpath);
++int               mu_storage_xapian_transaction_begin(MuStorageXapian *storage);
++int               mu_storage_xapian_transaction_commit(MuStorageXapian *storage);
++int               mu_storage_xapian_transaction_rollback(MuStorageXapian *storage);
+ G_END_DECLS
+ 
+ #endif /*__MU_STORAGE_XAPIAN_H__*/

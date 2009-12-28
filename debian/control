@@ -3,14 +3,16 @@ Section: mail
 Priority: optional
 Maintainer: Norbert Preining <preining@debian.org>
 Build-Depends: libsqlite3-dev, libxapian-dev, libgmime-2.0-2-dev, debhelper (>= 7), zlib1g-dev, quilt
-Standards-Version: 3.8.0
+Standards-Version: 3.8.3
 Homepage: http://www.djcbsoftware.nl/code/mu/
+Vcs-Git: git://git.debian.org/git/users/preining/maildir-utils.git
+Vcs-Browser: http://git.debian.org/git/users/preining/maildir-utils.git
 
 Package: maildir-utils
 Section: mail
 Priority: optional
 Architecture: any
-Depends: ${shlibs:Depends}
+Depends: ${shlibs:Depends}, ${misc:Depends}
 Description: Set of utilities to deal with Maildirs (upstream name mu)
  mu is a set of utilities to deal with Maildirs, specifically, 
  indexing and searching. 

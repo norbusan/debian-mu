@@ -1,3 +1,29 @@
+maildir-utils (0.4-4) unstable; urgency=low
+
+  [ Stefano Zacchiroli ]
+  * Add new patch xapian-cleanup-transaction to avoid one Xapian
+    transaction per delete message upon cleanup. (Closes: #535162)
+
+  [ Norbert Preining ]
+  * switch to source format 3.0 (quilt) and back, I enjoy being
+    hindered in normal dev activity by funny proposals and new formats
+  * add ${misc:Depends} to the dependencies
+
+ -- Norbert Preining <preining@debian.org>  Mon, 28 Dec 2009 09:18:47 +0900
+
+maildir-utils (0.4-3) unstable; urgency=low
+
+  * start using git: import 0.4-1, 0.4-2, add Vcs-{Git,Web} in debian/control
+  * fix debian/rules file for new quilt usage method
+  * add a patch by Michael Guntsche to fix mu-index -q segfault
+    (Closes: #542367)
+  * install HOWTO file from website via debian for now (Closes: #553179)
+  * use dh_prep instead of dh_clean -k
+  * pump standards version to 3.8.3
+  * fix mis-behaviour of mu-find --format=p or --format=P (Closes: #537234)
+
+ -- Norbert Preining <preining@debian.org>  Fri, 30 Oct 2009 03:39:18 +0900
+
 maildir-utils (0.4-2) unstable; urgency=low
 
   * fix watch file
