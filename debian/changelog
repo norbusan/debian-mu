@@ -1,3 +1,23 @@
+maildir-utils (0.6~beta1-1) unstable; urgency=low
+
+  * new upstream release 0.6-beta
+    - that merges the several different programs under one binary mu
+    - no sqlite storage is used anymore
+  * debian packaging changes:
+    - debian/patches
+      . remove all patches
+    - remove debian/HOWTO (upstream document) it is completely outdated
+    - debian/control:
+      . adjust build-dep for gmime-2.4
+      . remove build-dep on quilt and sqlite
+      . adjust the description to new reality
+    - debian/rules:
+      . do not try to install doc files that are not present anymore
+      . disable quilt adaptions
+    - add debian/NEWS that explains that the separate programs are gone
+
+ -- Norbert Preining <preining@debian.org>  Tue, 19 Jan 2010 20:12:43 +0900
+
 maildir-utils (0.4-4) unstable; urgency=low
 
   [ Stefano Zacchiroli ]
@@ -9,7 +29,7 @@ maildir-utils (0.4-4) unstable; urgency=low
     hindered in normal dev activity by funny proposals and new formats
   * add ${misc:Depends} to the dependencies
 
- -- Norbert Preining <preining@debian.org>  Mon, 28 Dec 2009 09:18:47 +0900
+ -- Norbert Preining <preining@debian.org>  Sun, 17 Jan 2010 02:58:34 +0900
 
 maildir-utils (0.4-3) unstable; urgency=low
 

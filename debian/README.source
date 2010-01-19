@@ -1,9 +1,0 @@
-The following directories have been removed from the original distribution
-since we don't know anything about licensing and copyright. All of the
-removed directories are real-world emails and are only used for tests.
-
-	index/tests/TestMaildir
-	path/tests/TestMaildir
-	tests/TestMaildir
-	msg/tests/*.msg
-

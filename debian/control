@@ -2,7 +2,7 @@ Source: maildir-utils
 Section: mail
 Priority: optional
 Maintainer: Norbert Preining <preining@debian.org>
-Build-Depends: libsqlite3-dev, libxapian-dev, libgmime-2.0-2-dev, debhelper (>= 7), zlib1g-dev, quilt
+Build-Depends: libxapian-dev, libgmime-2.0-2-dev, debhelper (>= 7), zlib1g-dev, libgmime-2.4-dev
 Standards-Version: 3.8.3
 Homepage: http://www.djcbsoftware.nl/code/mu/
 Vcs-Git: git://git.debian.org/git/users/preining/maildir-utils.git
@@ -16,12 +16,9 @@ Depends: ${shlibs:Depends}, ${misc:Depends}
 Description: Set of utilities to deal with Maildirs (upstream name mu)
  mu is a set of utilities to deal with Maildirs, specifically, 
  indexing and searching. 
-  - mu-index - recursively scans a collection of email messages, and
+  - mu index - recursively scans a collection of email messages, and
  stores information found in a database.
-  - mu-find - searches for messages based on some search criteria.
-  - mu-msginfo - gives information (such as subject, sender, message body) for a
-   certain message file
-  - mu-mkmdir - creates a new Maildir
+  - mu find - searches for messages based on some search criteria.
+  - mu mkmdir - creates a new Maildir
  .
- mu uses libgmime2 to parse the message, and SQLite and Xapian to store the
- message data. 
+ mu uses libgmime2 to parse the message, and Xapian to store the message data. 

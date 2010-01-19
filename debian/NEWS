@@ -1,0 +1,8 @@
+maildir-utils (0.6~beta1-1) unstable; urgency=low
+
+  * From this release onward maildir utils does not ship separate programs,
+    but only one binary mu that allows for different commands.
+    So "mu-index" is not "mu index". Please see that man page of mu
+    for details.
+
+ -- Norbert Preining <preining@debian.org>  Thu, 21 Jan 2010 14:39:49 +0900

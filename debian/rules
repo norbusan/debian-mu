@@ -5,7 +5,7 @@ export DH_OPTIONS
 
 # not needed, but reminding me helps ...
 #export QUILT_PATCHES=./debian/patches
-include /usr/share/quilt/quilt.make
+#include /usr/share/quilt/quilt.make
 
 mu := $(CURDIR)/debian/maildir-utils
 
@@ -19,17 +19,20 @@ endif
 
 build: build-stamp
 
-build-stamp: $(QUILT_STAMPFN)
+#build-stamp: $(QUILT_STAMPFN)
+
+build-stamp:
 	dh_testdir
 	CFLAGS="$(CFLAGS)" ./configure --prefix=/usr
 	$(MAKE)
 	touch $@
 
-clean: unpatch
+# clean: unpatch
+
+clean:
 	dh_testdir
 	dh_testroot
 	[ ! -f Makefile ] || $(MAKE) distclean
-	-rm -f index/mu-storage.sql.h
 	dh_clean install-stamp build-stamp config.log
 
 install: install-stamp
@@ -50,8 +53,10 @@ binary-arch: DH_OPTIONS=-a
 binary-arch: install
 	dh_testdir
 	dh_testroot
-	dh_installdocs README NEWS TODO doc/HACKING doc/OPTIMIZATION \
-	   doc/TESTING debian/HOWTO
+	dh_installdocs README NEWS TODO 
+	# those are gone
+	#   doc/HACKING doc/OPTIMIZATION \
+	#   doc/TESTING debian/HOWTO
 	# ChangeLog is currently empty, don't install it
 	#dh_installchangelogs ChangeLog
 	dh_installchangelogs
