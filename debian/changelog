@@ -1,3 +1,14 @@
+maildir-utils (0.6~beta1-2) unstable; urgency=low
+
+  * add a patch from Michael Guntsche to fix using ~/Maildir by default
+    (Closes: #566183)
+  * debian packaging changes:
+    - debian/patches: add fix-maildir-check patch and series dir
+    - debian/rules: add quilt stuff
+    - debian/control: add quilt to build-dep
+
+ -- Norbert Preining <preining@debian.org>  Fri, 22 Jan 2010 11:52:11 +0900
+
 maildir-utils (0.6~beta1-1) unstable; urgency=low
 
   * new upstream release 0.6-beta
