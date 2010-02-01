@@ -1,3 +1,11 @@
+maildir-utils (0.6-1) unstable; urgency=low
+
+  * new upstream release
+  * debian packaging:
+    - debian/patches: remove fix-maildir-check from queue, included upstream
+
+ -- Norbert Preining <preining@debian.org>  Mon, 01 Feb 2010 10:06:16 +0900
+
 maildir-utils (0.6~beta1-2) unstable; urgency=low
 
   * add a patch from Michael Guntsche to fix using ~/Maildir by default
