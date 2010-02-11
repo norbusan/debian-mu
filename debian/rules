@@ -49,11 +49,7 @@ binary-arch: DH_OPTIONS=-a
 binary-arch: install
 	dh_testdir
 	dh_testroot
-	dh_installdocs README NEWS TODO 
-	# those are gone
-	#   doc/HACKING doc/OPTIMIZATION \
-	#   doc/TESTING debian/HOWTO
-	# ChangeLog is currently empty, don't install it
+	dh_installdocs README NEWS TODO debian/README.source
 	#dh_installchangelogs ChangeLog
 	dh_installchangelogs
 ifeq "$(findstring nostrip,$(DEB_BUILD_OPTIONS))" ""

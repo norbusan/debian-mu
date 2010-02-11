@@ -1,3 +1,12 @@
+maildir-utils (0.6-2) unstable; urgency=low
+
+  * make mu index -q really silent, patch by Michael Guntsche
+    (Closes: #568668)
+  * bump standards version to 3.8.4, no changes necessary
+  * add a README.source file in debian/
+
+ -- Norbert Preining <preining@debian.org>  Thu, 11 Feb 2010 15:54:55 +0900
+
 maildir-utils (0.6-1) unstable; urgency=low
 
   * new upstream release

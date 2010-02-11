@@ -1,0 +1,25 @@
+As the subject says, mu index -q still outputs a newline character. If
+used via cron this yields an empty mail message to the user. 
+
+Debian bug #568668
+
+Fix written by submitter Michael Guntsche
+
+Upstream already fixed
+---
+ src/mu-cmd.c |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+Index: maildir-utils/src/mu-cmd.c
+===================================================================
+--- maildir-utils.orig/src/mu-cmd.c	2010-02-11 15:47:14.000000000 +0900
++++ maildir-utils/src/mu-cmd.c	2010-02-11 15:47:45.000000000 +0900
+@@ -413,7 +413,7 @@
+ 				   NULL, NULL);
+ 		if (!opts->nocleanup) {
+ 			stats._processed = 0; /* start over */
+-			g_print ("\n");
++			opts->quiet ? : g_print ("\n");
+ 			g_message ("Cleaning up missing messages");
+ 			mu_index_cleanup (midx, &stats,
+ 					  opts->quiet ? NULL : index_msg_cb,

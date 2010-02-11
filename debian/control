@@ -3,7 +3,7 @@ Section: mail
 Priority: optional
 Maintainer: Norbert Preining <preining@debian.org>
 Build-Depends: libxapian-dev, libgmime-2.0-2-dev, debhelper (>= 7), zlib1g-dev, libgmime-2.4-dev, quilt
-Standards-Version: 3.8.3
+Standards-Version: 3.8.4
 Homepage: http://www.djcbsoftware.nl/code/mu/
 Vcs-Git: git://git.debian.org/git/users/preining/maildir-utils.git
 Vcs-Browser: http://git.debian.org/git/users/preining/maildir-utils.git
