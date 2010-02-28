@@ -1,3 +1,10 @@
+maildir-utils (0.7-1) unstable; urgency=low
+
+  * Imported Upstream version 0.7
+  * disable upstream included make-index-silent patch
+
+ -- Norbert Preining <preining@debian.org>  Sun, 28 Feb 2010 19:30:03 +0900
+
 maildir-utils (0.6-2) unstable; urgency=low
 
   * make mu index -q really silent, patch by Michael Guntsche
