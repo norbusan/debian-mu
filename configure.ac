@@ -1,4 +1,4 @@
-## Copyright (C) 2008 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+## Copyright (C) 2010 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 ##
 ## This program is free software; you can redistribute it and/or modify
 ## it under the terms of the GNU General Public License as published by
@@ -14,28 +14,25 @@
 ## along with this program; if not, write to the Free Software Foundation,
 ## Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.  
 
-AC_INIT([mu],[0.4],[http://www.djcbsoftware.nl/code/mu])
+AC_INIT([mu],[0.6-beta],[http://www.djcbsoftware.nl/code/mu])
 AC_CONFIG_HEADERS([config.h])
-AC_CONFIG_SRCDIR([app/mu-app.c])
+AC_CONFIG_SRCDIR([src/mu.c])
 AM_INIT_AUTOMAKE([dist-bzip2])
 
-# we set the set the version of the metadata database schema here;
-# it will become part of the db name, so we can automtically 
-# recreate the database when we incompatible changes.
+# we set the set the version of the Xapian database layout here; it
+# will become part of the db name, so we can automtically recreate the
+# database when we incompatible have changes.
 #
-# the Xapian and SQLite database share this number, so when
-# we upgrade, we can simply update all.
+# note that MU_XAPIAN_DB_VERSION does not necessarily follow MU
+# versioning, as we hopefully don't have updates for each version;
+# also, this has nothing to do with the version of the Xapian library
 #
-# note that MU_DATABASE_VERSION does not necessarily follow
-# MU versioning.
-#
-AC_DEFINE(MU_DATABASE_VERSION,["0.4"], [Schema version of the databases])
+AC_DEFINE(MU_XAPIAN_DB_VERSION,["0.6"], [Schema version of the database])
 
 AC_PROG_LIBTOOL
 
-if test x$prefix = xNONE; then
-   prefix=/usr/local
-fi
+AS_IF([test x$prefix = xNONE],[
+   prefix=/usr/local])
 AC_SUBST(prefix)
 
 AC_PROG_CC
@@ -43,122 +40,67 @@ AC_PROG_CXX
 AM_PROG_CC_STDC
 AC_HEADER_STDC
 
-# have pkg-config?
+# require pkg-config
 AC_PATH_PROG([PKG_CONFIG], [pkg-config], [no])
-if test "x$PKG_CONFIG" = "xno"; then
+AS_IF([test "x$PKG_CONFIG" = "xno"],[
    AC_MSG_ERROR([
-   *** The pkg-config script could not be found. Please make sure it is
+   *** The pkg-config script could not be found. Make sure it is
    *** in your path, or set the PKG_CONFIG environment variable
    *** to the full path to pkg-config.])
-fi
+   ])
 
+#
+# currently, we don' support systems without d_type in their struct
+# dirent (Solaris 10); but we do support FSs for which d_type is always
+# DT_UNKNOWN (Like ReiserFS, XFS on Linux)
+#
+# note, we could work around this if there are many people for which
+# this breaks
+AC_STRUCT_DIRENT_D_TYPE
+AS_IF([test "x$ac_cv_member_struct_dirent_d_type" != "xyes"],[
+   AC_MSG_ERROR([
+   *** We need the d_type-member in struct dirent, but unfortunately
+   *** your system does not seem to have it])
+   ])
+# support for d_ino in struct dirent is optional     
+AC_STRUCT_DIRENT_D_INO
 
-# sqlite3?
-PKG_CHECK_MODULES(MU_SQLITE3,sqlite3)
-AC_SUBST(MU_SQLITE3_CFLAGS)
-AC_SUBST(MU_SQLITE3_LIBS)
 
 # glib2?
-PKG_CHECK_MODULES(MU_GLIB2,glib-2.0)
-AC_SUBST(MU_GLIB2_CFLAGS)
-AC_SUBST(MU_GLIB2_LIBS)
-
-# g_test was introduced in glib 2.16
-PKG_CHECK_MODULES(g_test,glib-2.0 >= 2.16,
-		  [have_gtest=yes],[have_gtest=no])
-AM_CONDITIONAL(MU_HAVE_GTEST, test "x$have_gtest" = "xyes")
-if test "x$have_gtest" = "xno"; then
-   AC_MSG_WARN([You need GLIB version >= 2.16 to build the unit tests])
-fi
+PKG_CHECK_MODULES(GLIB,glib-2.0)
+AC_SUBST(GLIB_CFLAGS)
+AC_SUBST(GLIB_LIBS)
 
 # gmime2?	
-PKG_CHECK_MODULES(MU_GMIME2,gmime-2.0)
-AC_SUBST(MU_GMIME2_CFLAGS)
-AC_SUBST(MU_GMIME2_LIBS)
-
-dnl PKG_CHECK_MODULES(dummy,gmime-2.4,[have_gmime24=yes],[have_gmime24=no])
-dnl if test "x$have_gmime24" = "xyes"; then
-dnl    PKG_CHECK_MODULES(MU_GMIME2,gmime-2.4)
-dnl    AC_SUBST(MU_GMIME2_CFLAGS)
-dnl    AC_SUBST(MU_GMIME2_LIBS)
-dnl    AC_DEFINE([MU_HAVE_GMIME24],[1],[whether we have gmime 2.4])
-dnl else
-dnl    PKG_CHECK_MODULES(MU_GMIME2,gmime-2.0)
-dnl    AC_SUBST(MU_GMIME2_CFLAGS)
-dnl    AC_SUBST(MU_GMIME2_LIBS)
-dnl fi
+PKG_CHECK_MODULES(GMIME,gmime-2.4)
+AC_SUBST(GMIME_CFLAGS)
+AC_SUBST(GMIME_LIBS)
 
 # xapian?
 AC_CHECK_PROG(XAPIAN,xapian-config,xapian-config,no)
-AM_CONDITIONAL(MU_HAVE_XAPIAN,test "x$XAPIAN" != "xno")
-if test "x$XAPIAN" = "xno"; then
-   AC_MSG_WARN([cannot find Xapian (xapian-config); body search disabled])
-   have_xapian="no"
-else
-   MU_XAPIAN_CXXFLAGS=`$XAPIAN --cxxflags`
-   MU_XAPIAN_LIBS=`$XAPIAN --libs`		
+AM_CONDITIONAL(HAVE_XAPIAN,test "x$XAPIAN" != "xno")
+AS_IF([test "x$XAPIAN" = "xno"],[
+   AC_MSG_ERROR([
+   *** xapian could not be found; please install it
+   *** e.g., in debian/ubuntu the package would be 'libxapian-dev'])
+],[
+   XAPIAN_CXXFLAGS=`$XAPIAN --cxxflags`
+   XAPIAN_LIBS=`$XAPIAN --libs`		
    have_xapian="yes"
-   AC_DEFINE(MU_HAVE_XAPIAN,[1],[Whether we have Xapian])
-fi
-AC_SUBST(MU_XAPIAN_CXXFLAGS)
-AC_SUBST(MU_XAPIAN_LIBS)
+   AC_DEFINE(HAVE_XAPIAN,[1],[Whether we have Xapian])
+])
+   
+AC_SUBST(XAPIAN_CXXFLAGS)
+AC_SUBST(XAPIAN_LIBS)
 
-
-# build GUI stuff?
-dnl AC_PROG_VALAC([0.3.5])			      
-AC_ARG_ENABLE(gtk,
-              [AC_HELP_STRING([--enable-gtk],[Build GTK-based tools (default=no)])],
-              [with_gtk=yes], [with_gtk=no])
-if test "x$with_gtk" = "xyes"; then	      		      
-   PKG_CHECK_MODULES(MU_GTK,gtk+-2.0 gobject-2.0)
-   AC_SUBST(MU_GTK_LIBS)
-   AC_SUBST(MU_GTK_CFLAGS)
-fi
-AM_CONDITIONAL([MU_BUILD_GTK],[test "x$with_gtk" = "xyes"])
 
 AC_OUTPUT([
 Makefile
-mu/Makefile
-mu/tests/Makefile
-app/Makefile
-app/tests/Makefile
-index/Makefile
-index/tests/Makefile
-msg/Makefile
-msg/tests/Makefile
-find/Makefile
-find/tests/Makefile
+src/Makefile
 man/Makefile
-path/Makefile
-path/tests/Makefile
-gtk/Makefile
-gtk/index/Makefile
-gtk/msgview/Makefile
-gtk/widgets/Makefile
-gtk/widgets/msgview/Makefile
-gtk/widgets/indexrunner/Makefile
-tests/Makefile
-doc/Makefile
 ])
 
 
-dnl---------------------------------
 echo
-echo "configure results for mu"
-echo "========================"
-echo "prefix              : $prefix" 
-echo "unit tests          : $have_gtest"
-echo "xapian              : $have_xapian"
-echo "gtk+                : $with_gtk"
-dnl echo -n "gmime2 api          : "
-dnl if test "x$have_gmime24" = "xyes"; then
-dnl    echo "2.4"
-dnl else
-dnl    echo "2.2"
-dnl fi
-if test "xhave_xapian" = "xno"; then
-   echo "* Note, you'll need to install Xapian to enable search mail contents"
-fi
-echo
-echo "now, type 'make' to build mu, or 'make test' to run the test suite"
-dnl--------------------------------
+echo "mu configuration is complete."
+echo "type 'make' to build it"
