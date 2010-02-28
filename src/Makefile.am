@@ -14,44 +14,76 @@
 ## along with this program; if not, write to the Free Software Foundation,
 ## Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
 
+include $(top_srcdir)/gtest.mk
+
+# enforce compiling this dir first before decending into tests/
+SUBDIRS= .
+
+if HAVE_GTEST
+SUBDIRS += tests
+endif
+
+
 INCLUDES=$(XAPIAN_CXXFLAGS) $(GMIME_CFLAGS) $(GLIB_CFLAGS)
 
-bin_PROGRAMS=			\
+# don't use -Werror, as it might break on other compilers
+# use -Wno-unused-parameters, because some callbacks may not
+# really need all the params they get
+AM_CFLAGS=-Wall -Wextra -Wno-unused-parameter
+AM_CXXFLAGS=-Wall -Wextra -Wno-unused-parameter
+
+bin_PROGRAMS=				\
 	mu
 
-mu_SOURCES=			\
-	mu-cmd.h		\
-	mu-cmd.c		\
-	mu-config.h		\
-	mu-config.c		\
-	mu-index.c		\
-	mu-index.h		\
-	mu-log.c		\
-	mu-log.h		\
-	mu-maildir.c		\
-	mu-maildir.h		\
-	mu-msg-fields.c		\
-	mu-msg-fields.h		\
-	mu-msg-flags.c		\
-	mu-msg-flags.h		\
-	mu-msg-gmime.c		\
-	mu-msg-gmime.h		\
-	mu-msg-str.c		\
-	mu-msg-str.h		\
-	mu-msg-xapian-priv.hh	\
-	mu-msg-xapian.cc	\
-	mu-msg-xapian.h		\
-	mu-msg.h		\
-	mu-query-xapian.cc	\
-	mu-query-xapian.h	\
-	mu-result.h		\
-	mu-store-xapian.cc	\
-	mu-store-xapian.h	\
-	mu-util.h		\
-	mu-util.c		\
-	mu.c
+noinst_LTLIBRARIES=			\
+	libmu.la
 
-mu_LDADD=			\
-	$(XAPIAN_LIBS)		\
-	$(GMIME_LIBS)		\
+# note, mu.cc is only '.cc' and not '.c' because libmu must explicitly
+# be linked as c++, not c.
+mu_SOURCES=				\
+	mu.cc
+
+mu_LDADD=				\
+	libmu.la
+
+libmu_la_SOURCES=			\
+	mu-cmd.c			\
+	mu-cmd.h			\
+	mu-cmd-find.h			\
+	mu-cmd-find.c			\
+	mu-cmd-index.h			\
+	mu-cmd-index.c			\
+	mu-config.c			\
+	mu-config.h			\
+	mu-index.c			\
+	mu-index.h			\
+	mu-log.c			\
+	mu-log.h			\
+	mu-maildir.c			\
+	mu-maildir.h			\
+	mu-msg-fields.c			\
+	mu-msg-fields.h			\
+	mu-msg-flags.c			\
+	mu-msg-flags.h			\
+	mu-msg-gmime.c			\
+	mu-msg-gmime.h			\
+	mu-msg-iter-xapian-priv.hh	\
+	mu-msg-iter-xapian.cc		\
+	mu-msg-iter-xapian.h		\
+	mu-msg-str.c			\
+	mu-msg-str.h			\
+	mu-msg.h			\
+	mu-query-xapian.cc		\
+	mu-query-xapian.h		\
+	mu-result.h			\
+	mu-store-xapian.cc		\
+	mu-store-xapian.h		\
+	mu-util-xapian.cc		\
+	mu-util-xapian.h		\
+	mu-util.c			\
+	mu-util.h
+
+libmu_la_LIBADD=			\
+	$(XAPIAN_LIBS)			\
+	$(GMIME_LIBS)			\
 	$(GLIB_LIBS)

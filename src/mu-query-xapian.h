@@ -21,7 +21,7 @@
 #define __MU_QUERY_XAPIAN_H__
 
 #include <glib.h>
-#include "mu-msg-xapian.h"
+#include "mu-msg-iter-xapian.h"
 
 G_BEGIN_DECLS
 /*
@@ -48,8 +48,17 @@ MuQueryXapian  *mu_query_xapian_new  (const char* path) G_GNUC_WARN_UNUSED_RESUL
  * 
  * @param self a MuQueryXapian instance, or NULL
  */
-void            mu_query_xapian_destroy  (MuQueryXapian *self);
+void mu_query_xapian_destroy  (MuQueryXapian *self);
 
+
+/** 
+ * get a version string for the database
+ * 
+ * @param store a valid MuQueryXapian
+ * 
+ * @return the version string (free with g_free), or NULL in case of error
+ */
+char* mu_query_xapian_version (MuQueryXapian *store) G_GNUC_WARN_UNUSED_RESULT;
 
 /** 
  * run a Xapian query; for the syntax, please refer to the mu-find
@@ -57,28 +66,24 @@ void            mu_query_xapian_destroy  (MuQueryXapian *self);
  * 
  * @param self a valid MuQueryXapian instance
  * @param expr the search expression
+ * @param sortfield the field to sort by
+ * @param ascending if TRUE sort in ascending (A-Z) order, otherwise,
+ * sort in descending (Z-A) order
+ * @param batchsize the size of batches to receive; this is mainly for
+ * reasons - it's best to get the size one wants to show the user at once.
+ * If you pass '0' as the batchsize, mu will use the maximum size (the count
+ * of documents in the database)
  *
- * @return a MuMsgXapian instance you can iterate over, or NULL in
+ * @return a MuMsgIterXapian instance you can iterate over, or NULL in
  * case of error
  */
-MuMsgXapian* mu_query_xapian_run (MuQueryXapian *self, 
-				  const char* expr,
-				  const MuMsgField* sortfield,
-				  gboolean ascending) G_GNUC_WARN_UNUSED_RESULT;
+MuMsgIterXapian* mu_query_xapian_run (MuQueryXapian *self, 
+				      const char* expr,
+				      const MuMsgField* sortfield,
+				      gboolean ascending,
+				      size_t batchsize)
+G_GNUC_WARN_UNUSED_RESULT;
 
-/** 
- * create a xapian query from list of expressions; for the syntax,
- * please refer to the mu-find manpage, or
- * http://xapian.org/docs/queryparser.html
- *
- * @param string array of search expressions
- * @param connect_or if TRUE, combine the expressions with OR, otherwise use AND
- * 
- * @return a string with the combined xapian expression or NULL in
- * case of error; free with g_free when it's no longer needed
- */
-char*  mu_query_xapian_combine  (const gchar **params,
-				 gboolean connect_or) G_GNUC_WARN_UNUSED_RESULT;
 
 /** 
  * get a string representation of the Xapian search query
@@ -90,7 +95,8 @@ char*  mu_query_xapian_combine  (const gchar **params,
  * error; free the returned value with g_free
  */
 char* mu_query_xapian_as_string (MuQueryXapian *self,
-				 const char* searchexpr) G_GNUC_WARN_UNUSED_RESULT;
+				 const char* searchexpr)
+	G_GNUC_WARN_UNUSED_RESULT;
 
 
 G_END_DECLS

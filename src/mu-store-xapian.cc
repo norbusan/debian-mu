@@ -47,13 +47,13 @@ struct _MuStoreXapian {
 MuStoreXapian*
 mu_store_xapian_new  (const char* xpath)
 {
-	MuStoreXapian *store;
+	MuStoreXapian *store (0);
 	
 	g_return_val_if_fail (xpath, NULL);
 	
 	try {
 		store = g_new0(MuStoreXapian,1);
-		store->_db = new Xapian::WritableDatabase
+		store->_db = new Xapian::WritableDatabase 
 			(xpath, Xapian::DB_CREATE_OR_OPEN);
 		
 		/* keep count of processed docs */
@@ -66,12 +66,43 @@ mu_store_xapian_new  (const char* xpath)
 
 	} MU_XAPIAN_CATCH_BLOCK;		
 
-	try {
-		delete store->_db;
-	} MU_XAPIAN_CATCH_BLOCK;
+	try { delete store->_db; } MU_XAPIAN_CATCH_BLOCK;
 	
 	g_free (store);
 	return NULL;
+}
+
+
+
+char*
+mu_store_xapian_version (MuStoreXapian *store)
+{
+	g_return_val_if_fail (store, NULL);
+
+	try {
+		const std::string version (
+			store->_db->get_metadata (MU_XAPIAN_VERSION_KEY));
+		
+		return version.empty() ? NULL : g_strdup (version.c_str());
+		
+	} MU_XAPIAN_CATCH_BLOCK;
+
+	return NULL;
+}
+
+gboolean
+mu_store_xapian_set_version (MuStoreXapian *store, const char* version)
+{
+	g_return_val_if_fail (store, FALSE);
+	g_return_val_if_fail (version, FALSE);
+	
+	try {
+		store->_db->set_metadata (MU_XAPIAN_VERSION_KEY, version);
+		return TRUE;
+		
+	} MU_XAPIAN_CATCH_BLOCK;
+
+	return FALSE;
 }
 
 
@@ -150,14 +181,6 @@ add_terms_values_number (Xapian::Document& doc, MuMsgGMime *msg,
 	doc.add_term  (pfx + numstr);
 }
 
-
-
-
-/* FIXME: note that we store the same data as both a term and a value;
- * we use the term for search and the value for getting the the data
- * from the document; it's better to only use the value; however, this
- * requires some changes in the query processing.
- */
 static void
 add_terms_values_string (Xapian::Document& doc, MuMsgGMime *msg,
 			 const MuMsgField* field)
@@ -171,20 +194,22 @@ add_terms_values_string (Xapian::Document& doc, MuMsgGMime *msg,
 	const std::string value  (str);
 	const std::string prefix (mu_msg_field_xapian_prefix(field));
 	
-	if (mu_msg_field_is_xapian_indexable (field)) {
+	if (mu_msg_field_xapian_index (field)) {
 		Xapian::TermGenerator termgen;
 		termgen.set_document (doc);
 		termgen.index_text_without_positions (str, 1, prefix);
-	} else {
-		/* terms can be up to
-		 * MU_STORE_XAPIAN_MAX_TERM_LENGTH (240) long; this is
-		 * a Xapian limit */
-		doc.add_term (std::string (prefix + value, 0,
-					   MU_STORE_XAPIAN_MAX_TERM_LENGTH));
 	}
-	
-	doc.add_value ((Xapian::valueno)mu_msg_field_id (field),
-		       value);
+
+	if (mu_msg_field_xapian_term(field))
+		/* terms can be up to MU_STORE_XAPIAN_MAX_TERM_LENGTH
+		    * (240) long; this is a Xapian limit
+		    * */
+		doc.add_term (std::string (prefix + value, 0,
+		 			   MU_STORE_XAPIAN_MAX_TERM_LENGTH));
+
+	if (mu_msg_field_xapian_value(field)) 			 
+		doc.add_value ((Xapian::valueno)mu_msg_field_id (field),
+			       value);
 }
 
 static void
@@ -196,8 +221,8 @@ add_terms_values_body (Xapian::Document& doc, MuMsgGMime *msg,
 	if (mu_msg_gmime_get_flags(msg) & MU_MSG_FLAG_ENCRYPTED)
 		return; /* don't store encrypted bodies */
 
-	str = mu_msg_gmime_get_body_text(msg);
-	if (!str) /* FIXME: html->html fallback */
+	str = mu_msg_gmime_get_body_text (msg);
+	if (!str) /* FIXME: html->txt fallback needed */
 		str = mu_msg_gmime_get_body_html (msg);
 	
 	if (!str)  
@@ -219,15 +244,17 @@ add_terms_values (const MuMsgField* field, MsgDoc* msgdoc)
 {
 	MuMsgFieldType type;
 	
-	if (!mu_msg_field_is_xapian_enabled(field))
+	if (!mu_msg_field_xapian_index(field) &&
+	    !mu_msg_field_xapian_term(field) &&
+	    !mu_msg_field_xapian_value(field))
 		return;
-	
+
 	type = mu_msg_field_type (field);
 
 	if (type == MU_MSG_FIELD_TYPE_STRING) {		
 		if (mu_msg_field_id (field) == MU_MSG_FIELD_ID_BODY_TEXT) 
 			add_terms_values_body (*msgdoc->_doc, msgdoc->_msg, 
-					       field);
+ 					       field);
 		else
 			add_terms_values_string (*msgdoc->_doc, msgdoc->_msg,
 						 field);
@@ -277,8 +304,8 @@ mu_store_xapian_store (MuStoreXapian *store, MuMsgGMime *msg)
 		const std::string uid(get_message_uid(msg));
 
 		begin_trx_if (store, !store->_in_transaction);
-		/* we must add a unique term, so we can replace matching
-		 * documents */
+		/* we must add a unique term, so we can replace
+		    * matching documents */
 		newdoc.add_term (uid);
 		mu_msg_field_foreach ((MuMsgFieldForEachFunc)add_terms_values,
 				      &msgdoc);

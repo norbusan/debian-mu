@@ -28,7 +28,9 @@
 
 /** 
  * create a new maildir. Note, if the function fails 'halfway', it
- * will *not* try to remove the parts the were created.
+ * will *not* try to remove the parts the were created. it *will*
+ * create any parent dirs that are not yet existant.
+ * 
  * 
  * @param path the path (missing components will be created, as in 'mkdir -p')
  * @param mode the file mode (e.g., 0755)
@@ -41,8 +43,7 @@ gboolean mu_maildir_mkmdir (const char* path, mode_t mode, gboolean noindex);
 
 
 /** 
- * create a symbolic link to a mail message; the function will
- * automatically
+ * create a symbolic link to a mail message
  * 
  * @param src the full path to the source message
  * @param targetpath the path to the target maildir; ie., *not*
@@ -54,14 +55,16 @@ gboolean mu_maildir_mkmdir (const char* path, mode_t mode, gboolean noindex);
 gboolean mu_maildir_link   (const char* src, const char *targetpath);
 
 /** 
- * MuMaildirWalkMsgCallback -- callback function for mu_path_walk_maildir;
- * see the documentation there. It will be called for each message
- * found, with fullpath contain the full path to the message, a
- * timestamp of the last modification time of this file, and a user_data
- * pointer
+ * MuMaildirWalkMsgCallback -- callback function for
+ * mu_path_walk_maildir; see the documentation there. It will be
+ * called for each message found, with fullpath containing the full
+ * path to the message, mdir containing the maildir -- that is, when
+ * indexing ~/Maildir, a message ~/Maildir/foo/bar/cur/msg would have
+ * the maildir "foo/bar". Then, a timestamp of the last modification
+ * time of this file, and a user_data pointer
  */
 typedef MuResult (*MuMaildirWalkMsgCallback)
-(const char* fullpath, time_t timestamp, void *user_data);
+(const char* fullpath, const char* mdir, time_t timestamp, void *user_data);
 
 /** 
  * MuPathWalkDirCallback -- callback function for mu_path_walk_maildir; see the
@@ -79,7 +82,8 @@ typedef MuResult (*MuMaildirWalkDirCallback)
  * files outside cur/ and new/ dirs and unreadable files; however,
  * dotdirs are visited (ie. '.dotdir/cur'), so this enables Maildir++.
  * (http://www.inter7.com/courierimap/README.maildirquota.html, search
- * for 'Mission statement')
+ * for 'Mission statement'). In addition, dirs containing a file named
+ * '.noindex' are ignored, as are their subdirectories.
  *
  * mu_walk_maildir stops if the callbacks return something different
  * from MU_OK. For example, it can return MU_STOP to stop the scan, or

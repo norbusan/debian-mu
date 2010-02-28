@@ -20,6 +20,9 @@
 #ifndef __MU_INDEX_H__
 #define __MU_INDEX_H__
 
+#include <stdlib.h>
+#include <glib.h>
+
 #include "mu-result.h" /* for MuResult */
 
 /* opaque structure */
@@ -57,6 +60,7 @@ MuIndex* mu_index_new (const char* muhome);
 void mu_index_destroy (MuIndex *index);
 
 
+
 /** 
  * callback function for mu_index_(run|stats|cleanup), for each message
  * 
@@ -86,7 +90,7 @@ typedef MuResult (*MuIndexDirCallback) (const char* path, gboolean enter,
  * start the indexing process 
  * 
  * @param index a valid MuIndex instance
- * @param path the path to index
+ * @param path the path to index. This must be an absolute path
  * @param force if != 0, force re-indexing already index messages; this is
  *         obviously a lot slower than only indexing new/changed messages
  * @param stats a structure with some statistics about the results;
@@ -94,7 +98,7 @@ typedef MuResult (*MuIndexDirCallback) (const char* path, gboolean enter,
  * for cumulative stats from multiple calls. If needed, you can use
  * @mu_index_stats_clear before calling this function
  * @param cb_msg a callback function called for every msg indexed;
- * @param cb_dir a callback function called for every dir entered/left; 
+ * @param cb_dir a callback function called for every dir entered/left or NULL 
  * @param user_data a user pointer that will be passed to the callback function
  * 
  * @return MU_OK if the stats gathering was completed succesfully, 
@@ -112,12 +116,13 @@ MuResult mu_index_run (MuIndex *index, const char* path, gboolean force,
  * mu_index_run sees, when there are updates in the Maildir
  * 
  * @param index a valid MuIndex instance
- * @param path the path to get stats for
-  * @param stats a structure with some statistics about the results;
+ * @param path the path to get stats for; this must be an absolute path
+ * @param stats a structure with some statistics about the results;
  * note that this function does *not* reset the struct values to allow
  * for cumulative stats from multiple calls. If needed, you can use
  * @mu_index_stats_clear before calling this function
- * @param cb a callback function which will be called for every msg; 
+ * @param msg_cb a callback function which will be called for every msg;
+ * @param dir_cb a callback function which will be called for every dir or NULL 
  * @param user_data a user pointer that will be passed to the callback function
  * xb
  * @return MU_OK if the stats gathering was completed succesfully, 
