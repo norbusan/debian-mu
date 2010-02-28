@@ -55,9 +55,6 @@ cmd_from_string (const char* cmd)
 	    (strcmp (cmd, "mkdir") == 0)) 
 		return MU_CMD_MKDIR;
 	
-	/* if (strcmp (cmd, "link") == 0) */
-	/* 	return MU_CMD_LINK; */
-	
 	/* if ((strcmp (cmd, "help") == 0) || */
 	/*     (strcmp (cmd, "info") == 0)) */
 	/* 	return MU_CMD_HELP; */
@@ -172,12 +169,13 @@ print_rows (MuQueryXapian *xapian, const gchar *query, MuConfigOptions *opts)
 			
 			const MuMsgField* field;
 			field =	mu_msg_field_from_shortcut (*fields);
-			if (!field || 
+			if (!field ||
 			    !mu_msg_field_is_xapian_enabled (field)) 
 				printlen += printf ("%c", *fields);
 			else
-				printlen += printf ("%s",
-						    display_field(row, field));
+				printlen +=
+					printf ("%s",
+						display_field(row, field));
 			++fields;
 		}
 		
@@ -415,6 +413,8 @@ cmd_index (MuConfigOptions *opts)
 				   NULL, NULL);
 		if (!opts->nocleanup) {
 			stats._processed = 0; /* start over */
+			g_print ("\n");
+			g_message ("Cleaning up missing messages");
 			mu_index_cleanup (midx, &stats,
 					  opts->quiet ? NULL : index_msg_cb,
 					  NULL);
@@ -424,8 +424,9 @@ cmd_index (MuConfigOptions *opts)
 			index_msg_cb (&stats, NULL);
 			g_print ("\n");
 		}
-
-		MU_WRITE_LOG ("processed: %d; updated/new: %d, cleaned-up: %d",
+		
+		MU_WRITE_LOG ("processed: %d; updated/new: %d, "
+			      "cleaned-up: %d",
 			      stats._processed, stats._updated,
 			      stats._cleaned_up);
 		
@@ -471,15 +472,16 @@ cmd_mkdir (MuConfigOptions *opts)
 		return FALSE;  /* shouldn't happen */
  	
 	if (!opts->params[1]) {
-		g_printerr ("usage: mu mkdir <dir> [more dirs]\n");
+		g_printerr (
+			"usage: mu mkdir [-u,--mode=<mode>] "
+			"<dir> [more dirs]\n");
 		return FALSE;
 	}
 	
 	i = 1;
 	while (opts->params[i]) {
-		MU_WRITE_LOG ("mu_maildir_mkdir (%s, 0755, FALSE)",
-			     opts->params[i]);
-		if (!mu_maildir_mkmdir (opts->params[i], 0755, FALSE))
+		if (!mu_maildir_mkmdir (opts->params[i], opts->dirmode,
+					FALSE))
 			return FALSE;
 		++i;
 	}
@@ -490,20 +492,6 @@ cmd_mkdir (MuConfigOptions *opts)
 
 
 #if 0 /* currently, turned off */
-static gboolean
-cmd_link (MuConfigOptions *opts)
-{
-	if (!opts->params[0])
-		return FALSE;  /* shouldn't happen */
- 	
-	if (!opts->params[1] || !opts->params[2]) {
-		g_printerr ("usage: mu link <src> <targetdir>\n");
-		return FALSE;
-	}
-
-	return mu_maildir_link (opts->params[1], opts->params[2]);
-}
-
 
 static gboolean
 cmd_help (MuConfigOptions *opts)
@@ -560,7 +548,7 @@ show_usage (gboolean noerror)
 {
 	const char* usage=
 		"usage: mu [options] command [parameters]\n"
-		"\twhere command is one of index, find, cleanup, mkdir\n"
+		"\twhere command is one of index, find, mkdir\n"
 		"see mu(1) for more information\n";
 
 	if (noerror)
@@ -606,12 +594,10 @@ mu_cmd_execute (MuConfigOptions *opts)
 
 	case MU_CMD_INDEX:   return cmd_index (opts);
 	case MU_CMD_FIND:    return cmd_find (opts);
-
 	case MU_CMD_MKDIR:   return cmd_mkdir (opts);
 
-		/* case MU_CMD_CLEANUP: return _cmd_cleanup (opts); */
-		/* case MU_CMD_HELP:    return _cmd_help  (opts); */
-		/* case MU_CMD_LINK:    return _cmd_link  (opts); */
+		/* case MU_CMD_CLEANUP: return cmd_cleanup (opts); */
+		/* case MU_CMD_HELP:    return cmd_help  (opts); */
 
 	case MU_CMD_UNKNOWN: return show_usage (FALSE);
 	default:
