@@ -17,13 +17,12 @@
 **
 */
 
-#include <xapian.h>
-#include <string.h>
-#include <stdio.h>
-
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif /*HAVE_CONFIG_H*/
+
+#include <cstdio>
+#include <xapian.h>
 
 #include "mu-msg.h"
 #include "mu-msg-gmime.h"
@@ -32,6 +31,9 @@
 
 /* number of new messages after which we commit to the database */
 #define MU_STORE_XAPIAN_TRX_SIZE 2000
+
+/* http://article.gmane.org/gmane.comp.search.xapian.general/3656 */
+#define MU_STORE_XAPIAN_MAX_TERM_LENGTH 240
 
 struct _MuStoreXapian {
 	Xapian::WritableDatabase *_db;
@@ -74,7 +76,7 @@ mu_store_xapian_new  (const char* xpath)
 
 
 static void
-begin_transaction_if (MuStoreXapian *store, gboolean cond)
+begin_trx_if (MuStoreXapian *store, gboolean cond)
 {
 	if (cond) {
 		g_debug ("beginning Xapian transaction");
@@ -84,7 +86,7 @@ begin_transaction_if (MuStoreXapian *store, gboolean cond)
 }
 
 static void
-commit_transaction_if (MuStoreXapian *store, gboolean cond)
+commit_trx_if (MuStoreXapian *store, gboolean cond)
 {
 	if (cond) {
 		g_debug ("comitting Xapian transaction");
@@ -94,7 +96,7 @@ commit_transaction_if (MuStoreXapian *store, gboolean cond)
 }
 
 static void
-rollback_transaction_if (MuStoreXapian *store, gboolean cond)
+rollback_trx_if (MuStoreXapian *store, gboolean cond)
 {
 	if (cond) {
 		g_debug ("rolling back Xapian transaction");
@@ -128,7 +130,7 @@ mu_store_xapian_flush (MuStoreXapian *store)
 	g_return_if_fail (store);
 	
 	try {
-		commit_transaction_if (store, store->_in_transaction);
+		commit_trx_if (store, store->_in_transaction);
 		store->_db->flush ();
 
 	} MU_XAPIAN_CATCH_BLOCK;
@@ -144,32 +146,44 @@ add_terms_values_number (Xapian::Document& doc, MuMsgGMime *msg,
 	gint64 num = mu_msg_gmime_get_field_numeric (msg, field);
 	const std::string numstr (Xapian::sortable_serialise((double)num));
 	
-	doc.add_value ((Xapian::valueno)mu_msg_field_id(field), numstr);	
+	doc.add_value ((Xapian::valueno)mu_msg_field_id(field), numstr);
 	doc.add_term  (pfx + numstr);
 }
 
 
+
+
+/* FIXME: note that we store the same data as both a term and a value;
+ * we use the term for search and the value for getting the the data
+ * from the document; it's better to only use the value; however, this
+ * requires some changes in the query processing.
+ */
 static void
 add_terms_values_string (Xapian::Document& doc, MuMsgGMime *msg,
 			 const MuMsgField* field)
 {
 	const char* str;
-
+	
 	str = mu_msg_gmime_get_field_string (msg, field);
 	if (!str)
 		return;
-	
-	const std::string value (str);
+
+	const std::string value  (str);
 	const std::string prefix (mu_msg_field_xapian_prefix(field));
 	
 	if (mu_msg_field_is_xapian_indexable (field)) {
 		Xapian::TermGenerator termgen;
 		termgen.set_document (doc);
-		termgen.index_text_without_positions (value, 1, prefix);
-	} else
-		doc.add_term(prefix + value);
+		termgen.index_text_without_positions (str, 1, prefix);
+	} else {
+		/* terms can be up to
+		 * MU_STORE_XAPIAN_MAX_TERM_LENGTH (240) long; this is
+		 * a Xapian limit */
+		doc.add_term (std::string (prefix + value, 0,
+					   MU_STORE_XAPIAN_MAX_TERM_LENGTH));
+	}
 	
-	doc.add_value ((Xapian::valueno)mu_msg_field_id(field),
+	doc.add_value ((Xapian::valueno)mu_msg_field_id (field),
 		       value);
 }
 
@@ -262,7 +276,7 @@ mu_store_xapian_store (MuStoreXapian *store, MuMsgGMime *msg)
 		MsgDoc msgdoc = { &newdoc, msg };
 		const std::string uid(get_message_uid(msg));
 
-		begin_transaction_if (store, !store->_in_transaction);
+		begin_trx_if (store, !store->_in_transaction);
 		/* we must add a unique term, so we can replace matching
 		 * documents */
 		newdoc.add_term (uid);
@@ -272,14 +286,14 @@ mu_store_xapian_store (MuStoreXapian *store, MuMsgGMime *msg)
 		/* we replace all existing documents for this file */
 		id = store->_db->replace_document (uid, newdoc);
 		++store->_processed;
-		commit_transaction_if (store,
-				       store->_processed % store->_trx_size == 0);
+		commit_trx_if (store,
+			       store->_processed % store->_trx_size == 0);
 
 		return MU_OK;
 
 	} MU_XAPIAN_CATCH_BLOCK;
 
-	rollback_transaction_if (store, store->_in_transaction);
+	rollback_trx_if (store, store->_in_transaction);
 
 	return MU_ERROR;
 }
@@ -294,7 +308,7 @@ mu_store_xapian_remove (MuStoreXapian *store, const char* msgpath)
 	try {
 		const std::string uid (get_message_uid (msgpath));
 
-		begin_transaction_if (store, !store->_in_transaction);
+		begin_trx_if (store, !store->_in_transaction);
 		
 		store->_db->delete_document (uid);
 		g_debug ("deleting %s", msgpath);
@@ -303,7 +317,7 @@ mu_store_xapian_remove (MuStoreXapian *store, const char* msgpath)
 
 		/* do we need to commit now? */
 		bool commit_now = store->_processed % store->_trx_size == 0;
-		commit_transaction_if (store, commit_now);
+		commit_trx_if (store, commit_now);
 
 		return MU_OK; 
 		
@@ -370,8 +384,6 @@ mu_store_xapian_foreach (MuStoreXapian *self,
 	
 	try {
 		Xapian::Enquire enq (*self->_db);
-
-		
 		enq.set_query  (Xapian::Query::MatchAll);
 		enq.set_cutoff (0,0);
 		
