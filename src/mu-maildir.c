@@ -37,6 +37,19 @@
 #define MU_MAILDIR_NOINDEX_FILE       ".noindex"
 #define MU_MAILDIR_CACHE_FILE         ".mu.cache"
 
+/* note: this function is *not* re-entrant, it returns a static buffer */
+const char*
+fullpath_s (const char* path, const char* name)
+{
+	static char buf[4096];
+	
+	snprintf (buf, sizeof(buf), "%s%c%s",
+		  path, G_DIR_SEPARATOR,
+		  name ? name : "");
+
+	return buf;
+}
+
 
 static gboolean
 create_maildir (const char *path, int mode)
@@ -54,17 +67,16 @@ create_maildir (const char *path, int mode)
 	
 	for (i = 0; i != G_N_ELEMENTS(subdirs); ++i) {
 
-		gchar *fullpath;
+		const char *fullpath;
 		int rv;
+
+		/* static buffer */
+		fullpath = fullpath_s (path, subdirs[i]);
 		
-		fullpath = g_strdup_printf ("%s%c%s", path,
-					    G_DIR_SEPARATOR,
-					    subdirs[i]);
 		rv = g_mkdir_with_parents (fullpath, mode);
-		g_free (fullpath);
-		
 		if (rv != 0) {
-			g_warning ("%s", strerror (errno));
+			g_warning ("g_mkdir_with_parents failed: %s",
+				   strerror (errno));
 			return FALSE;
 		}
 	}
@@ -77,14 +89,16 @@ create_noindex (const char *path)
 {	
 	/* create a noindex file if requested */
 	int fd;
-	gchar *noindexpath;
-	noindexpath = g_strdup_printf ("%s%c%s", path,
-					       G_DIR_SEPARATOR,
-					       MU_MAILDIR_NOINDEX_FILE);
+	const char *noindexpath;
+
+	/* static buffer */
+	noindexpath = fullpath_s (path, MU_MAILDIR_NOINDEX_FILE);
+
 	fd = creat (noindexpath, 0644);
-	g_free (noindexpath);
+
 	if (fd < 0 || close (fd) != 0) {
-		g_warning ("%s", strerror (errno));
+		g_warning ("error in create_noindex: %s",
+			   strerror (errno));
 		return FALSE;
 	}
 	
@@ -193,20 +207,23 @@ mu_maildir_link (const char* src, const char *targetpath)
 }
 
 
-static MuResult process_dir (const char* path, MuMaildirWalkMsgCallback msg_cb, 
+static MuResult process_dir (const char* path, const gchar *mdir,
+			     MuMaildirWalkMsgCallback msg_cb, 
 			     MuMaildirWalkDirCallback dir_cb, void *data);
 
 static MuResult 
-process_file (const char* fullpath, MuMaildirWalkMsgCallback cb, void *data)
+process_file (const char* fullpath, const gchar* mdir,
+	      MuMaildirWalkMsgCallback msg_cb, void *data)
 {
 	MuResult result;
 	struct stat statbuf;
 	
-	if (!cb)
+	if (!msg_cb)
 		return MU_OK;
 
 	if (G_UNLIKELY(access(fullpath, R_OK) != 0)) {
-		g_warning ("cannot access %s: %s", fullpath, strerror(errno));
+		g_warning ("cannot access %s: %s", fullpath,
+			   strerror(errno));
 		return MU_ERROR;
 	}
 	
@@ -220,19 +237,20 @@ process_file (const char* fullpath, MuMaildirWalkMsgCallback cb, void *data)
 			   MU_MAILDIR_WALK_MAX_FILE_SIZE, fullpath);
 		return MU_OK; /* not an error */
 	}
-
+	
 	/*
 	 * use the ctime, so any status change will be visible (perms,
 	 * filename etc.)
 	 */
-	result = (cb)(fullpath, statbuf.st_ctime, data);
-	if (G_LIKELY(result == MU_OK || result == MU_STOP))
-		return result;
-	else {
+	g_debug ("[%s]", mdir);
+	result = (msg_cb)(fullpath, mdir, statbuf.st_ctime, data);
+	if (result == MU_STOP) 
+		g_debug ("callback said 'MU_STOP' for %s", fullpath);
+	else if (result == MU_ERROR)
 		g_warning ("%s: failed %d in callback (%s)",  
 			   __FUNCTION__, result, fullpath);
-		return result;
-	}
+
+	return result;
 }
 
 
@@ -267,52 +285,66 @@ is_maildir_new_or_cur (const char *path)
 static gboolean
 has_noindex_file (const char *path)
 {
-	char *fname;
+	const char* noindexpath;
 
-	fname = g_newa (char, strlen(path) + 1 +
-			strlen(MU_MAILDIR_NOINDEX_FILE) + 1);
-	g_sprintf (fname, "%s%c%s", path, G_DIR_SEPARATOR,
-		   MU_MAILDIR_NOINDEX_FILE);
+	/* static buffer */
+	noindexpath = fullpath_s (path, MU_MAILDIR_NOINDEX_FILE);
 
-	if (access (fname, F_OK) == 0)
+	if (access (noindexpath, F_OK) == 0)
 		return TRUE;
+	
 	else if (errno != ENOENT)
-		g_warning ("error testing for noindex file: %s",
-			   strerror(errno));
+		g_warning ("error testing for noindex file %s: %s",
+			   noindexpath, strerror(errno));
 
 	return FALSE;
 }
 
-/* if the file system does not support entry->d_type, we add it ourselves
- * this is slower (extra stat) but at least it works
- */
-static gboolean
-set_dtype (const char* path, struct dirent *entry)
+
+/* do readdir, and of file systems that do not support ->_dtype, fill it
+ * using stat -- much slower, but it works.
+ */ 
+static struct dirent*
+readdir_with_stat_fallback (DIR* dir, const char* path)
 {
-	struct stat statbuf;
-	char fullpath[4096];
-	
-	snprintf (fullpath, sizeof(fullpath), "%s%c%s",
-		  path, G_DIR_SEPARATOR, entry->d_name);
+	struct dirent *entry;
 
-	if (stat (fullpath, &statbuf) != 0) {
-		g_warning ("stat failed on %s: %s", fullpath,
-			   strerror(errno));
-		return FALSE;
+	errno = 0;
+	entry = readdir (dir);
+	
+	if (!entry) {
+		if (errno) 
+			g_warning ("readdir failed in %s: %s",
+				   path, strerror (errno));
+		return NULL;
 	}
-
-	/* we only care about dirs, regular files and links */
-	if (S_ISREG (statbuf.st_mode))
-		entry->d_type = DT_REG;
-	else if (S_ISDIR (statbuf.st_mode))
-		entry->d_type = DT_DIR;
-	else if (S_ISLNK (statbuf.st_mode))
-		entry->d_type = DT_LNK;
 	
-	return TRUE;
+	/* XFS, ReiserFS and some other FSs don't support d_type, and
+	 * always set it to NULL; we use (slow) stat instead then */
+	if (G_UNLIKELY(entry->d_type == DT_UNKNOWN)) {
+
+		struct stat statbuf;
+		const char* fullpath;
+
+		/* note, fullpath_s returns a static buffer */
+		fullpath = fullpath_s (path, entry->d_name);
+		if (stat (fullpath, &statbuf) != 0) {
+			g_warning ("stat failed on %s: %s", fullpath,
+				   strerror(errno));
+			return FALSE;
+		}
+
+		/* we only care about dirs, regular files and links */
+		if (S_ISREG (statbuf.st_mode))
+			entry->d_type = DT_REG;
+		else if (S_ISDIR (statbuf.st_mode))
+			entry->d_type = DT_DIR;
+		else if (S_ISLNK (statbuf.st_mode))
+			entry->d_type = DT_LNK;
+	}
+	
+	return entry;
 }
-
-
 
 static gboolean
 ignore_dir_entry (struct dirent *entry)
@@ -347,38 +379,56 @@ ignore_dir_entry (struct dirent *entry)
 	return FALSE;
 }
 
+
+static gchar*
+get_mdir_for_path (const gchar *old_mdir, const gchar *dir)
+{
+	if (dir[0] != 'n' && dir[0] != 'c' &&
+	    strcmp(dir, "cur") != 0 && strcmp(dir, "new") != 0)
+		return g_strconcat (old_mdir ? old_mdir : "",
+				    G_DIR_SEPARATOR_S, dir, NULL);
+	else
+		return strdup (old_mdir ? old_mdir : G_DIR_SEPARATOR_S);
+}
+
+
 static MuResult
-process_dir_entry (const char* path, struct dirent *entry,
+process_dir_entry (const char* path,
+		   const char* mdir,
+		   struct dirent *entry,
 		   MuMaildirWalkMsgCallback cb_msg,
 		   MuMaildirWalkDirCallback cb_dir, 
 		   void *data)
 {
+	const char *fp;
 	char* fullpath;
 	
 	/* ignore special dirs: */
 	if (ignore_dir_entry (entry)) 
 		return MU_OK;
-
-	fullpath = g_newa (char, strlen(path) + strlen(entry->d_name) + 1);
-	sprintf (fullpath, "%s%c%s", path, G_DIR_SEPARATOR,
-		 entry->d_name);
 	
+	/* we have to copy the buffer from fullpath_s, because it
+	 * returns a static buffer */
+	fp = fullpath_s (path, entry->d_name);
+	fullpath = g_newa (char, strlen(fp) + 1);
+	strcpy (fullpath, fp);
+
 	switch (entry->d_type) {
 	case DT_REG:
 		/* we only want files in cur/ and new/ */
 		if (!is_maildir_new_or_cur (path)) 
 			return MU_OK; 
 		
-		return process_file (fullpath, cb_msg, data);
+		return process_file (fullpath, mdir, cb_msg, data);
 		
 	case DT_DIR: {
-		/* if it has a noindex file, we ignore this dir */
-		if (has_noindex_file (fullpath)) {
-			g_debug ("ignoring dir %s", fullpath);
-			return MU_OK;
-		}
-		
-		return process_dir (fullpath, cb_msg, cb_dir, data);
+		char *my_mdir;
+		MuResult rv;
+
+		my_mdir = get_mdir_for_path (mdir, entry->d_name);
+		rv = process_dir (fullpath, my_mdir, cb_msg, cb_dir, data);
+		g_free (my_mdir);
+		return rv;
 	}
 		
 	default:
@@ -410,19 +460,64 @@ dirent_cmp (struct dirent *d1, struct dirent *d2)
 }
 #endif /*HAVE_STRUCT_DIRENT_D_INO*/
 
+
+/* we sort the inodes if the FS's dirent has them. It makes
+ * file-access much faster on some filesystems, such as
+ * ext3,4. readdir_with_stat_fallback is a wrapper for readdir
+ * that falls back to (slow) stats if the FS does not support
+ * entry->d_type
+ */
 static MuResult
-process_dir (const char* path, MuMaildirWalkMsgCallback msg_cb, 
-	     MuMaildirWalkDirCallback dir_cb, void *data)
+process_dir_entries_sorted (DIR *dir, const char* path, const char* mdir,
+			    MuMaildirWalkMsgCallback msg_cb,
+			    MuMaildirWalkDirCallback dir_cb, void *data)
 {
 	MuResult result;
 	GList *lst, *c;
 	struct dirent *entry;
+	
+	lst = NULL;
+	while ((entry = readdir_with_stat_fallback (dir, path)))
+		lst = g_list_prepend (lst, dirent_copy(entry));
+	
+#if HAVE_STRUCT_DIRENT_D_INO		
+	c = lst = g_list_sort (lst, (GCompareFunc)dirent_cmp);
+#endif /*HAVE_STRUCT_DIRENT_D_INO*/	
+
+	for (c = lst, result = MU_OK; c && result == MU_OK; c = c->next) {
+		result = process_dir_entry (path, mdir, (struct dirent*)c->data, 
+					    msg_cb, dir_cb, data);
+		/* hmmm, break on MU_ERROR as well? */
+		if (result == MU_STOP)
+			break;
+	}
+
+	g_list_foreach (lst, (GFunc)dirent_destroy, NULL);
+	g_list_free (lst);
+	
+	return result;
+}
+
+
+static MuResult
+process_dir (const char* path, const char* mdir,
+	     MuMaildirWalkMsgCallback msg_cb, 
+	     MuMaildirWalkDirCallback dir_cb, void *data)
+{
+	MuResult result;
 	DIR* dir;
 	
+	/* if it has a noindex file, we ignore this dir */
+	if (has_noindex_file (path)) {
+		g_debug ("found .noindex: ignoring dir %s", path);
+		return MU_OK;
+	}
+
 	dir = opendir (path);		
 	if (G_UNLIKELY(!dir)) {
-		g_warning ("failed to open %s: %s", path, strerror(errno));
-		return MU_ERROR;
+		g_warning ("%s: ignoring  %s: %s", path,
+			   __FUNCTION__, strerror(errno));
+		return MU_OK;
 	}
 	
 	if (dir_cb) {
@@ -433,27 +528,8 @@ process_dir (const char* path, MuMaildirWalkMsgCallback msg_cb,
 		}
 	}
 	
-	/* we sort the inodes, which makes file-access much faster on 
-	   some filesystems, such as ext3fs */
-	lst = NULL;
-	while ((entry = readdir (dir))) {
-
-		/* handle FSs that don't support entry->d_type */
-		if (entry->d_type == DT_UNKNOWN) 
-			set_dtype (path, entry);
-		
-		lst = g_list_prepend (lst, dirent_copy(entry));
-	}
-#if HAVE_STRUCT_DIRENT_D_INO		
-	c = lst = g_list_sort (lst, (GCompareFunc)dirent_cmp);
-#endif /*HAVE_STRUCT_DIRENT_D_INO*/	
-
-	for (c = lst, result = MU_OK; c && result == MU_OK; c = c->next) 
-		result = process_dir_entry (path, (struct dirent*)c->data, 
-					    msg_cb, dir_cb, data);
-
-	g_list_foreach (lst, (GFunc)dirent_destroy, NULL);
-	g_list_free (lst);
+	result = process_dir_entries_sorted (dir, path, mdir, msg_cb, dir_cb,
+					     data);
 	
 	closedir (dir);
 
@@ -468,34 +544,24 @@ MuResult
 mu_maildir_walk (const char *path, MuMaildirWalkMsgCallback cb_msg, 
 		 MuMaildirWalkDirCallback cb_dir, void *data)
 {
-	struct stat statbuf;
+	MuResult rv;
+	char *mypath;
 	
 	g_return_val_if_fail (path && cb_msg, MU_ERROR);
-		
-	if (stat (path, &statbuf) != 0) {
-		g_warning ("cannot stat %s: %s", path, strerror(errno));
-		return MU_ERROR;
-	}
+	g_return_val_if_fail (mu_util_check_dir(path, TRUE, FALSE), MU_ERROR);	
 	
-	if (S_ISREG(statbuf.st_mode))
-		return process_file (path, cb_msg, data);
+	/* skip the final slash from dirnames */
+	mypath = g_strdup (path);
 	
-	if (S_ISDIR(statbuf.st_mode)) {
-		/* skip the final slash from dirnames */
-		MuResult rv;
-		char *mypath = g_strdup (path);
-		if (mypath[strlen(mypath)-1] == G_DIR_SEPARATOR)
-			mypath[strlen(mypath)-1] = '\0';
-		rv = process_dir (mypath, cb_msg, cb_dir, data);
-		g_free (mypath);
-		
-		return rv;
-	}
-
-	g_warning ("%s: unsupported file type for %s", 
-		   __FUNCTION__, path);
-
-	return MU_ERROR;
+	/* strip the final / or \ */
+	if (mypath[strlen(mypath)-1] == G_DIR_SEPARATOR)
+		mypath[strlen(mypath)-1] = '\0';
+	
+	rv = process_dir (mypath, NULL, cb_msg,
+			  cb_dir, data);
+	g_free (mypath);
+	
+	return rv;
 }
 
 
@@ -506,39 +572,36 @@ clear_links (const gchar* dirname, DIR *dir)
 	gboolean rv;
 	
 	rv = TRUE;
-	while ((entry = readdir (dir)) && rv) {
+	while ((entry = readdir_with_stat_fallback (dir, dirname))) {
 		
-		char fullpath[4096];
-		size_t len;
+		const char *fp;
+		char *fullpath;
 
-		/* ignore dot thingies */
-		if (entry->d_name && entry->d_name[0] == '.')
+		/* ignore empty, dot thingies */
+		if (!entry->d_name || entry->d_name[0] == '.')
 			continue;
-
-		/* handle FSs that don't support entry->d_type */
-		if (entry->d_type == DT_UNKNOWN) 
-			set_dtype (dirname, entry);
 		
 		/* ignore non-links / non-dirs */
 		if (entry->d_type != DT_LNK && entry->d_type != DT_DIR)
 			continue; 
 
-		len = snprintf (fullpath, sizeof(fullpath), "%s%c%s",
-				dirname, G_DIR_SEPARATOR, entry->d_name);
-		if (len == sizeof(fullpath)) {
-			g_warning ("name is too long: %s", fullpath);
-			continue;
-		}
-
+		/* we have to copy the buffer from fullpath_s, because
+		    * it returns a static buffer and we are
+		    * recursive*/
+		fp = fullpath_s (dirname, entry->d_name);
+		fullpath = g_newa (char, strlen(fp) + 1);
+		strcpy (fullpath, fp);
+				
 		if (entry->d_type == DT_LNK) {
 			if (unlink (fullpath) != 0) {
 				g_warning ("error unlinking %s: %s",
 					   fullpath, strerror(errno));
 				rv = FALSE;
 			}
-		} else /* == DT_DIR, see check before*/
+		} else /* DT_DIR, see check before*/
 			rv = mu_maildir_clear_links (fullpath);
 	}
+	
 	return rv;
 }
 

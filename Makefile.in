@@ -33,12 +33,12 @@ PRE_UNINSTALL = :
 POST_UNINSTALL = :
 build_triplet = @build@
 host_triplet = @host@
-subdir = .
 DIST_COMMON = README $(am__configure_deps) $(srcdir)/Makefile.am \
 	$(srcdir)/Makefile.in $(srcdir)/config.h.in \
-	$(top_srcdir)/configure AUTHORS COPYING ChangeLog INSTALL NEWS \
-	TODO config.guess config.sub depcomp install-sh ltmain.sh \
-	missing
+	$(top_srcdir)/configure $(top_srcdir)/gtest.mk AUTHORS COPYING \
+	ChangeLog INSTALL NEWS TODO config.guess config.sub depcomp \
+	install-sh ltmain.sh missing
+subdir = .
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/configure.ac
 am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
@@ -49,6 +49,12 @@ mkinstalldirs = $(install_sh) -d
 CONFIG_HEADER = config.h
 CONFIG_CLEAN_FILES =
 CONFIG_CLEAN_VPATH_FILES =
+AM_V_GEN = $(am__v_GEN_$(V))
+am__v_GEN_ = $(am__v_GEN_$(AM_DEFAULT_VERBOSITY))
+am__v_GEN_0 = @echo "  GEN   " $@;
+AM_V_at = $(am__v_at_$(V))
+am__v_at_ = $(am__v_at_$(AM_DEFAULT_VERBOSITY))
+am__v_at_0 = @
 SOURCES =
 DIST_SOURCES =
 RECURSIVE_TARGETS = all-recursive check-recursive dvi-recursive \
@@ -104,6 +110,7 @@ distuninstallcheck_listfiles = find . -type f -print
 distcleancheck_listfiles = find . -type f -print
 ACLOCAL = @ACLOCAL@
 AMTAR = @AMTAR@
+AM_DEFAULT_VERBOSITY = @AM_DEFAULT_VERBOSITY@
 AR = @AR@
 AUTOCONF = @AUTOCONF@
 AUTOHEADER = @AUTOHEADER@
@@ -164,6 +171,7 @@ PACKAGE_URL = @PACKAGE_URL@
 PACKAGE_VERSION = @PACKAGE_VERSION@
 PATH_SEPARATOR = @PATH_SEPARATOR@
 PKG_CONFIG = @PKG_CONFIG@
+PMCCABE = @PMCCABE@
 RANLIB = @RANLIB@
 SED = @SED@
 SET_MAKE = @SET_MAKE@
@@ -197,6 +205,8 @@ datarootdir = @datarootdir@
 docdir = @docdir@
 dvidir = @dvidir@
 exec_prefix = @exec_prefix@
+g_test_CFLAGS = @g_test_CFLAGS@
+g_test_LIBS = @g_test_LIBS@
 host = @host@
 host_alias = @host_alias@
 host_cpu = @host_cpu@
@@ -226,10 +236,13 @@ target_alias = @target_alias@
 top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
-SUBDIRS = src man
+TEST_PROGS = 
+SUBDIRS = man src
 EXTRA_DIST = \
-	TODO	\
-	HACKING
+	TODO		\
+	HACKING		\
+	gtest.mk	\
+	NEWS
 
 all: config.h
 	$(MAKE) $(AM_MAKEFLAGS) all-recursive
@@ -237,7 +250,7 @@ all: config.h
 .SUFFIXES:
 am--refresh:
 	@:
-$(srcdir)/Makefile.in:  $(srcdir)/Makefile.am  $(am__configure_deps)
+$(srcdir)/Makefile.in:  $(srcdir)/Makefile.am $(top_srcdir)/gtest.mk $(am__configure_deps)
 	@for dep in $?; do \
 	  case '$(am__configure_deps)' in \
 	    *$$dep*) \
@@ -374,7 +387,6 @@ ID: $(HEADERS) $(SOURCES) $(LISP) $(TAGS_FILES)
 	  $(AWK) '{ files[$$0] = 1; nonempty = 1; } \
 	      END { if (nonempty) { for (i in files) print i; }; }'`; \
 	mkid -fID $$unique
-tags: TAGS
 
 TAGS: tags-recursive $(HEADERS) $(SOURCES) config.h.in $(TAGS_DEPENDENCIES) \
 		$(TAGS_FILES) $(LISP)
@@ -725,9 +737,40 @@ uninstall-am:
 	ps ps-am tags tags-recursive uninstall uninstall-am
 
 
-# calculate the cyclomatic-complexity, which should not go over 10
+test: all $(TEST_PROGS)
+	 @test -z "$(TEST_PROGS)" || gtester --verbose $(TEST_PROGS) || exit $$?; \
+	 test -z "$(SUBDIRS)" || \
+		for subdir in $(SUBDIRS); do \
+			test "$$subdir" = "." || \
+		(cd $$subdir && $(MAKE) $(AM_MAKEFLAGS) $@ ) || exit $$? ; \
+		done
+.PHONY: test
+
+# so we can say 'make test'
+check: test cleanupnote
+
+cleanupnote:
+	@echo -e  "\nNote: you can remove the mu-test-<uid> dir in your tempdir"
+	@echo "after 'make check' has finished."
+
+tags:
+	gtags
+
+# this warns about function that have a cyclomatic complexity of > 10,
+# which is a sign that it needs some refactoring. requires the pmccabe
+# tool. If all is fine, it outputs nothing
 cc10:
-	@pmccabe `find . -regex '.*\.\(c\|cc\|h\)$'`  | sort -nr | awk '($$1 > 10)'
+	@$(PMCCABE) `find -name '*.c' -o -name '*.cc'` | sort -nr | awk '($$1 > 10)'
+
+# this warns about functions that are over 33 non-comment lines long, which is a
+# sign that they need some refactoring. requires the pmccabe tool. if
+# all is fine, it outputs nothing
+line33:
+	@$(PMCCABE) -c `find -name '*.c' -o -name '*.cc'` | awk '($$5 > 33)'
+
+# get all todo/fixme messages
+fixme:
+	@grep -i 'FIXME\|TODO' `find src -type f`
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.

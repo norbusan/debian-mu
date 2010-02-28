@@ -31,12 +31,16 @@
 
 
 enum _StringFields {
-	HTML_FIELD  = 0, 
-	TEXT_FIELD,
-	TO_FIELD,
-	CC_FIELD,
-	PATH_FIELD,
-	FLAGS_FIELD_STR,
+
+	HTML_FIELD  = 0,   /* body as HTML */
+	TEXT_FIELD,        /* body as plain text */
+	TO_FIELD,          /* To: */
+	CC_FIELD,	   /* Cc: */
+	
+	PATH_FIELD,        /* full path */
+	MDIR_FIELD,        /* the maildir */
+	
+	FLAGS_FIELD_STR,   /* message flags */
 	
 	FIELD_NUM
 };
@@ -77,7 +81,7 @@ mu_msg_gmime_destroy (MuMsgGMime *msg)
 
 
 static gboolean
-init_file_metadata (MuMsgGMime* msg, const char* path)
+init_file_metadata (MuMsgGMime* msg, const char* path, const gchar* mdir)
 {
 	struct stat statbuf;
 
@@ -103,6 +107,9 @@ init_file_metadata (MuMsgGMime* msg, const char* path)
 	msg->_size                 = statbuf.st_size; 	
 	msg->_fields[PATH_FIELD]   = strdup (path);
 
+	if (mdir) 
+		msg->_fields[MDIR_FIELD]   = strdup (mdir);
+	
 	return TRUE;
 }
 
@@ -148,7 +155,7 @@ init_mime_msg (MuMsgGMime *msg)
 
 
 MuMsgGMime*   
-mu_msg_gmime_new (const char* filepath)
+mu_msg_gmime_new (const char* filepath, const gchar* mdir)
 {
 	MuMsgGMime *msg;
 		
@@ -158,7 +165,7 @@ mu_msg_gmime_new (const char* filepath)
 	if (!msg)
 		return NULL;
 
-	if (!init_file_metadata(msg, filepath)) {
+	if (!init_file_metadata(msg, filepath, mdir)) {
 		mu_msg_gmime_destroy (msg);
 		return NULL;
 	}
@@ -167,7 +174,7 @@ mu_msg_gmime_new (const char* filepath)
 		mu_msg_gmime_destroy (msg);
 		return NULL;
 	}
-		
+
 	return msg;
 }
 
@@ -196,6 +203,17 @@ mu_msg_gmime_get_msgid (MuMsgGMime *msg)
 	
 	return g_mime_message_get_message_id (msg->_mime_msg);
 }
+
+
+const char*
+mu_msg_gmime_get_maildir (MuMsgGMime *msg)
+{
+	g_return_val_if_fail (msg, NULL);
+	
+	return msg->_fields[MDIR_FIELD];
+}
+
+
 
 const char*    
 mu_msg_gmime_get_from (MuMsgGMime *msg)
@@ -251,7 +269,7 @@ mu_msg_gmime_get_date (MuMsgGMime *msg)
 	
 	g_return_val_if_fail (msg, 0);
 
-	/* TODO: is the GMT-offset relevant? */
+	/* TODO: check: is the GMT-offset relevant? */
 	g_mime_message_get_date(msg->_mime_msg, &t, NULL);
 	
 	return t;
@@ -530,21 +548,36 @@ asciify (char *buf)
 
 
 
+static gchar*
+text_to_utf8 (const char* buffer, const char *charset)
+{
+	GError *err;
+	gchar * utf8;
+
+	err = NULL;
+	utf8 = g_convert_with_fallback (buffer, -1, "UTF-8",
+					charset, (gchar*)".", 
+					NULL, NULL, &err);
+	if (!utf8) {
+		MU_WRITE_LOG ("%s: conversion failed from %s: %s",
+			      __FUNCTION__, charset, err ? err ->message : "");
+		if (err)
+			g_error_free (err);
+	}
+	
+	return utf8;
+}
+
+
 /* NOTE: buffer will be *freed* or returned unchanged */
 static char*
 convert_to_utf8 (GMimePart *part, char *buffer)
 {
 	GMimeContentType *ctype;
 	const char* charset;
-	GError *err = NULL;
-
-	g_return_val_if_fail (GMIME_IS_OBJECT(part), NULL);
-	
+		
 	ctype = g_mime_object_get_content_type (GMIME_OBJECT(part));
-	if (!GMIME_IS_CONTENT_TYPE(ctype)) {
-		g_warning ("not a content type!");
-		return NULL;
-	}
+	g_return_val_if_fail (GMIME_IS_CONTENT_TYPE(ctype), NULL);
 	
 	charset = g_mime_content_type_get_parameter (ctype, "charset");
 	if (charset) 
@@ -552,18 +585,8 @@ convert_to_utf8 (GMimePart *part, char *buffer)
 	
 	/* of course, the charset specified may be incorrect... */
 	if (charset) {
-		char * utf8;
-		utf8 = g_convert_with_fallback (buffer, -1, "UTF-8",
-						charset, (gchar*)".", 
-						NULL, NULL,
-						&err);
-		if (!utf8) {
-			MU_WRITE_LOG ("%s: conversion failed from %s: %s",
-				      __FUNCTION__, charset,
-				      err ? err ->message : "");
-			if (err)
-				g_error_free (err);
-		} else {
+		char *utf8 = text_to_utf8 (buffer, charset);
+		if (utf8) {
 			g_free (buffer);
 			return utf8;
 		}
@@ -577,13 +600,35 @@ convert_to_utf8 (GMimePart *part, char *buffer)
 }
 
 
-static char*
+static gchar*
+stream_to_string (GMimeStream *stream, size_t buflen, gboolean convert_utf8)
+{
+	char *buffer;
+	ssize_t bytes;
+	
+	buffer = g_new(char, buflen + 1);
+	g_mime_stream_reset (stream);
+	
+	/* we read everything in one go */
+	bytes = g_mime_stream_read (stream, buffer, buflen);
+	if (bytes < 0) {
+		g_warning ("%s: failed to read from stream", __FUNCTION__);
+		g_free (buffer);
+		return NULL;
+	}
+	
+	buffer[bytes]='\0'; 
+
+	return buffer;
+}
+
+
+static gchar*
 part_to_string (GMimePart *part, gboolean convert_utf8)
 {
 	GMimeDataWrapper *wrapper;
 	GMimeStream *stream = NULL;
-	
-	ssize_t buflen, bytes;
+	ssize_t buflen;
 	char *buffer = NULL;
 
 	g_return_val_if_fail (GMIME_IS_OBJECT(part), NULL);
@@ -601,40 +646,25 @@ part_to_string (GMimePart *part, gboolean convert_utf8)
 	}
 
 	buflen = g_mime_data_wrapper_write_to_stream (wrapper, stream);
-	if (buflen == 0)  /* empty buffer */
+	if (buflen <= 0)  /* empty buffer */
 		goto cleanup;
 	
-	buffer = (char*)malloc(buflen + 1);
-	if (!buffer) {
-		g_warning ("failed to allocate %d bytes", (int)buflen);
-		goto cleanup;
-	}	
-	g_mime_stream_reset (stream);
+	buffer = stream_to_string (stream, (size_t)buflen, convert_utf8);
 	
-	/* we read everything in one go */
-	bytes = g_mime_stream_read (stream, buffer, buflen);
-	if (bytes < 0) {
-		free (buffer);
-		buffer = NULL;
-	} else
-		buffer[bytes]='\0';
-
 	/* convert_to_utf8 will free the old 'buffer' if needed */
-	if (buffer && convert_utf8) 
+	if (convert_utf8) 
 		buffer = convert_to_utf8 (part, buffer);
 	
 cleanup:				
 	if (stream)
 		g_object_unref (G_OBJECT(stream));
-	/* if (wrapper) */
-	/* 	g_object_unref (G_OBJECT(wrapper)); */
 	
 	return buffer;
 }
 
 
 static char*
-mu_msg_gmime_get_body (MuMsgGMime *msg, gboolean want_html)
+get_body (MuMsgGMime *msg, gboolean want_html)
 {
 	GetBodyData data;
 
@@ -665,8 +695,7 @@ mu_msg_gmime_get_body_html (MuMsgGMime *msg)
 	if (msg->_fields[HTML_FIELD])
 		return msg->_fields[HTML_FIELD];
 	else
-		return msg->_fields[HTML_FIELD] =
-			mu_msg_gmime_get_body (msg, TRUE);
+		return msg->_fields[HTML_FIELD] = get_body (msg, TRUE);
 }
 
 
@@ -678,8 +707,7 @@ mu_msg_gmime_get_body_text (MuMsgGMime *msg)
 	if (msg->_fields[TEXT_FIELD])
 		return msg->_fields[TEXT_FIELD];
 	else
-		return msg->_fields[TEXT_FIELD] =
-			mu_msg_gmime_get_body (msg, FALSE);
+		return msg->_fields[TEXT_FIELD] = get_body (msg, FALSE);
 }
 
 
@@ -701,6 +729,7 @@ mu_msg_gmime_get_field_string (MuMsgGMime *msg, const MuMsgField* field)
 	case MU_MSG_FIELD_ID_SUBJECT:    return mu_msg_gmime_get_subject (msg);
 	case MU_MSG_FIELD_ID_TO:         return mu_msg_gmime_get_to (msg);
 	case MU_MSG_FIELD_ID_MSGID:      return mu_msg_gmime_get_msgid (msg);
+	case MU_MSG_FIELD_ID_MAILDIR:    return mu_msg_gmime_get_maildir (msg);
 	default:
 		g_return_val_if_reached (NULL);
 	}
@@ -838,8 +867,6 @@ mu_msg_gmime_get_contacts_foreach (MuMsgGMime *msg, MuMsgGMimeContactsCallback c
 
 	return rv;
 }
-
-
 
 
 static gboolean _initialized = FALSE;

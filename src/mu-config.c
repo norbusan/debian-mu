@@ -38,7 +38,7 @@ config_options_group_mu (MuConfigOptions *opts)
 		{"version", 'v', 0, G_OPTION_ARG_NONE, &opts->version,
 		 "display version and copyright information", NULL},
 		{"muhome", 'a', 0, G_OPTION_ARG_FILENAME, &opts->muhome,
-		 "specify an alternative mu directory ", NULL},
+		 "specify an alternative mu directory", NULL},
 		{"log-stderr", 'e', 0, G_OPTION_ARG_NONE, &opts->log_stderr,
 		 "log to standard error", NULL},
 		{ G_OPTION_REMAINING, 0, 0, G_OPTION_ARG_STRING_ARRAY,
@@ -65,7 +65,11 @@ config_options_group_index (MuConfigOptions *opts)
 		 "top of the maildir", NULL},
 		{"reindex", 'r', 0, G_OPTION_ARG_NONE, &opts->reindex,
 		 "index already indexed messages too", NULL},
-		{"nocleanup", 'u', 0, G_OPTION_ARG_NONE, &opts->nocleanup,
+		{"rebuild", 'y', 0, G_OPTION_ARG_NONE, &opts->rebuild,
+		 "rebuild the database from scratch", NULL},
+		{"autoupgrade", 'u', 0, G_OPTION_ARG_NONE, &opts->autoupgrade,
+		 "automatically upgrade the database with new mu versions", NULL},
+		{"nocleanup", 'n', 0, G_OPTION_ARG_NONE, &opts->nocleanup,
 		 "don't clean up the database after indexing", NULL},
 		{ NULL, 0, 0, 0, NULL, NULL, NULL }
 	};
@@ -177,14 +181,15 @@ mu_config_init (MuConfigOptions *opts, int *argcp, char ***argvp)
 {
 	gchar *old;
 
-	g_return_if_fail (opts);	
+	g_return_val_if_fail (opts, FALSE);	
 	memset (opts, 0, sizeof(MuConfigOptions));
 
 	/* set dirmode before, because '0000' is a valid mode */
 	opts->dirmode = 0755;
 
-	if (!parse_params (opts, argcp, argvp))
-		return FALSE;
+	if (argcp && argvp)
+		if (!parse_params (opts, argcp, argvp))
+			return FALSE;
 	
 	if (!opts->muhome)
 		opts->muhome = guess_muhome ();

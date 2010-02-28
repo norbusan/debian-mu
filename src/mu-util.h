@@ -32,15 +32,15 @@ G_BEGIN_DECLS
  * @return the expanded path as a newly allocated string, or NULL in
  * case of error
  */
-char*       mu_util_dir_expand (const char* path);
+char*       mu_util_dir_expand (const char* path) G_GNUC_WARN_UNUSED_RESULT;
 
 /** 
- * guess the maildir; first try MAILDIR, then try ~/Maildir
- * if both fail, return NULL
+ * guess the maildir; first try $MAILDIR; if it is unset or
+ * non-existant, try ~/Maildir if both fail, return NULL
  * 
  * @return full path of the guessed Maildir, or NULL; must be freed (gfree)
  */
-char*       mu_util_guess_maildir (void);
+char*       mu_util_guess_maildir (void) G_GNUC_WARN_UNUSED_RESULT;
 
 
 
@@ -53,22 +53,32 @@ char*       mu_util_guess_maildir (void);
  * @return TRUE if a read/writeable directory `path' exists after
  * leaving this function, FALSE otherwise
  */
-gboolean mu_util_create_dir_maybe (const gchar *path);
+gboolean mu_util_create_dir_maybe (const gchar *path) G_GNUC_WARN_UNUSED_RESULT;
 
 
 /** 
- * check whether path is readable and/or writeable
+ * check whether path is a directory, and optionally, if it's readable
+ * and/or writeable
  *  
  * @param path dir path
  * @param readable check for readability
- * @param writeable check fro writability
+ * @param writeable check for writability
  * 
  * @return TRUE if dir exist and has the specified properties
  */
 gboolean mu_util_check_dir (const gchar* path, gboolean readable,
-			    gboolean writeable);
+			    gboolean writeable) G_GNUC_WARN_UNUSED_RESULT;
 
 
+/** 
+ * convert a string array in to a string, with the elements separated
+ * by ' '
+ * 
+ * @param params a non-NULL, NULL-terminated string array
+ * 
+ * @return a newly allocated string
+ */
+gchar* mu_util_str_from_strv (const gchar **params) G_GNUC_WARN_UNUSED_RESULT;
 
 /** 
  * 
@@ -95,7 +105,8 @@ gboolean mu_util_check_dir (const gchar* path, gboolean readable,
         }
 
 /* the name of the (leaf) dir which has the xapian database */
-#define MU_XAPIAN_DIR_NAME "xapian-" MU_XAPIAN_DB_VERSION
+#define MU_XAPIAN_DIR_NAME    "xapian"
+#define MU_XAPIAN_VERSION_KEY "db_version"
 
 /** 
  * log something in the log file; note, we use G_LOG_LEVEL_INFO

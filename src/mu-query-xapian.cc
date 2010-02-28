@@ -25,10 +25,11 @@
 
 #include "mu-query-xapian.h"
 
-#include "mu-msg-xapian.h"
-#include "mu-msg-xapian-priv.hh"
+#include "mu-msg-iter-xapian.h"
+#include "mu-msg-iter-xapian-priv.hh"
 
 #include "mu-util.h"
+#include "mu-util-xapian.h"
 
 
 static void add_prefix (const MuMsgField* field,
@@ -51,7 +52,7 @@ init_mu_query_xapian (MuQueryXapian *mqx, const char* dbpath)
 		mqx->_qparser = new Xapian::QueryParser;
 		
 		mqx->_qparser->set_database(*mqx->_db);
-		mqx->_qparser->set_default_op(Xapian::Query::OP_OR);
+		mqx->_qparser->set_default_op(Xapian::Query::OP_AND);
 		mqx->_qparser->set_stemming_strategy
 			(Xapian::QueryParser::STEM_SOME);
 
@@ -93,14 +94,13 @@ get_query  (MuQueryXapian * mqx, const char* searchexpr, int *err = 0)  {
 			(searchexpr,
 			 Xapian::QueryParser::FLAG_BOOLEAN          | 
 			 Xapian::QueryParser::FLAG_PHRASE           |
-			 //	 Xapian::QueryParser::FLAG_LOVEHATE         |
-			 //      Xapian::QueryParser::FLAG_BOOLEAN_ANY_CASE |
+			 Xapian::QueryParser::FLAG_BOOLEAN_ANY_CASE |
 			 Xapian::QueryParser::FLAG_WILDCARD         |
 			 Xapian::QueryParser::FLAG_PURE_NOT         |
 			 Xapian::QueryParser::FLAG_PARTIAL);
 
 	} MU_XAPIAN_CATCH_BLOCK;
-
+	
 	if (err)
 		*err  = 1;
 	
@@ -110,16 +110,17 @@ get_query  (MuQueryXapian * mqx, const char* searchexpr, int *err = 0)  {
 static void
 add_prefix (const MuMsgField* field, Xapian::QueryParser* qparser)
 {
-	if (!mu_msg_field_is_xapian_enabled(field)) 
+	if (!mu_msg_field_xapian_index(field) &&
+	    !mu_msg_field_xapian_term(field))
 		return;
 
 	const std::string prefix (mu_msg_field_xapian_prefix(field));
 	
-	qparser->add_boolean_prefix(std::string(mu_msg_field_name(field)),
-				   prefix);
-	qparser->add_boolean_prefix(std::string(mu_msg_field_shortcut(field)),
-				    prefix);
-
+	qparser->add_boolean_prefix
+		(std::string(mu_msg_field_name(field)), prefix);
+	qparser->add_boolean_prefix
+		(std::string(mu_msg_field_shortcut(field)), prefix);
+	
 	/* make the empty string match this field too*/
 	qparser->add_prefix ("", prefix);
 }
@@ -132,15 +133,25 @@ mu_query_xapian_new (const char* xpath)
 	g_return_val_if_fail (xpath, NULL);
 
 	if (!mu_util_check_dir (xpath, TRUE, FALSE)) {
-		g_warning ("'%s' is not a readable xapian dir",
-			   xpath);
+		g_warning ("'%s' is not a readable xapian dir", xpath);
 		return NULL;
 	}
 
+	if (mu_util_xapian_db_is_empty (xpath)) {
+		g_warning ("database %s is empty; nothing to do", xpath);
+		return NULL;
+	}
+	
+	if (!mu_util_xapian_db_version_up_to_date (xpath)) {
+		g_warning ("%s is not up-to-date, needs a full update",
+			   xpath);
+		return NULL;
+	}
+	
 	mqx = g_new (MuQueryXapian, 1);
 
 	if (!init_mu_query_xapian (mqx, xpath)) {
-		g_warning ("failed to initalize xapian query");
+		g_warning ("failed to initialize the Xapian query");
 		g_free (mqx);
 		return NULL;
 	}
@@ -156,30 +167,42 @@ mu_query_xapian_destroy (MuQueryXapian *self)
 		return;
 
 	uninit_mu_query_xapian (self);
+
 	g_free (self);
 }
 
 
-MuMsgXapian*
+MuMsgIterXapian*
 mu_query_xapian_run (MuQueryXapian *self, const char* searchexpr,
-		     const MuMsgField* sortfield, gboolean ascending)  
+		     const MuMsgField* sortfield, gboolean ascending,
+		     size_t batchsize)  
 {
 	g_return_val_if_fail (self, NULL);
-	g_return_val_if_fail (searchexpr, NULL);
-		
+	g_return_val_if_fail (searchexpr, NULL);	
+	
 	try {
-		Xapian::Query q(get_query(self, searchexpr));
+		int err (0);
+
+		Xapian::Query q(get_query(self, searchexpr, &err));
+		if (err) {
+			g_warning ("Error in query '%s'", searchexpr);
+			return NULL;
+		}
+				
 		Xapian::Enquire enq (*self->_db);
+
+		if (batchsize == 0)
+			batchsize = self->_db->get_doccount();
 		
 		if (sortfield) 
 			enq.set_sort_by_value (
 				(Xapian::valueno)mu_msg_field_id(sortfield),
 				ascending);
 
-		enq.set_query  (q);
-		enq.set_cutoff (0,0);
+		enq.set_query(q);
+		enq.set_cutoff(0,0);
 
-		return mu_msg_xapian_new (enq, 10000);
+		return mu_msg_iter_xapian_new (enq, batchsize);
 		
 	} MU_XAPIAN_CATCH_BLOCK_RETURN(NULL);
 }
@@ -191,61 +214,17 @@ mu_query_xapian_as_string  (MuQueryXapian *self, const char* searchexpr)
 	g_return_val_if_fail (searchexpr, NULL);
 		
 	try {
-		Xapian::Query q(get_query(self, searchexpr));
+		int err (0);
+		
+		Xapian::Query q(get_query(self, searchexpr, &err));
+		if (err)  {
+			g_warning ("Error in query '%s'", searchexpr);
+			return NULL;
+		}
+
 		return g_strdup(q.get_description().c_str());
 		
 	} MU_XAPIAN_CATCH_BLOCK_RETURN(NULL);
-}
-
-
-static gboolean
-needs_quotes (const char* str)
-{
-	int i;
-	const char *keywords[] = {
-		"ANO", "OR", "NOT", "NEAR", "ADJ"
-	};
-
-	for (i = 0; i != G_N_ELEMENTS(keywords); ++i)
-		if (g_strcasecmp (str, keywords[i]) == 0)
-			return TRUE;
-
-	return FALSE;
-}
-
-
-char*
-mu_query_xapian_combine (const gchar **params, gboolean connect_or)
-{
-	GString *str;
-	int i;
-	
-	g_return_val_if_fail (params && params[0], NULL);
-	
-	str = g_string_sized_new (64); /* just a guess */
-	
-	for (i = 0; params && params[i]; ++i) { 
-
-		const char* elm;
-		const char* cnx = "";
-		gboolean do_quote;
-
-		elm = (const gchar*)params[i];
-		if (!elm) /* shouldn't happen */
-			break;  
-		
-		if (params[i + 1])
-			cnx = connect_or ? " OR " : " AND ";
-		
-		do_quote = needs_quotes (elm);
-		g_string_append_printf (str, "%s%s%s%s",
-					do_quote ? "\"" : "",
-					elm,
-					do_quote ? "\"" : "",
-					cnx);	
-	}
-
-	return g_string_free (str, FALSE);
 }
 
 

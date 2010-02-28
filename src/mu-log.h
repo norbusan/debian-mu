@@ -24,17 +24,23 @@
 
 /* mu log is the global logging system */
 
+G_BEGIN_DECLS
+
+#define MU_MAX_LOG_FILE_SIZE 1000 * 1000 /* 1 MB (SI units) */
+
 /** 
  * write logging information to a log file
  * 
  * @param muhome the mu home directory
- * @param append append to logfile, instead of overwriting
+ * @param backup if TRUE and size of log file > MU_MAX_LOG_FILE_SIZE, move
+ * the log file to <log file>.old and start a new one. The .old file will overwrite
+ * existing files of that name
  * @param quiet don't log non-errors to stdout/stderr
  * @param debug include debug-level information.
  * 
  * @return TRUE if initialization succeeds, FALSE otherwise
  */
-gboolean mu_log_init  (const char* muhome, gboolean append,
+gboolean mu_log_init  (const char* muhome, gboolean backup,
 		       gboolean quiet, gboolean debug);
 
 /** 
@@ -63,5 +69,7 @@ gboolean mu_log_init_silence    (void);
  * unitialize the logging system, and free all resources
  */
 void mu_log_uninit             (void);
+
+G_END_DECLS
 
 #endif /*__MU_LOG_H__*/
