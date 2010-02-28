@@ -1,0 +1,16 @@
+-*-mode:org-*-
++STARTUP: showall
++STARTUP: hidestars
+
+* Design & implementation:
+  - Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+
+* GMime (http://spruce.sourceforge.net/gmime/):
+  - Jefrey Stedfast
+
+* Xapian (http://xapian.org/)
+ 
+* GLib (http://library.gnome.org/devel/glib/)
+
+* SQLite (http://sqlite.org/)
+  - D. Richard Hipp and others

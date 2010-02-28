@@ -1,0 +1,2 @@
+[test1]
+expr = s:foo t:bar

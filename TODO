@@ -1,0 +1,25 @@
+
+-*-mode:org-*-
++STARTUP: showall
++STARTUP: hidestars
+
+* 0.1 release:
+*** done (2008-08-29)
+
+* 0.2 release
+*** done (2008-09-10)
+
+* 0.3
+*** done (2008-09-25)
+
+* 0.4
+*** done (2008-11-01)
+
+* 0.5
+** more gtk widgets
+** support gmime 2.4
+** cleanup find/main
+** cleanup contacts_foreach
+** cleanup tmpview stuff
+** don't require absolute paths
+** don't use sqlite anymore (?)

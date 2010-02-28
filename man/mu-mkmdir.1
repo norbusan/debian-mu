@@ -1,0 +1,40 @@
+.TH MU-MKMDIR 1 "September 2008" "User Manuals"
+.SH NAME 
+mu-mkmdir \- create a new maildir
+
+.SH SYNOPSIS
+.B mu-mkmdir [options] [maildir]
+
+.SH DESCRIPTION
+.B mu-mkmdir
+creates a new maildir, ie. a new directory with subdirectories new, tmp and cur.
+
+.SH OPTIONS
+.B --mode=, -m
+.I <mode>
+set the filemode as in
+.BR chmod(1).
+
+Also, common options, such as 
+.B --version
+exists. See 
+.BR mu(5)
+for details. However, most of the common options have no effect for
+.B mu-mkmdir.
+
+.B NOTE:
+Making a maildir is not atomic; if
+.B mu-mkmdir
+exits abnormally, a partial maildir may be created. For safety reasons,
+.B mu-mkdir
+does not try to remove anything.
+
+.SH BUGS
+Please report bugs when you find them:
+.BR http://code.google.com/p/mu0/issues/list
+
+.SH AUTHOR
+Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+
+.SH "SEE ALSO"
+.BR mu(5)

@@ -1,0 +1,31 @@
+-*-mode:org-*-
++STARTUP: showall
++STARTUP: hidestars
+
+* coding style
+** functions are <= 50 lines
+** lines are <= 80 characters
+** files are <= 1000 lines
+** if (bar) {
+   <tab8  >foo();
+   }
+** non-public functions are static 
+** non-static function commented in doxygen style
+** public functions check their args with g_return(val_)_if_fail
+** functions returning char* must be freed by caller
+** otherwise const char* is to be used
+** function comments go to the header file
+** declarations at the beginning of the block
+** don't initialize vars unless needed (so -Wall can warn us)
+** code is -Wall -Werror clean on recent gcc
+** don't depend on C99
+** /* comments */, not // comments
+
+
+* valgrind
+alias gvalgrind="G_SLICE=always-malloc valgrind"
+
+* profiling
+between runs, to level the playing field somewhat:
+	sync && echo 3 > /proc/sys/vm/drop_caches
+(Linux 2.6.16+)

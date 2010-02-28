@@ -1,0 +1,62 @@
+.TH MU-MSGINFO 1 "September 2008" "User Manuals"
+.SH NAME 
+mu-msginfo \- get information about individual message files
+
+.SH SYNOPSIS
+.B mu-msginfo [options]
+.I msg-files
+
+.SH DESCRIPTION
+.B mu-msginfo
+reads one or more e-mail message files, and displays information about them. 
+.B mu-msginfo
+is 
+.B not 
+dependent on messages in the message database created by
+.B mu-index
+but simply deals with message files.
+
+.SH OPTIONS
+.B --subject=, -s
+get the message subject
+
+.B --from|-f
+get the message sender
+
+.B --to|-t
+get the message recipient (To:)
+
+.B --cc|-c
+get the carbon-copied recipient (Cc:)
+
+.B --date|-d
+get the message date
+
+.B --body|-b
+get the message body. The plain-text body is preferred, if that cannot be
+found, 
+.B mu-msginfo
+looks for the html body.
+
+.B --user-agent|-u
+get the user-agent, ie. the mail client use to write the message.
+
+.B --message-id|-i
+get the message-id for this message
+
+.B --priority|-p
+get the priority of this message; either 'low', 'normal' or 'high'
+
+If no options are provided,
+.B mu-msginfo
+defaults to
+.B --body
+
+If there is no result for a certain option, no error will be raised.
+
+.SH BUGS
+Please report bugs when you find them:
+.BR http://code.google.com/p/mu0/issues/list
+
+.SH AUTHOR
+Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>

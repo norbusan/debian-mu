@@ -1,0 +1,475 @@
+.TH MU-FIND 1 "September 2008" "User Manuals"
+.SH NAME 
+mu-find \- find messages based on search criteria
+
+.SH SYNOPSIS
+.B mu-find 
+[
+.B options
+] <
+.I search patterns
+>
+
+.SH DESCRIPTION
+.B mu-find
+searches the databases of message information for messages matching specific 
+patterns. The database is created and kept up-to-date with
+.B mu-index(1) 
+
+.SH OPTIONS
+(NB: see the  
+.B CONFIGURATION
+section as well for using the configuration file)
+
+.SS General options
+.B --home=,-h 
+.I <dir>
+set the
+.B mu 
+home directory; default is 
+.I ~/.mu
+This directory is where the message database
+is stored, as well as configuration files and logs.
+
+.B --log-stderr, -s
+write logging information to standard error instead of to 
+.I <mu-home-directory>/mu-find.log 
+, which is the default.
+
+.B --log-append, -a
+append to the log file instead of overwriting it for every run, which is the
+default.
+
+.B --debug, -d 
+add a lot of logging for debugging purposes
+
+.SS Output options
+Output options determine how
+.B mu-find
+will display its results. Each of the options can be selected by their full
+name (
+.I text,
+.I sql,
+.I links
+or
+.I aggregate
+), or by a one-letter shortcut (t,s,l,a, respectively); in other words, '-o s' would be
+a shorthand for '--output=sql', while '-o a' gets you some aggregate data
+(statistics) about the matched messages.
+
+.S
+.B --output=text
+gives a textual display of the messages found; you can use the
+.B --format
+option to influence the way this is done.
+
+.B --output=links
+generates a maildir with symbolic links to the messages founds. These can then
+be easily read with a maildir capable mail client, such as 
+.B mutt(1).
+NB: The 
+.B MUTT-INTEGRATION
+section of this manpage has some convenience macros for mutt integration. 
+
+By default, the maildir that is created is
+.B mu-found-<n>
+, where n is the lowest two-digit hexademical number [00..ff] for which there
+does not already exist a directory. Alternatively, you can use the
+.B --linkdir=<dir>
+option to generate the maildir with a specific name/path. The maildir should
+not exist yet.
+
+.B --output=sql
+instead of searching for any messages, show the SQL query corresponding with
+the search criteria (search criteria are discussed later in this
+manpage). This can be useful for testing. For example,
+.nf
+$ mu-find --output=sql s:foo f:bar
+.fi
+would give us:
+
+.nf
+SELECT   m.recipients, m.cc, m.sender, m.subject, m.msg_id, 
+         NULL AS dummy2, m.flags, m.mdate, m.msize, m.mpath, 
+         m.priority, m.tstamp, m.id
+FROM     message m
+WHERE    m.subject LIKE '%foo%'
+AND      m.sender LIKE '%bar%'
+ORDER BY m.mdate DESC;
+.fi
+
+.B --output=aggregate
+show some aggregate information (statistics) about the matching messages, such
+as the top-5 oldest, newest, biggest messages in the set, and the most
+frequent sender, recipients. this is only marginally useful, as most of the
+results give us just the database IDs of the messages/contact found; however,
+these IDS's can be used to for further processing.
+
+Also, included is the number of messages that match, and the average
+size. Example output:
+
+.nf
+$ mu-find --output=aggregate test
+query statistics
+================
+number of messages              : 90
+newest messages (msgids)        : 1392 509 501 498 490 
+oldest messages (msgids)        : 346 49 51 52 109 
+biggest messages (msgids)       : 842 1120 1053 683 346 
+avg message size (bytes)        : 199834
+most popular senders (cids)     : 548 456 56 644 181 
+most popular recipients (cids)  : 463 554 2 667 668 
+.fi
+
+.IP
+.SS Other options
+.B --linkdir=, l 
+.I <linkdir>
+set the maildir where  
+.B mu-find
+should put the symlinks to any matched messages. Note, this directory must
+.B not
+exist yet.
+.PP
+.B --format=, -t 
+.I <format>
+sets the way textual output is formatted. The format is a string consisting of
+letters corresponding to message fields. Any character not known is
+displayed as-is. For example,
+.B --text-format="d,f|s"
+would display the date of message, a ','character, the sender (From:) of the
+message, a pipe-character and finally the subject of the message:
+.nf
+	1972-14-12 12:23,Someone|a star is born
+	2008-08-13 17:30,foo@bar.cx|get rich quick
+	...
+.fi
+The fields corresponding to certain letters are the same as the ones in search
+expressions (scroll down for the list).
+.PP
+Note: database fields are not escaped with respect to format characters such
+as ',', so be careful when using this generate comma-separated files and the
+like. Also be careful to use alphabet letters are separators, as future
+versions of 
+.B mu-find
+might add more fields.
+.PP
+If you do not specify any format, the default of
+.B d,f,s
+is chosen, or, show the 'date', 'from' and 'subject' fields, separated by
+commas.
+
+Non-printable characters are displayed as '.'.
+
+.B --sortfields, -S
+.I <sortfields>
+
+and
+
+.B --sortdir, -D
+.I a[scending]|d[escending]
+
+set the way the found messages are sorted. The
+.B sortfields
+parameter sets the fields to sort by, one letter per field (s=subject,
+d=date and so on, see the section on search expressions to get the full list).
+
+.B sortdir
+determines whether we sort ascending or descending. 
+
+Example (note: search expressions like 's:hello' are discussed in the next section):
+
+.nf
+ $ mu-find --sortfields=fz --sortdir=a s:hello
+.fi
+
+would sort messages ascending, with a subject containing 'hello' by sender,
+then by size.
+
+The default is to sort descending by date. However,if any sortfield is
+explicitly specified, the default sort order is ascending.
+
+.SH SEARCH EXPRESSIONS
+Search expressions are short descriptions that describe the messages to
+find. Search expresssions consist of a character that specifies some
+property, followed by a ':' and some value to match. The following fields are
+recognized:
+
+.nf
+s: subject
+f: from (sender)
+t: to (recipient)
+c: cc: (carbon-copy recipient)
+m: message id
+p: message priority
+P: path to the message
+d: date
+z: size
+F: flags
+.nf
+
+And two special types:
+.nf
+x: xapian search
+B: bookmarks
+.fi
+
+Option
+.B x:
+for 'xapian search' searches the 
+.B contents
+of messages, while the other options search for a certain property
+('metadata') of the message. Xapian searching is discussed after the other
+options. 
+
+Option
+.B B:
+refers to bookmarks. You can define 'bookmarks' (shortcuts) for search
+expression. Bookmarks are discussed later in this document.
+
+.SH Words 
+Now, let's discuss search expressions where a certain message property
+contains a 
+.I word. 
+We have following word or textual types:
+
+.nf
+s: subject
+f: from (sender)
+t: to (recipient)
+c: Cc: (carbon-copy recipient)
+m: message id
+p: message priority
+P: path to the message
+.fi
+
+.SH ""
+
+For example, the search expression:
+.B s:rain
+matches all messages which have 'rain' in their subject (s:) (including training,
+brain, terrain etc.)
+
+.B f:
+matches all messages sent by (From:), as well as all messages by. Search
+expressions can be combined - we can say
+.B f:bob 's:new york'
+to get all message from Bob about New York (search expressions with spaces
+need quotes).
+
+Sometimes, we might want to match messages that 
+.B don't
+contain as certain word
+in some property. To get all mails that do
+.B not
+contain 'banana' in their subject we can use the
+.B ^
+prefix:
+.B s:^banana
+
+And sometimes we might want to match a word
+.B exactly
+ie, we don't want a property to contain the search string, but we want it to
+be exactly equal. For that we can use the '=':
+.B s:=hello
+to match exactly that string (e.g., it won't match 'Hello World'). 
+
+Please note that '=' and '^' only work for textual fields, and '^' only for
+textual fields and flags. 
+
+.SH Numbers and intervals
+Certain properties of messages are better expressed as numbers or intervals
+than as words, such as the message size or the message date:
+
+.nf
+d: date
+z: size
+.fi
+
+.SH Message size
+First, let's look at the message size (the on-disk file size of the
+message). We could search for a message of size 500K with:
+.B z:500k
+('k' for kilobyte and 'M' megabyte are supported). In many cases, an interval
+  is probably more useful, so we can write:
+.B z:250k-750k
+to get messages between 250k and 750k, and 
+.B z:1M-
+or
+.B z:-2M
+to get messages that are either bigger than 1M and messages that are smaller
+than 2M, respectively.
+
+.SH Message date
+
+Another useful interval type is the message date. Dates can be specified in
+many different ways, and may have different meanings based on your locale. The
+recommended format therefore is YYYYMMDD, although other formats may work as
+well - provided the dates do not contain '-'-characters.
+
+To get all mails in January 2005, we
+can write:
+.B d:20050101-20050131
+and we can use the same interval notation as for the message size and write
+.B d:20080801-
+to get all mails received since August 2008, and
+.B d:-20033112
+to get all mails from 2003 and before.
+
+Single dates (such as
+.B d:20080202
+) are interpreted as an interval from the beginning of that day until the end
+of the day.
+
+.B mu-find
+also recognizes a number followed by 'd', 'w', 'f', 'm', 'y' to mean some
+number of resp. days, weeks, fortnights, months or years ago since the
+present. Thus,
+.B d:3d- 
+matches all messages from the last three days, while
+.B d:2y-1m
+matches all messages that are between 2 years and one month old.
+
+Note that months are assumed to be 30 days, and years 365 days.
+
+.SH Message priority
+The message priority is one of 'L' (low), 'N' (normal) or 'H' (high). To match
+all messages that are have either normal or high importance, the expression
+would be:
+.B p:NH
+and match only messages of low importance:
+.B p:L
+
+Note, messages that do not explicitly specify their importance are assumed to
+be of normal priority.
+		
+.SH Flags
+The last type of search expression are
+.I message flags. 
+Message either describe some property of the email file (file flags), or about
+the contents (content flags).
+
+You can search message by the following file flags:
+new ('N'), replied ('R'), flagged ('F'), passed ('P'), seen ('S'), or
+combinations thereof. For example, to get all new messages:
+.B F:N
+or the get all flagged message you replied to:
+.B F:RF
+New ('N') messages don't have any other flags, the other flags can be combined.
+
+Then, there are content flags: has-attachment ('a'), signed ('s') and
+encrypted ('x'). For example, you could search for all signed messages with an
+attachment with:
+.B F:as
+
+You can also search for the absence of a flag, by prefixing the flag with '^'
+character. So for example, to get all encrypted messages 
+.B without
+attachments, you can use:
+.B F:x^a
+
+.SH Xapian
+.B mu
+uses the Xapian indexing library to search message contents. For the end-user,
+the use of Xapian is mostly a technical detail, except for the fact that
+Xapian searches follow the Xapian syntax:
+.BR http://xapian.org/docs/queryparser.html
+
+The syntax is very similar to what WWW search engines offer. For example, to
+get all the messages about either apples or bananas, the search expression
+would be:
+
+.B x:apples OR bananas
+(and note that on the command-line you would need to quote that as:
+.B mu-find 'x:apples OR bananas'
+)
+
+That would get all messages with either
+.I apples
+or
+.I bananas
+in the content -- that is, the message body, the subject field and the sender
+and recipient fields. More complex queries are possible, say,
+.B x:apple NEAR pear OR NOT (orange XOR coconut)
+
+Xapian searches can be combined with other search options, so to get all message
+from Alice (alice@example.com) regarding unicorns, use:
+.B f:alice@example.com x:unicorns
+
+.B NOTE:
+only up to 1000 documents are returned, and if you combine Xapian search with
+other search options, the result will be a subset of that. In other words, if
+you search query contains an 'x:' option, the max number of results is 1000.
+
+.SH BOOKMARKS
+You can also define 'bookmarks' for often-used search expressions. In a file
+called
+.I bookmarks
+in your Mu home directory, you can specify them:
+.nf
+[important]
+expr=p:H t:me@example.com f:boss@example.com
+
+[recentdrink]
+expr=d:1w- x:'wine OR beer OR whisky OR gin OR vodka'			
+.fi
+
+You can then write search queries with the 
+.B B:
+prefix, e.g.
+.B mu-find -B:important d:1m-
+
+You can combine bookmarks with other search expressions; however, bookmarks
+cannot contain other bookmark expressions. This might change in the future.
+
+.SH CONFIGURATION
+Instead of specifying the options on the command line, you can also specify
+them in the
+.B mu-conf
+configuration file, in the mu-home directory (by default,
+.B ~/.mu
+). The
+.B General options
+go in the section
+.B [mu]
+while the
+.B mu-find
+specific options go under
+.B [mu-find].
+For example, your configuration file could look something like this:
+
+.nf
+[mu]
+debug=false
+
+[mu-info]
+format=f,d
+.fi
+
+Note that command line arguments take precedence over the configuration file.
+
+.SH MUTT INTEGRATION
+.B mu-find
+can be integrated with the
+.B mutt(1)
+email client using some macros:
+
+.nf
+macro index <F8> "<shell-escape>rm -rf ~/.mumatch; mu-find -o l -l ~/.mumatch " "mu-find"
+macro index <F9> "<change-folder-readonly>~/.mumatch\\n" "display mu-find results"
+.fi
+
+Now, <F8> will perform a search, and <F9> will change to the folder with the
+results.
+
+.SH BUGS
+Please report bugs when you find them:
+.BR http://code.google.com/p/mu0/issues/list
+
+.SH AUTHOR
+Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+
+.SH "SEE ALSO"
+.BR mu-index (1),
+.BR sqlite3 (1),
+.BR mutt (1)

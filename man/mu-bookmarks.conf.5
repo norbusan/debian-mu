@@ -1,0 +1,65 @@
+."-*-mode:nroff-*-"
+.TH MU-BOOKMARKS.CONF 5 "September 2008" "User Manuals"
+.SH NAME 
+mu-bookmarks.conf \- file with search query bookmarks for the 
+.B mu
+collection of Maildir utilities.
+
+.SH DESCRIPTION
+.B mu-bookmarks.conf
+is a text file in the mu-home directory which contains bookmarks for search
+query for
+.B mu-find
+
+Please refer to the
+.BR mu-find(1)
+manpage for discussion on how to use the bookmarks in search queries; here we
+discuss the format of the bookmark configuration file.
+
+The bookmark file contains one or more bookmarks, each with the following structure:
+
+.B [
+.I <bookmark-name>
+.B ] 
+
+.B expr=
+.I expression
+
+The bookmark name is some alphanumeric string, and the expression is a search
+expression, as specified in
+.BR mu-find(1).
+
+You can use the bookmark as a shorthand for any search expression except for
+search expressions that contain bookmarks themselves.
+
+Some examples:
+
+.nf
+	[important]
+	expr= f:boss@example.com t:me@example.com
+
+	[fruit]
+	expr= x:'apple OR banana OR orange OR pineapple'
+
+	[linuxpatchday]
+	expr= M:linux-kernel.vger.kernel.org d:1d- s:[PATCH]
+.fi
+
+
+.SH FILES
+.B mu-bookmarks.conf
+can be found in the 
+.B .mu/
+directory, by default in
+.B
+$HOME/.mu
+.
+
+.SH AUTHOR
+Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+
+.SH "SEE ALSO"
+.BR mu-find (1),
+.BR mu(7)
+.BR http://www.djcbsoftware.nl/code/mu
+

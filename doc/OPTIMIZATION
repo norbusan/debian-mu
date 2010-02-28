@@ -1,0 +1,71 @@
+-*-mode:org-*-
++STARTUP: showall
++STARTUP: hidestars
+
+* done
+** implemented in 0.2:
+   - make sqlite transactions bigger (see --tune-transaction-size in mu-index(1))
+   - set some sqlite PRAGMAs (see --tune-synchronous and --tune-temp-store 
+     in mu-index(1)
+
+*** for a 10000 message corpus, indexing time went down to 92 seconds, almost
+    three times as fast as with 0.1
+  
+* ideas (mu-index)
+
+*** timestamp check
+    before walking, we can search the newest message (highest timestamp) in
+    the db, and use that info to quickly decide whether we need to check that
+    message against the db; in most cases, if the timestamp is < higest
+    timestamp, we can ignore the message. We would need '--thorough' mode
+    though, for the case where you imported older messages in your maildir.
+
+** walking:
+*** use readahead(2) on linux. 
+    could help quite a bit (try doing a run, rm db and running again; almost
+    2x faster). But note that readahead will only make a difference when we
+    use it while waiting for something else.
+
+    Also, readahead must be use intelligently; we don't want to
+    readahead 50000 messages if there is only a single new one. However, we
+    only know if something is a new one after db queries etc., after which
+    readahead will probably not help much anymore...
+
+    one heuristic would be to use the timestamp check above.
+
+    However, one usecase where it may be bad is where there are a lot of
+    changed messages -- say the initial import of 50K messages. Again, we
+    don't want to readahead all of them.
+
+    One other question -- how much per message do we need to read ahead? 5k?
+    Depends on whether gmime needs to whole file I guess. Check.
+
+*** sort inodes
+    apparently, inodes are returned in a rather suboptimal fashion from
+    readdir(), while the disk layout (on Linux, at least for ext3) favours
+    getting files in order of inode. So it might make sense to sort files by
+    inode, before actually loading them.
+
+    We can do one more walk (or combine with the counting walk), do a stat on
+    the files, and determine if they need updates (based on mtime). If they
+    need update, add them to some data structure that (a) allows us to get the
+    numbers in order, and (b) has an inode->filename mapping.
+
+    Learnt this trick from some Maildir optimzations done in mutt in 2003 by
+    Florian Weimer. 
+
+I suspects these two are the low-hanging fruit. detailed profiling might find
+other bottlenecks. Starting point will be a corpus of, say 1000 message. Test
+with 1000 new, 100/1000 new, 10/1000 new and compare 'for/after'. Also compare
+with mairix; but that's mostly interesting after we've implemented body search.
+
+
+remember: between runs, to level the playing field:
+	sync && echo 3 > /proc/sys/vm/drop_caches
+(Linux 2.6.16+)
+ 
+
+** sqlite : http://web.utk.edu/~jplyon/sqlite/SQLite_optimization_FAQ.html
+ 
+
+
