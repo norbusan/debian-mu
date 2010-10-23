@@ -130,7 +130,7 @@ static const MuMsgField FIELD_DATA[] = {
 		MU_MSG_FIELD_ID_MSGID,
 		MU_MSG_FIELD_TYPE_STRING,
 		"msgid", "i", "I",  /* 'i' for Id */
-		FLAG_GMIME | FLAG_XAPIAN_TERM
+		FLAG_GMIME | FLAG_XAPIAN_TERM | FLAG_XAPIAN_VALUE
 	},
 	
 	{ 
