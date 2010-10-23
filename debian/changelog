@@ -1,10 +1,10 @@
-maildir-utils (0.7-2~1) unstable; urgency=low
+maildir-utils (0.7-2) unstable; urgency=low
 
   * fix broken search of msgids, patch by Benjamin Mako Hill
     (closes: #601072)
   * bump standards version to 3.9.1, no changes necessary
 
- -- Norbert Preining <preining@debian.org>  Sat, 23 Oct 2010 17:02:52 +0900
+ -- Norbert Preining <preining@debian.org>  Sat, 23 Oct 2010 17:18:25 +0900
 
 maildir-utils (0.7-1) unstable; urgency=low
 
