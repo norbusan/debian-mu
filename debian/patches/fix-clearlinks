@@ -1,0 +1,24 @@
+Fix for bug 578806
+Upstream issue 28: http://code.google.com/p/mu0/issues/detail?id=28
+patch by Antonin Kral
+from the original issue:
+I have problem with --clearlinks which doesn't seem to do anything. The symlinks in the result directory was never removed. I have found the same issue reported in Debian: http://bugs.debian.org/cgi-bin/bugreport.cgi?bug=578806
+
+I believe that the problem is in readdir_with_stat_fallback() function which was constantly returning DT_REG and not DT_LNK. You are using stat() call, which will follow the symlink, so the resolut will never be DT_LNK. The fix is simply to call lstat() instead:
+---
+ src/mu-maildir.c |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+Index: maildir-utils.git/src/mu-maildir.c
+===================================================================
+--- maildir-utils.git.orig/src/mu-maildir.c	2010-11-02 00:06:04.000000000 +0900
++++ maildir-utils.git/src/mu-maildir.c	2010-11-02 00:06:21.000000000 +0900
+@@ -328,7 +328,7 @@
+ 
+ 		/* note, fullpath_s returns a static buffer */
+ 		fullpath = fullpath_s (path, entry->d_name);
+-		if (stat (fullpath, &statbuf) != 0) {
++		if (lstat (fullpath, &statbuf) != 0) {
+ 			g_warning ("stat failed on %s: %s", fullpath,
+ 				   strerror(errno));
+ 			return FALSE;

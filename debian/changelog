@@ -1,10 +1,12 @@
 maildir-utils (0.7-2) unstable; urgency=low
 
   * fix broken search of msgids, patch by Benjamin Mako Hill
-    (closes: #601072)
+    (closes: #601072) (included upstream)
+  * fix clearing of symlinks, patch by Antonin Kral (upstream issue 28)
+    (closes: #578806)
   * bump standards version to 3.9.1, no changes necessary
 
- -- Norbert Preining <preining@debian.org>  Sat, 23 Oct 2010 17:18:25 +0900
+ -- Norbert Preining <preining@debian.org>  Tue, 02 Nov 2010 00:08:03 +0900
 
 maildir-utils (0.7-1) unstable; urgency=low
 
