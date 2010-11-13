@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2010 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+** Copyright (C) 2008-2010 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 **
 ** This program is free software; you can redistribute it and/or modify
 ** it under the terms of the GNU General Public License as published by
@@ -24,7 +24,15 @@
 
 G_BEGIN_DECLS
 
-/** 
+/**
+ * do system-specific initialization. should be called before anything
+ * else. Initializes the locale and Gtype
+ * 
+ * @return TRUE if is succeeds, FALSE otherwise
+ */
+gboolean mu_util_init_system (void);
+
+/**
  * get the expanded path; ie. perform shell expansion on the path
  *
  * @param path path to expand
@@ -34,7 +42,7 @@ G_BEGIN_DECLS
  */
 char*       mu_util_dir_expand (const char* path) G_GNUC_WARN_UNUSED_RESULT;
 
-/** 
+/**
  * guess the maildir; first try $MAILDIR; if it is unset or
  * non-existant, try ~/Maildir if both fail, return NULL
  * 
@@ -44,7 +52,7 @@ char*       mu_util_guess_maildir (void) G_GNUC_WARN_UNUSED_RESULT;
 
 
 
-/** 
+/**
  * if path exists, check that's a read/writeable dir; otherwise try to
  * create it (with perms 0700)
  * 
@@ -56,7 +64,7 @@ char*       mu_util_guess_maildir (void) G_GNUC_WARN_UNUSED_RESULT;
 gboolean mu_util_create_dir_maybe (const gchar *path) G_GNUC_WARN_UNUSED_RESULT;
 
 
-/** 
+/**
  * check whether path is a directory, and optionally, if it's readable
  * and/or writeable
  *  
@@ -70,7 +78,23 @@ gboolean mu_util_check_dir (const gchar* path, gboolean readable,
 			    gboolean writeable) G_GNUC_WARN_UNUSED_RESULT;
 
 
-/** 
+
+/**
+ * create a writeable file and return its file descriptor (which
+ * you'll need to close(2) when done with it.)
+ * 
+ * @param filename the filename
+ * @param dir the target directory, or NULL for the current
+ * @param overwrite should we allow for overwriting existing files?
+ * 
+ * @return a file descriptor, or -1 in case of error. If it's a fily
+ * system error, 'errno' may have more info.
+ */
+int mu_util_create_writeable_fd (const char* filename, const char* dir,
+				 gboolean overwrite);
+
+
+/**
  * convert a string array in to a string, with the elements separated
  * by ' '
  * 
@@ -80,11 +104,12 @@ gboolean mu_util_check_dir (const gchar* path, gboolean readable,
  */
 gchar* mu_util_str_from_strv (const gchar **params) G_GNUC_WARN_UNUSED_RESULT;
 
-/** 
+/**
  * 
  * don't repeat these catch blocks everywhere...
  * 
  */
+
 #define MU_XAPIAN_CATCH_BLOCK						\
 	catch (const Xapian::Error &err) {				\
                 g_critical ("%s: caught xapian exception '%s'",		\
@@ -108,7 +133,7 @@ gchar* mu_util_str_from_strv (const gchar **params) G_GNUC_WARN_UNUSED_RESULT;
 #define MU_XAPIAN_DIR_NAME    "xapian"
 #define MU_XAPIAN_VERSION_KEY "db_version"
 
-/** 
+/**
  * log something in the log file; note, we use G_LOG_LEVEL_INFO
  * for such messages
  */

@@ -1,4 +1,4 @@
-## Copyright (C) 2010 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+## Copyright (C) 2008-2010 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 ##
 ## This program is free software; you can redistribute it and/or modify
 ## it under the terms of the GNU General Public License as published by
@@ -14,7 +14,7 @@
 ## along with this program; if not, write to the Free Software Foundation,
 ## Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.  
 
-AC_INIT([mu],[0.7],[http://www.djcbsoftware.nl/code/mu])
+AC_INIT([mu],[0.8],[http://www.djcbsoftware.nl/code/mu])
 AC_CONFIG_HEADERS([config.h])
 AC_CONFIG_SRCDIR([src/mu.cc])
 AM_INIT_AUTOMAKE([dist-bzip2])
@@ -28,9 +28,8 @@ AM_SILENT_RULES([yes])
 #
 # note that MU_XAPIAN_DB_VERSION does not necessarily follow MU
 # versioning, as we hopefully don't have updates for each version;
-# also, this has nothing to do with the version of the Xapian library
-#
-AC_DEFINE(MU_XAPIAN_DB_VERSION,["7.0"], [Schema version of the database])
+# also, this has nothing to do with Xapian's software version
+AC_DEFINE(MU_XAPIAN_DB_VERSION,["8.0"], [Schema version of the database])
 
 LT_INIT # don't use AC_PROG_LIBTOOL anymore
 
@@ -61,7 +60,6 @@ AS_IF([test "x$PMCCABE" = "xno"],[
 ])
 
 
-
 #
 # currently, we don' support systems without d_type in their struct
 # dirent (Solaris 10); but we do support FSs for which d_type is always
@@ -78,26 +76,45 @@ AS_IF([test "x$ac_cv_member_struct_dirent_d_type" != "xyes"],[
 # support for d_ino in struct dirent is optional     
 AC_STRUCT_DIRENT_D_INO
 
+# we need these
+AC_CHECK_FUNCS([memset realpath setlocale strerror])
 
 # glib2?
-PKG_CHECK_MODULES(GLIB, glib-2.0 gio-2.0)
+PKG_CHECK_MODULES(GLIB, glib-2.0)
 AC_SUBST(GLIB_CFLAGS)
 AC_SUBST(GLIB_LIBS)
 
+# gio has only been added to recent glib
+dnl PKG_CHECK_MODULES(GIO,gio-2.0,[have_gio=yes],[have_gio=no])
+dnl AM_CONDITIONAL(HAVE_GIO, [test "x$have_gio" = "xyes"])
+dnl AS_IF([test "x$have_gio" = "xno"],[
+dnl    AC_MSG_WARN([GIO not supported])
+dnl ],[
+dnl    AC_DEFINE(HAVE_GIO,[1],[Wether we have GIO])
+dnl ])
+
 # g_test was introduced in glib 2.16
-PKG_CHECK_MODULES(g_test,glib-2.0 >= 2.16,
-		  [have_gtest=yes],[have_gtest=no])
+PKG_CHECK_MODULES(g_test,glib-2.0 >= 2.16, [have_gtest=yes],[have_gtest=no])
 AM_CONDITIONAL(HAVE_GTEST, test "x$have_gtest" = "xyes")
-if test "x$have_gtest" = "xno"; then
-   AC_MSG_WARN([You need GLIB version >= 2.16 to build the tests])
-fi
+AM_CONDITIONAL(HAVE_GLIB216, test "x$have_gtest" = "xyes")
+AS_IF([test "x$have_gtest" = "xno"],[
+     AC_MSG_WARN([You need GLIB version >= 2.16 to build the tests])
+])
 
 
-# gmime2?	
-PKG_CHECK_MODULES(GMIME,gmime-2.4)
+# gmime2.4?	
+PKG_CHECK_MODULES(GMIME,gmime-2.4,[have_gmime=yes],[have_gmime=no])
 AC_SUBST(GMIME_CFLAGS)
 AC_SUBST(GMIME_LIBS)
-
+AS_IF([test "x$have_gmime" = "xno"],[
+   AC_MSG_ERROR([
+   *** gmime-2.4 could not be found; please install it
+   *** e.g., in debian/ubuntu the package would be 'libgmime-2.4-dev'
+   *** If you compiled it yourself, you should ensure that the pkgconfig
+   *** installation dir (e.g., /usr/local/lib/pkgconfig) is in your
+   *** PKG_CONFIG_PATH.
+   ])
+])
 
 # xapian?
 AC_CHECK_PROG(XAPIAN,xapian-config,xapian-config,no)
@@ -105,7 +122,10 @@ AM_CONDITIONAL(HAVE_XAPIAN,test "x$XAPIAN" != "xno")
 AS_IF([test "x$XAPIAN" = "xno"],[
    AC_MSG_ERROR([
    *** xapian could not be found; please install it
-   *** e.g., in debian/ubuntu the package would be 'libxapian-dev'])
+   *** e.g., in debian/ubuntu the package would be 'libxapian-dev'
+   *** If you compiled it yourself, you should ensure that xapian-config
+   *** is in your PATH.
+   ])
 ],[
    XAPIAN_CXXFLAGS=`$XAPIAN --cxxflags`
    XAPIAN_LIBS=`$XAPIAN --libs`		
@@ -121,9 +141,9 @@ Makefile
 src/Makefile
 src/tests/Makefile
 man/Makefile
+contrib/Makefile
 ])
 AC_OUTPUT
-
 
 echo 
 echo "mu configuration is complete."
@@ -132,7 +152,8 @@ echo "-----------------------------"
 echo
 echo "Note: the Xapian database is no longer stored as <muhome>/xapian-0.6"
 echo "but instead simply as <muhome>/xapian. You can remove the older"
-echo "<muhome>xapian-0.6 directory to save some disk space"
+echo "<muhome>/xapian-0.6 directory to save some disk space"
 
 echo
 echo "type 'make' to build mu, or 'make check' to run the unit tests."
+echo "use 'make V=1' to show the detailed output during the build"

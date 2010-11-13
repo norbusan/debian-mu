@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2010 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+** Copyright (C) 2008-2010 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 **
 ** This program is free software; you can redistribute it and/or modify
 ** it under the terms of the GNU General Public License as published by
@@ -24,7 +24,8 @@
 
 G_BEGIN_DECLS
 
-/* don't change the order, add new types at the end */
+/* don't change the order, add new types at the end, as these numbers
+ * are used in the database */
 enum _MuMsgFieldId {	
 	MU_MSG_FIELD_ID_BODY_TEXT,
 	MU_MSG_FIELD_ID_BODY_HTML,
@@ -34,7 +35,7 @@ enum _MuMsgFieldId {
 	MU_MSG_FIELD_ID_FROM,
 	MU_MSG_FIELD_ID_PATH,
 	MU_MSG_FIELD_ID_MAILDIR, 
-	MU_MSG_FIELD_ID_PRIORITY,
+	MU_MSG_FIELD_ID_PRIO,
 	MU_MSG_FIELD_ID_SIZE,
 	MU_MSG_FIELD_ID_SUBJECT,
 	MU_MSG_FIELD_ID_TO,
@@ -65,7 +66,7 @@ static const guint MU_MSG_FIELD_TYPE_NONE = MU_MSG_FIELD_TYPE_NUM + 1;
 typedef void (*MuMsgFieldForEachFunc) (const MuMsgField *field, 
 				       gconstpointer data);
 
-/** 
+/**
  * iterator over all possible message fields
  * 
  * @param func a function called for each field
@@ -74,7 +75,7 @@ typedef void (*MuMsgFieldForEachFunc) (const MuMsgField *field,
 void mu_msg_field_foreach (MuMsgFieldForEachFunc func, gconstpointer data);
 
 
-/** 
+/**
  * get the name of the field -- this a name that can be use in queries,
  * ie. 'subject:foo', with 'subject' being the name
  * 
@@ -85,7 +86,7 @@ void mu_msg_field_foreach (MuMsgFieldForEachFunc func, gconstpointer data);
  */
 const char*  mu_msg_field_name (const MuMsgField *field)         G_GNUC_CONST;
 
-/** 
+/**
  * get the shortcut of the field -- this a shortcut that can be use in
  * queries, ie. 's:foo', with 's' meaning 'subject' being the name
  * 
@@ -96,7 +97,7 @@ const char*  mu_msg_field_name (const MuMsgField *field)         G_GNUC_CONST;
  */
 const char*  mu_msg_field_shortcut (const MuMsgField *field)     G_GNUC_CONST;
 
-/** 
+/**
  * get the xapian prefix of the field -- that is, the prefix used in
  * the Xapian database to identify the field
  * 
@@ -107,7 +108,7 @@ const char*  mu_msg_field_shortcut (const MuMsgField *field)     G_GNUC_CONST;
  */
 const char*  mu_msg_field_xapian_prefix (const MuMsgField *field) G_GNUC_PURE;
 
-/** 
+/**
  * get the numerical ID of the field
  * 
  * @param field a MuMsgField
@@ -117,7 +118,7 @@ const char*  mu_msg_field_xapian_prefix (const MuMsgField *field) G_GNUC_PURE;
 MuMsgFieldId mu_msg_field_id (const MuMsgField *field)           G_GNUC_CONST;
 
 
-/** 
+/**
  * get the type of the field (string, size, time etc.)
  * 
  * @param field a MuMsgField
@@ -128,7 +129,7 @@ MuMsgFieldId mu_msg_field_id (const MuMsgField *field)           G_GNUC_CONST;
 MuMsgFieldType mu_msg_field_type (const MuMsgField *field)         G_GNUC_CONST;
 
 
-/** 
+/**
  * is the field numeric (has type MU_MSG_FIELD_TYPE_(BYTESIZE|TIME_T|INT))?
  * 
  * @param field a MuMsgField
@@ -139,7 +140,7 @@ gboolean mu_msg_field_is_numeric          (const MuMsgField *field) G_GNUC_CONST
 
 
 
-/** 
+/**
  * is the field Xapian-indexable? That is, should this field be
  * indexed in the in the Xapian database, so we can use the all the
  * phrasing, stemming etc. magic
@@ -150,7 +151,7 @@ gboolean mu_msg_field_is_numeric          (const MuMsgField *field) G_GNUC_CONST
  */
 gboolean mu_msg_field_xapian_index (const MuMsgField *field) G_GNUC_PURE;
 
-/** 
+/**
  * should this field be stored as a xapian term?
  * 
  * @param field a MuMsgField
@@ -159,7 +160,7 @@ gboolean mu_msg_field_xapian_index (const MuMsgField *field) G_GNUC_PURE;
  */
 gboolean mu_msg_field_xapian_term (const MuMsgField *field) G_GNUC_PURE;
 
-/** 
+/**
  * should this field be stored as a xapian value?
  * 
  * @param field a MuMsgField
@@ -168,8 +169,18 @@ gboolean mu_msg_field_xapian_term (const MuMsgField *field) G_GNUC_PURE;
  */
 gboolean mu_msg_field_xapian_value (const MuMsgField *field) G_GNUC_PURE;
 
+/**
+ * should this field be stored as contact information? This means that
+ * e-mail address will be stored as terms, and names will be indexed
+ * 
+ * @param field a MuMsgField
+ * 
+ * @return TRUE if the field should be stored as contact information,
+ * FALSE otherwise
+ */
+gboolean mu_msg_field_xapian_contact (const MuMsgField *field) G_GNUC_PURE;
 
-/** 
+/**
  * is the field gmime-enabled? That is, can be field be retrieved
  * using GMime?
  * 
@@ -180,7 +191,7 @@ gboolean mu_msg_field_xapian_value (const MuMsgField *field) G_GNUC_PURE;
 gboolean mu_msg_field_gmime (const MuMsgField *field) G_GNUC_PURE;
 
 
-/** 
+/**
  * get the corresponding MuMsgField for a name (as in mu_msg_field_name)
  * 
  * @param str a name
@@ -190,7 +201,7 @@ gboolean mu_msg_field_gmime (const MuMsgField *field) G_GNUC_PURE;
 const MuMsgField*  mu_msg_field_from_name     (const char* str)  G_GNUC_PURE;
 
 
-/** 
+/**
  * get the corresponding MuMsgField for a shortcut (as in mu_msg_field_shortcut)
  * 
  * @param kar a shortcut character
@@ -199,7 +210,7 @@ const MuMsgField*  mu_msg_field_from_name     (const char* str)  G_GNUC_PURE;
  */
 const MuMsgField*  mu_msg_field_from_shortcut (char kar)         G_GNUC_CONST;
 
-/** 
+/**
  * get the corresponding MuMsgField for an id (as in mu_msg_field_id)
  * 
  * @param id an id

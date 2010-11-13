@@ -1,4 +1,4 @@
-## Copyright (C) 2010 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+## Copyright (C) 2008-2010 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 ##
 ## This program is free software; you can redistribute it and/or modify it
 ## under the terms of the GNU General Public License as published by the
@@ -20,9 +20,17 @@ INCLUDES=$(XAPIAN_CXXFLAGS)					\
 	 $(GMIME_CFLAGS)					\
 	 $(GLIB_CFLAGS)						\
 	-I ${top_srcdir}					\
-	-DMU_TESTMAILDIR=\"${abs_srcdir}/testdir\"		\
+	-DMU_TESTMAILDIR=\"${abs_srcdir}/testdir/\"		\
+	-DMU_TESTMAILDIR2=\"${abs_srcdir}/testdir2/\"		\
 	-DMU_PROGRAM=\"${abs_top_builddir}/src/mu\"		\
+	-DABS_CURDIR=\"${abs_builddir}\"			\
 	-DABS_SRCDIR=\"${abs_srcdir}\"
+
+# don't use -Werror, as it might break on other compilers
+# use -Wno-unused-parameters, because some callbacks may not
+# really need all the params they get
+AM_CFLAGS=-Wall -Wextra -Wno-unused-parameter -Wdeclaration-after-statement
+AM_CXXFLAGS=-Wall -Wextra -Wno-unused-parameter
 
 noinst_PROGRAMS= $(TEST_PROGS)
 
@@ -44,6 +52,15 @@ TEST_PROGS += test-mu-query
 test_mu_query_SOURCES= test-mu-query.c dummy.cc
 test_mu_query_LDADD=    libtestmucommon.la
 
+TEST_PROGS += test-mu-cmd
+test_mu_cmd_SOURCES= test-mu-cmd.c dummy.cc
+test_mu_cmd_LDADD=    libtestmucommon.la
+
+TEST_PROGS += test-mu-msg
+test_mu_msg_SOURCES= test-mu-msg.c
+test_mu_msg_LDADD=  libtestmucommon.la
+
+
 libtestmucommon_la_SOURCES=		\
 	test-mu-common.c		\
 	test-mu-common.h
@@ -53,7 +70,7 @@ libtestmucommon_la_LIBADD= ../libmu.la
 # use the (also supported) version with '!' instead. We could escape
 # the : with \: but automake does not recognize that....
 
-# 11 messages, the '.ignore' message should be ignored
+# 12 messages, the '.ignore' message should be ignored
 # when indexing
 EXTRA_DIST=							\
 	testdir/tmp/1220863087.12663.ignore			\
@@ -66,4 +83,10 @@ EXTRA_DIST=							\
 	testdir/cur/1220863087.12663_15.mindcrime!2,PS		\
 	testdir/cur/1220863087.12663_19.mindcrime!2,S		\
 	testdir/cur/1220863042.12663_1.mindcrime!2,S		\
-	testdir/cur/1220863060.12663_3.mindcrime!2,S
+	testdir/cur/1220863060.12663_3.mindcrime!2,S		\
+	testdir/cur/1283599333.1840_11.cthulhu!2,		\
+	testdir2/bar/cur/mail1					\
+	testdir2/bar/cur/mail2					\
+	testdir2/bar/cur/mail3					\
+	testdir2/foo/cur/mail4
+

@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2010 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+** Copyright (C) 2008-2010 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 **
 ** This program is free software; you can redistribute it and/or modify
 ** it under the terms of the GNU General Public License as published by
@@ -21,12 +21,13 @@
 #include <iostream>
 #include <string.h>
 #include <errno.h>
-#include "xapian.h"
+#include <xapian.h>
 
 #include "mu-util.h"
-#include "mu-msg-iter-xapian.h"
+#include "mu-msg-iter.h"
+#include "mu-msg-iter-priv.hh"
 
-struct _MuMsgIterXapian {
+struct _MuMsgIter {
 	Xapian::Enquire		       *_enq;
 	Xapian::MSet                   _matches;
 	Xapian::MSet::const_iterator   _cursor;
@@ -38,13 +39,13 @@ struct _MuMsgIterXapian {
 
 
 
-MuMsgIterXapian*
-mu_msg_iter_xapian_new (const Xapian::Enquire& enq, size_t batchsize)
+MuMsgIter*
+mu_msg_iter_new (const Xapian::Enquire& enq, size_t batchsize)
 {
-	MuMsgIterXapian *iter;
+	MuMsgIter *iter;
 
 	try {
-		iter = new MuMsgIterXapian;
+		iter = new MuMsgIter;
 		memset (iter->_str, 0, sizeof(iter->_str));
 
 		iter->_enq       = new Xapian::Enquire(enq);
@@ -63,13 +64,14 @@ mu_msg_iter_xapian_new (const Xapian::Enquire& enq, size_t batchsize)
 	} MU_XAPIAN_CATCH_BLOCK_RETURN(NULL);
 }
 
+
 void
-mu_msg_iter_xapian_destroy (MuMsgIterXapian *iter)
+mu_msg_iter_destroy (MuMsgIter *iter)
 {
 	if (iter) {
 		for (int i = 0; i != MU_MSG_FIELD_ID_NUM; ++i) 
 			g_free (iter->_str[i]); 
-
+		
 		try {
 			delete iter->_enq;
 			delete iter;
@@ -78,8 +80,34 @@ mu_msg_iter_xapian_destroy (MuMsgIterXapian *iter)
 	}
 }
 
+
+MuMsg*
+mu_msg_iter_get_msg (MuMsgIter *iter)
+{	
+	const char *path;
+	MuMsg *msg;
+	
+	g_return_val_if_fail (iter, NULL);
+	g_return_val_if_fail (!mu_msg_iter_is_done(iter), NULL);
+	
+	path = mu_msg_iter_get_path (iter);
+	if (!path) {
+		g_warning ("%s: no path for message", __FUNCTION__);
+		return NULL;
+	}
+
+	msg = mu_msg_new (path, NULL);
+	if (!msg) {
+		g_warning ("%s: failed to create msg object", __FUNCTION__);
+		return NULL;
+	}
+
+	return msg;
+}
+
+
 static gboolean
-message_is_readable (MuMsgIterXapian *iter)
+message_is_readable (MuMsgIter *iter)
 {
 	Xapian::Document doc (iter->_cursor.get_document());
 	const std::string path(doc.get_value(MU_MSG_FIELD_ID_PATH));
@@ -93,8 +121,8 @@ message_is_readable (MuMsgIterXapian *iter)
 	return TRUE;
 }
 		
-static MuMsgIterXapian*
-get_next_batch (MuMsgIterXapian *iter)
+static MuMsgIter*
+get_next_batch (MuMsgIter *iter)
 {	
 	iter->_matches = iter->_enq->get_mset (iter->_offset,
 					       iter->_batchsize);
@@ -110,10 +138,13 @@ get_next_batch (MuMsgIterXapian *iter)
 }
 
 gboolean
-mu_msg_iter_xapian_next (MuMsgIterXapian *iter)
+mu_msg_iter_next (MuMsgIter *iter)
 {
 	g_return_val_if_fail (iter, FALSE);
 
+	if (mu_msg_iter_is_done(iter))
+		return FALSE;
+	
 	try {
 		++iter->_offset;
 		if (++iter->_cursor == iter->_matches.end())
@@ -129,7 +160,7 @@ mu_msg_iter_xapian_next (MuMsgIterXapian *iter)
 		    * search; also, we only have read-only access to
 		    * the db here */
 		if (!message_is_readable (iter))
-			return mu_msg_iter_xapian_next (iter);
+			return mu_msg_iter_next (iter);
 		
 		for (int i = 0; i != MU_MSG_FIELD_ID_NUM; ++i) {
 			g_free (iter->_str[i]); 
@@ -143,20 +174,17 @@ mu_msg_iter_xapian_next (MuMsgIterXapian *iter)
 
 
 gboolean
-mu_msg_iter_xapian_is_null (MuMsgIterXapian *iter)
+mu_msg_iter_is_done (MuMsgIter *iter)
 {
-	g_return_val_if_fail (iter, TRUE);
-
-	return iter->_is_null;
+	return iter ? iter->_is_null : TRUE;
 }
 
 
 const gchar*
-mu_msg_iter_xapian_get_field (MuMsgIterXapian *iter, const MuMsgField *field)
+mu_msg_iter_get_field (MuMsgIter *iter, const MuMsgField *field)
 {
-	g_return_val_if_fail (iter, NULL);
-	g_return_val_if_fail (!mu_msg_iter_xapian_is_null(iter), NULL);
 	g_return_val_if_fail (field, NULL);
+	g_return_val_if_fail (!mu_msg_iter_is_done(iter), NULL);
 	
 	try {
 		MuMsgFieldId id;
@@ -174,27 +202,31 @@ mu_msg_iter_xapian_get_field (MuMsgIterXapian *iter, const MuMsgField *field)
 
 
 gint64
-mu_msg_iter_xapian_get_field_numeric (MuMsgIterXapian *iter,
-				      const MuMsgField *field)
+mu_msg_iter_get_field_numeric (MuMsgIter *iter,
+			       const MuMsgField *field)
 {
+	g_return_val_if_fail (field, -1);
+	g_return_val_if_fail (!mu_msg_iter_is_done(iter), -1);
 	g_return_val_if_fail (mu_msg_field_is_numeric(field), -1);
-
+	
 	try {
-		return Xapian::sortable_unserialise(
-			mu_msg_iter_xapian_get_field(iter, field));
-	} MU_XAPIAN_CATCH_BLOCK_RETURN(-1);
+		return static_cast<gint64>(
+			Xapian::sortable_unserialise(
+				mu_msg_iter_get_field(iter, field)));
+
+	} MU_XAPIAN_CATCH_BLOCK_RETURN(static_cast<gint64>(-1));
 }
 
 
 
 static const gchar*
-get_field (MuMsgIterXapian *iter, MuMsgFieldId id)
+get_field (MuMsgIter *iter, MuMsgFieldId id)
 {
-	return mu_msg_iter_xapian_get_field(iter, mu_msg_field_from_id (id));
+	return mu_msg_iter_get_field(iter, mu_msg_field_from_id (id));
 }
 
 static long
-get_field_number (MuMsgIterXapian *iter, MuMsgFieldId id)
+get_field_number (MuMsgIter *iter, MuMsgFieldId id)
 {
 	const char* str = get_field (iter, id);
 	return str ? atol (str) : 0;
@@ -204,10 +236,9 @@ get_field_number (MuMsgIterXapian *iter, MuMsgFieldId id)
 
 /* hmmm.... is it impossible to get a 0 docid, or just very improbable? */
 unsigned int
-mu_msg_iter_xapian_get_docid (MuMsgIterXapian *iter)
+mu_msg_iter_get_docid (MuMsgIter *iter)
 {
-	g_return_val_if_fail (iter, 0);
-
+	g_return_val_if_fail (!mu_msg_iter_is_done(iter), -1);	
 	try {
 		return iter->_cursor.get_document().get_docid();
 
@@ -216,62 +247,71 @@ mu_msg_iter_xapian_get_docid (MuMsgIterXapian *iter)
 
 
 const char*
-mu_msg_iter_xapian_get_path (MuMsgIterXapian *iter)
+mu_msg_iter_get_path (MuMsgIter *iter)
 {
+	g_return_val_if_fail (!mu_msg_iter_is_done(iter), NULL);
 	return get_field (iter, MU_MSG_FIELD_ID_PATH);
 }
 
 
 const char*
-mu_msg_iter_xapian_get_from (MuMsgIterXapian *iter)
+mu_msg_iter_get_from (MuMsgIter *iter)
 {
+	g_return_val_if_fail (!mu_msg_iter_is_done(iter), NULL);
 	return get_field (iter, MU_MSG_FIELD_ID_FROM);
 }
 
 const char*
-mu_msg_iter_xapian_get_to (MuMsgIterXapian *iter)
+mu_msg_iter_get_to (MuMsgIter *iter)
 {
+	g_return_val_if_fail (!mu_msg_iter_is_done(iter), NULL);
 	return get_field (iter, MU_MSG_FIELD_ID_TO);
 }
 
 
 const char*
-mu_msg_iter_xapian_get_cc (MuMsgIterXapian *iter)
+mu_msg_iter_get_cc (MuMsgIter *iter)
 {
+	g_return_val_if_fail (!mu_msg_iter_is_done(iter), NULL);
 	return get_field (iter, MU_MSG_FIELD_ID_CC);
 }
 
 
 const char*
-mu_msg_iter_xapian_get_subject (MuMsgIterXapian *iter)
+mu_msg_iter_get_subject (MuMsgIter *iter)
 {
+	g_return_val_if_fail (!mu_msg_iter_is_done(iter), NULL);
 	return get_field (iter, MU_MSG_FIELD_ID_SUBJECT);
 }
 
 
 size_t
-mu_msg_iter_xapian_get_size (MuMsgIterXapian *iter)
+mu_msg_iter_get_size (MuMsgIter *iter)
 {
-	return (size_t) get_field_number (iter, MU_MSG_FIELD_ID_SIZE);
+	g_return_val_if_fail (!mu_msg_iter_is_done(iter), 0);
+	return static_cast<size_t>(get_field_number (iter, MU_MSG_FIELD_ID_SIZE));
 } 
 
 
 time_t
-mu_msg_iter_xapian_get_date (MuMsgIterXapian *iter)
+mu_msg_iter_get_date (MuMsgIter *iter)
 {
-	return (size_t) get_field_number (iter, MU_MSG_FIELD_ID_DATE);
+	g_return_val_if_fail (!mu_msg_iter_is_done(iter), 0);
+	return static_cast<size_t>(get_field_number (iter, MU_MSG_FIELD_ID_DATE));
 } 
 
 
 MuMsgFlags
-mu_msg_iter_xapian_get_flags (MuMsgIterXapian *iter)
+mu_msg_iter_get_flags (MuMsgIter *iter)
 {
-	return (MuMsgFlags) get_field_number (iter, MU_MSG_FIELD_ID_FLAGS);
+	g_return_val_if_fail (!mu_msg_iter_is_done(iter), MU_MSG_FLAG_NONE);
+	return static_cast<MuMsgFlags>
+		(get_field_number (iter, MU_MSG_FIELD_ID_FLAGS));
 } 
 
-MuMsgPriority
-mu_msg_iter_xapian_get_priority (MuMsgIterXapian *iter)
+MuMsgPrio
+mu_msg_iter_get_prio (MuMsgIter *iter)
 {
-	return (MuMsgPriority) get_field_number (iter,
-						 MU_MSG_FIELD_ID_PRIORITY);
+	g_return_val_if_fail (!mu_msg_iter_is_done(iter), MU_MSG_PRIO_NONE);
+	return static_cast<MuMsgPrio>(get_field_number (iter, MU_MSG_FIELD_ID_PRIO));
 } 

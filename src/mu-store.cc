@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2010 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+** Copyright (C) 2008-2010 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 **
 ** This program is free software; you can redistribute it and/or modify it
 ** under the terms of the GNU General Public License as published by the
@@ -23,19 +23,20 @@
 
 #include <cstdio>
 #include <xapian.h>
+#include <cstring>
 
 #include "mu-msg.h"
-#include "mu-msg-gmime.h"
-#include "mu-store-xapian.h"
+#include "mu-msg-contact.h"
+#include "mu-store.h"
 #include "mu-util.h"
 
 /* number of new messages after which we commit to the database */
-#define MU_STORE_XAPIAN_TRX_SIZE 2000
+#define MU_STORE_TRX_SIZE 6666
 
 /* http://article.gmane.org/gmane.comp.search.xapian.general/3656 */
-#define MU_STORE_XAPIAN_MAX_TERM_LENGTH 240
+#define MU_STORE_MAX_TERM_LENGTH 240
 
-struct _MuStoreXapian {
+struct _MuStore {
 	Xapian::WritableDatabase *_db;
 
 	/* transaction handling */
@@ -44,20 +45,20 @@ struct _MuStoreXapian {
 	size_t _trx_size;
 };
 
-MuStoreXapian*
-mu_store_xapian_new  (const char* xpath)
+MuStore*
+mu_store_new  (const char* xpath)
 {
-	MuStoreXapian *store (0);
+	MuStore *store (0);
 	
 	g_return_val_if_fail (xpath, NULL);
 	
 	try {
-		store = g_new0(MuStoreXapian,1);
+		store = g_new0(MuStore,1);
 		store->_db = new Xapian::WritableDatabase 
 			(xpath, Xapian::DB_CREATE_OR_OPEN);
 		
 		/* keep count of processed docs */
-		store->_trx_size = MU_STORE_XAPIAN_TRX_SIZE; 
+		store->_trx_size = MU_STORE_TRX_SIZE; 
 		store->_in_transaction = false;
 		store->_processed = 0;
 		
@@ -74,8 +75,22 @@ mu_store_xapian_new  (const char* xpath)
 
 
 
+unsigned
+mu_store_count (MuStore *store)
+{
+	g_return_val_if_fail (store, 0);
+
+	try {
+		return store->_db->get_doccount();
+		
+	} MU_XAPIAN_CATCH_BLOCK;
+
+	return 0;
+}
+
+
 char*
-mu_store_xapian_version (MuStoreXapian *store)
+mu_store_version (MuStore *store)
 {
 	g_return_val_if_fail (store, NULL);
 
@@ -91,7 +106,7 @@ mu_store_xapian_version (MuStoreXapian *store)
 }
 
 gboolean
-mu_store_xapian_set_version (MuStoreXapian *store, const char* version)
+mu_store_set_version (MuStore *store, const char* version)
 {
 	g_return_val_if_fail (store, FALSE);
 	g_return_val_if_fail (version, FALSE);
@@ -107,7 +122,7 @@ mu_store_xapian_set_version (MuStoreXapian *store, const char* version)
 
 
 static void
-begin_trx_if (MuStoreXapian *store, gboolean cond)
+begin_trx_if (MuStore *store, gboolean cond)
 {
 	if (cond) {
 		g_debug ("beginning Xapian transaction");
@@ -117,7 +132,7 @@ begin_trx_if (MuStoreXapian *store, gboolean cond)
 }
 
 static void
-commit_trx_if (MuStoreXapian *store, gboolean cond)
+commit_trx_if (MuStore *store, gboolean cond)
 {
 	if (cond) {
 		g_debug ("comitting Xapian transaction");
@@ -127,7 +142,7 @@ commit_trx_if (MuStoreXapian *store, gboolean cond)
 }
 
 static void
-rollback_trx_if (MuStoreXapian *store, gboolean cond)
+rollback_trx_if (MuStore *store, gboolean cond)
 {
 	if (cond) {
 		g_debug ("rolling back Xapian transaction");
@@ -138,16 +153,16 @@ rollback_trx_if (MuStoreXapian *store, gboolean cond)
 
 
 void
-mu_store_xapian_destroy (MuStoreXapian *store)
+mu_store_destroy (MuStore *store)
 {
 	if (!store)
 		return;
 
 	try {
-		mu_store_xapian_flush (store);
+		mu_store_flush (store);
 		
 		MU_WRITE_LOG ("closing xapian database with %d documents",
-			(int)store->_db->get_doccount());
+			      (int)store->_db->get_doccount());
 
 		delete store->_db;
 		g_free (store);
@@ -156,7 +171,7 @@ mu_store_xapian_destroy (MuStoreXapian *store)
 }
 
 void
-mu_store_xapian_flush (MuStoreXapian *store)
+mu_store_flush (MuStore *store)
 {
 	g_return_if_fail (store);
 	
@@ -165,16 +180,15 @@ mu_store_xapian_flush (MuStoreXapian *store)
 		store->_db->flush ();
 
 	} MU_XAPIAN_CATCH_BLOCK;
-	
 }
 
 
 static void
-add_terms_values_number (Xapian::Document& doc, MuMsgGMime *msg, 
+add_terms_values_number (Xapian::Document& doc, MuMsg *msg, 
 			 const MuMsgField* field)
 {
 	const std::string pfx (mu_msg_field_xapian_prefix(field), 1);
-	gint64 num = mu_msg_gmime_get_field_numeric (msg, field);
+	gint64 num = mu_msg_get_field_numeric (msg, field);
 	const std::string numstr (Xapian::sortable_serialise((double)num));
 	
 	doc.add_value ((Xapian::valueno)mu_msg_field_id(field), numstr);
@@ -182,12 +196,12 @@ add_terms_values_number (Xapian::Document& doc, MuMsgGMime *msg,
 }
 
 static void
-add_terms_values_string (Xapian::Document& doc, MuMsgGMime *msg,
+add_terms_values_string (Xapian::Document& doc, MuMsg *msg,
 			 const MuMsgField* field)
 {
 	const char* str;
 	
-	str = mu_msg_gmime_get_field_string (msg, field);
+	str = mu_msg_get_field_string (msg, field);
 	if (!str)
 		return;
 
@@ -201,11 +215,10 @@ add_terms_values_string (Xapian::Document& doc, MuMsgGMime *msg,
 	}
 
 	if (mu_msg_field_xapian_term(field))
-		/* terms can be up to MU_STORE_XAPIAN_MAX_TERM_LENGTH
-		    * (240) long; this is a Xapian limit
-		    * */
+		/* terms can be up to MU_STORE_MAX_TERM_LENGTH (240)
+		 * long; this is a Xapian limit */
 		doc.add_term (std::string (prefix + value, 0,
-		 			   MU_STORE_XAPIAN_MAX_TERM_LENGTH));
+		 			   MU_STORE_MAX_TERM_LENGTH));
 
 	if (mu_msg_field_xapian_value(field)) 			 
 		doc.add_value ((Xapian::valueno)mu_msg_field_id (field),
@@ -213,17 +226,17 @@ add_terms_values_string (Xapian::Document& doc, MuMsgGMime *msg,
 }
 
 static void
-add_terms_values_body (Xapian::Document& doc, MuMsgGMime *msg,
+add_terms_values_body (Xapian::Document& doc, MuMsg *msg,
 		       const MuMsgField* field)
 {
 	const char *str;
 	
-	if (mu_msg_gmime_get_flags(msg) & MU_MSG_FLAG_ENCRYPTED)
+	if (mu_msg_get_flags(msg) & MU_MSG_FLAG_ENCRYPTED)
 		return; /* don't store encrypted bodies */
 
-	str = mu_msg_gmime_get_body_text (msg);
+	str = mu_msg_get_body_text (msg);
 	if (!str) /* FIXME: html->txt fallback needed */
-		str = mu_msg_gmime_get_body_html (msg);
+		str = mu_msg_get_body_html (msg);
 	
 	if (!str)  
 		return; /* no body... */
@@ -234,21 +247,23 @@ add_terms_values_body (Xapian::Document& doc, MuMsgGMime *msg,
 }
 
 struct _MsgDoc {
-	Xapian::Document *_doc;
-	MuMsgGMime       *_msg;
+	Xapian::Document	*_doc;
+	MuMsg			*_msg;
 };
-typedef struct _MsgDoc MsgDoc;
+typedef struct _MsgDoc		 MsgDoc;
 
 static void
 add_terms_values (const MuMsgField* field, MsgDoc* msgdoc)
 {
 	MuMsgFieldType type;
-	
+
+	/* note: contact-stuff (To/Cc/From) will handled in
+	 * add_contact_info, not here */
 	if (!mu_msg_field_xapian_index(field) &&
 	    !mu_msg_field_xapian_term(field) &&
 	    !mu_msg_field_xapian_value(field))
 		return;
-
+	
 	type = mu_msg_field_type (field);
 
 	if (type == MU_MSG_FIELD_TYPE_STRING) {		
@@ -271,6 +286,45 @@ add_terms_values (const MuMsgField* field, MsgDoc* msgdoc)
 	g_return_if_reached ();
 }
 
+
+static void
+each_contact_info (MuMsgContact *contact, MsgDoc *data)
+{
+	std::string pfx;
+	
+	static const MuMsgField *to_field =
+		mu_msg_field_from_id (MU_MSG_FIELD_ID_TO);
+	static const MuMsgField *from_field =
+		mu_msg_field_from_id (MU_MSG_FIELD_ID_FROM);
+	static const MuMsgField *cc_field =
+		mu_msg_field_from_id (MU_MSG_FIELD_ID_CC);
+
+	static const std::string to_pfx (mu_msg_field_xapian_prefix(to_field));
+	static const std::string from_pfx (mu_msg_field_xapian_prefix(from_field));
+	static const std::string cc_pfx (mu_msg_field_xapian_prefix(cc_field));
+	
+	switch (contact->type) {
+	case MU_MSG_CONTACT_TYPE_TO: pfx   = to_pfx; break;
+	case MU_MSG_CONTACT_TYPE_FROM: pfx = from_pfx; break;
+	case MU_MSG_CONTACT_TYPE_CC: pfx   = cc_pfx; break;
+	default: return;		/* other types (like bcc) are ignored */
+	}
+
+	// g_print ("[%s %s]\n", pfx.c_str(), contact->address);
+	
+	if (contact->name && strlen(contact->name) > 0) {
+		Xapian::TermGenerator termgen;
+		termgen.set_document (*data->_doc);
+		termgen.index_text_without_positions (contact->name, 1, pfx);
+	}
+
+	if (contact->address && strlen (contact->address)) 
+		data->_doc->add_term (std::string (pfx + contact->address, 0,
+						   MU_STORE_MAX_TERM_LENGTH));	
+}
+
+
+
 /* get a unique id for this message */
 static std::string
 get_message_uid (const char* path)
@@ -283,16 +337,16 @@ get_message_uid (const char* path)
 	return pathprefix + path;
 }
 
-static std::string
-get_message_uid (MuMsgGMime *msg)
+static const std::string
+get_message_uid (MuMsg *msg)
 {
-	return get_message_uid (mu_msg_gmime_get_path(msg));
+	return get_message_uid (mu_msg_get_path(msg));
 }
 
 
 
 MuResult
-mu_store_xapian_store (MuStoreXapian *store, MuMsgGMime *msg)
+mu_store_store (MuStore *store, MuMsg *msg)
 {	
 	g_return_val_if_fail (store, MU_ERROR);
 	g_return_val_if_fail (msg, MU_ERROR);
@@ -305,10 +359,14 @@ mu_store_xapian_store (MuStoreXapian *store, MuMsgGMime *msg)
 
 		begin_trx_if (store, !store->_in_transaction);
 		/* we must add a unique term, so we can replace
-		    * matching documents */
+		 * matching documents */
 		newdoc.add_term (uid);
 		mu_msg_field_foreach ((MuMsgFieldForEachFunc)add_terms_values,
 				      &msgdoc);
+		/* also store the contact-info as separate terms */
+		mu_msg_contact_foreach (msg,
+					(MuMsgContactForeachFunc)each_contact_info,
+					&msgdoc);
 			
 		/* we replace all existing documents for this file */
 		id = store->_db->replace_document (uid, newdoc);
@@ -327,7 +385,7 @@ mu_store_xapian_store (MuStoreXapian *store, MuMsgGMime *msg)
 
 
 MuResult
-mu_store_xapian_remove (MuStoreXapian *store, const char* msgpath)
+mu_store_remove (MuStore *store, const char* msgpath)
 {
 	g_return_val_if_fail (store, MU_ERROR);
 	g_return_val_if_fail (msgpath, MU_ERROR);
@@ -353,10 +411,10 @@ mu_store_xapian_remove (MuStoreXapian *store, const char* msgpath)
 }
 
 gboolean
-mu_store_contains_message (MuStoreXapian *store, const char* path)
+mu_store_contains_message (MuStore *store, const char* path)
 {
-	g_return_val_if_fail (store, NULL);
-	g_return_val_if_fail (path, NULL);
+	g_return_val_if_fail (store, FALSE);
+	g_return_val_if_fail (path, FALSE);
 	
 	try {
 		const std::string uid (get_message_uid(path));
@@ -368,7 +426,7 @@ mu_store_contains_message (MuStoreXapian *store, const char* path)
 
 
 time_t
-mu_store_xapian_get_timestamp (MuStoreXapian *store, const char* msgpath)
+mu_store_get_timestamp (MuStore *store, const char* msgpath)
 {
 	g_return_val_if_fail (store, 0);
 	g_return_val_if_fail (msgpath, 0);
@@ -387,8 +445,8 @@ mu_store_xapian_get_timestamp (MuStoreXapian *store, const char* msgpath)
 
 
 void
-mu_store_xapian_set_timestamp (MuStoreXapian *store, const char* msgpath, 
-				 time_t stamp)
+mu_store_set_timestamp (MuStore *store, const char* msgpath, 
+			time_t stamp)
 {
 	g_return_if_fail (store);
 	g_return_if_fail (msgpath);
@@ -403,8 +461,8 @@ mu_store_xapian_set_timestamp (MuStoreXapian *store, const char* msgpath,
 
 
 MuResult
-mu_store_xapian_foreach (MuStoreXapian *self, 
-			 MuStoreXapianForeachFunc func, void *user_data)  
+mu_store_foreach (MuStore *self, 
+		  MuStoreForeachFunc func, void *user_data)  
 {
 	g_return_val_if_fail (self, MU_ERROR);
 	g_return_val_if_fail (func, MU_ERROR);

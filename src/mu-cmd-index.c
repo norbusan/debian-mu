@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2010 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+** Copyright (C) 2008-2010 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 **
 ** This program is free software; you can redistribute it and/or modify it
 ** under the terms of the GNU General Public License as published by the
@@ -17,36 +17,42 @@
 **
 */
 
+#ifdef HAVE_CONFIG_H
 #include "config.h"
+#endif /*HAVE_CONFIG_H*/
+
+#include "mu-cmd.h"
 
 #include <errno.h>
 #include <string.h>
 #include <stdio.h>
+#include <signal.h>
+#include <unistd.h>
 
 #include "mu-util.h"
-#include "mu-util-xapian.h"
+#include "mu-util-db.h"
 
-#include "mu-msg-gmime.h"
-
+#include "mu-msg.h"
 #include "mu-index.h"
-#include "mu-cmd-index.h"
 
 static gboolean MU_CAUGHT_SIGNAL;
 
 static void
 update_warning (void)
 {
-	g_warning ("Note: the database needs to be upgraded to version %s\n",
+	g_warning ("Note: the database needs to be upgraded to version %s",
 		   MU_XAPIAN_DB_VERSION);
-	g_warning ("Please run 'mu index --rebuild' (see the manpage)\n");
+	g_warning ("Please run 'mu index --rebuild' (see the manpage)");
 }
 
 static void
 sig_handler (int sig)
 {
-	if (!MU_CAUGHT_SIGNAL && sig == SIGINT) /* Ctrl-C */
+	if (!MU_CAUGHT_SIGNAL && sig == SIGINT) { /* Ctrl-C */
+		g_print ("\n");
 		g_warning ("Shutting down gracefully, "
-			   "press again to kill immediately\n");
+			   "press again to kill immediately");
+	}
 	
         MU_CAUGHT_SIGNAL = TRUE;
 }
@@ -65,8 +71,8 @@ install_sig_handler (void)
 
         for (i = 0; i != G_N_ELEMENTS(sigs); ++i)
                 if (sigaction (sigs[i], &action, NULL) != 0)
-                        g_warning ("error: set sigaction for %d failed: %s",
-				   sigs[i], strerror (errno));;
+                        g_critical ("set sigaction for %d failed: %s",
+				    sigs[i], strerror (errno));;
 }
 
 
@@ -74,17 +80,19 @@ static gboolean
 check_index_params (MuConfigOptions *opts)
 {
 	if (opts->linksdir || opts->xquery) {
-		g_warning ("Error: Invalid option(s) for command\n");
+		g_warning ("invalid option(s) for command");
 		return FALSE;
 	}
-
-	if (!g_path_is_absolute (opts->maildir)) {
-		g_warning ("Error: maildir path must be absolute\n");
+	
+	if (!opts->maildir || !g_path_is_absolute (opts->maildir)) {
+		g_warning ("maildir path '%s' is not valid",
+			   opts->maildir ? opts->maildir : "<none>");
 		return FALSE;
 	}
 	
 	if (!mu_util_check_dir (opts->maildir, TRUE, FALSE)) {
-		g_warning ("Error: not a valid Maildir\n");
+		g_warning ("not a valid Maildir: %s",
+			   opts->maildir ? opts->maildir : "<none>");
 		return FALSE;
 	}
 	
@@ -98,27 +106,39 @@ index_msg_silent_cb  (MuIndexStats* stats, void *user_data)
 	return MU_CAUGHT_SIGNAL ? MU_STOP: MU_OK;
 }
 
+static void
+print_stats (MuIndexStats* stats, gboolean clear)
+{
+	char *kars="-\\|/";
+	char output[120];
+	
+	static int i = 0;
+	static unsigned len = 0;
+
+	if (clear)
+		while (len --> 0) /* note the --> operator :-) */
+			g_print ("\b");
+	
+	len = (unsigned) snprintf (output, sizeof(output),
+				   "%c processing mail; processed: %u; "
+				   "updated/new: %u, cleaned-up: %u",
+				   (unsigned)kars[++i % 4],
+				   (unsigned)stats->_processed,
+				   (unsigned)stats->_updated,
+				   (unsigned)stats->_cleaned_up);
+
+        g_print ("%s", output);
+}
+
 
 static MuResult
 index_msg_cb  (MuIndexStats* stats, void *user_data)
 {
-	char *kars="-\\|/";
-	char output[314];
+	if (stats->_processed % 25)
+	 	return MU_OK;
 	
-	static int i = 0;
-	static int len = 0;
-
-	while (len --> 0) /* note the --> operator :-) */
-		printf ("\b");
-	
-	len = snprintf (output, sizeof(output),
-			"%c processing mail; processed: %d; "
-			"updated/new: %d, cleaned-up: %d",
-			kars[i % 4], stats->_processed,
-			stats->_updated, stats->_cleaned_up);
-	g_print ("%s", output);
-	++i;
-	
+	print_stats (stats, TRUE);
+		
 	return MU_CAUGHT_SIGNAL ? MU_STOP: MU_OK;
 }
 
@@ -127,24 +147,24 @@ index_msg_cb  (MuIndexStats* stats, void *user_data)
 static gboolean
 database_version_check_and_update (MuConfigOptions *opts)
 {
-	if (mu_util_xapian_db_is_empty (opts->xpath))
+	if (mu_util_db_is_empty (opts->xpath))
 		return TRUE;
 	
 	/* we empty the database before doing anything */
 	if (opts->rebuild) {
 		opts->reindex = TRUE;
 		g_message ("Clearing database %s", opts->xpath);
-		return mu_util_xapian_clear_database (opts->xpath);
+		return mu_util_clear_database (opts->xpath);
 	}
 
-	if (mu_util_xapian_db_version_up_to_date (opts->xpath))
+	if (mu_util_db_version_up_to_date (opts->xpath))
 		return TRUE; /* ok, nothing to do */
 	
 	/* ok, database is not up to date */
 	if (opts->autoupgrade) {
 		opts->reindex = TRUE;
 		g_message ("Auto-upgrade: clearing old database first");
-		return mu_util_xapian_clear_database (opts->xpath);
+		return mu_util_clear_database (opts->xpath);
 	}
 
 	update_warning ();
@@ -152,63 +172,117 @@ database_version_check_and_update (MuConfigOptions *opts)
 }
 
 
-static MuResult
-run_cleanup (MuIndex *midx, MuIndexStats *stats, gboolean quiet)
+static void
+show_time (unsigned t, unsigned processed)
 {
-	return  mu_index_cleanup (midx, stats,
-				  quiet ? index_msg_silent_cb : index_msg_cb,
-				  NULL);
+	if (t)
+		g_message ("Elapsed: %u second(s), ~ %u msg/s",
+			   t, processed/t);
+	else
+		g_message ("Elapsed: %u second(s)", t);
 }
 
 
-gboolean
-mu_cmd_cleanup (MuConfigOptions *opts)
+
+static gboolean
+cmd_cleanup (MuIndex *midx, MuConfigOptions *opts, MuIndexStats *stats,
+	     gboolean show_progress)
 {
-	MuResult rv;	
-	MuIndex *midx;
-	MuIndexStats stats;
-
-	g_return_val_if_fail (opts, FALSE);
+	MuResult rv;
+	time_t t;
 	
-	if (!check_index_params (opts))
-		return FALSE;
-
-	install_sig_handler ();
+	g_message ("Cleaning up messages [%s]", opts->xpath);
 	
-	midx = mu_index_new (opts->xpath);
-	if (!midx) {
-		g_warning ("Cleanup failed");
-		return FALSE;
+	t = time (NULL);
+	rv = mu_index_cleanup (midx, stats,
+			       show_progress ? index_msg_cb : index_msg_silent_cb,
+			       NULL);
+	
+	if (!opts->quiet) {
+		print_stats (stats, TRUE);
+		g_print ("\n");
+		show_time ((unsigned)(time(NULL)-t),stats->_processed);
 	}
 	
-	g_message ("Cleaning up removed messages from %s",
-		   opts->xpath);
-	mu_index_stats_clear (&stats);
-	rv = run_cleanup (midx, &stats, opts->quiet);
-	
-	mu_index_destroy (midx);
-
-	if (!opts->quiet)
-		g_print ("\n");
-
 	return (rv == MU_OK || rv == MU_STOP) ? TRUE: FALSE;
 }
 
-static MuResult
-run_index (MuIndex *midx, const char* maildir, MuIndexStats *stats,
-	   gboolean reindex, gboolean quiet)
+
+
+static gboolean
+cmd_index (MuIndex *midx, MuConfigOptions *opts, MuIndexStats *stats,
+	   gboolean show_progress)
 {
 	MuResult rv;
+	time_t t;
 	
-	mu_index_stats_clear (stats);
-	mu_msg_gmime_init ();
+	g_message ("Indexing messages under %s [%s]", opts->maildir, opts->xpath);
 
-	rv = mu_index_run (midx, maildir, reindex, stats,
-			   quiet ? index_msg_silent_cb :index_msg_cb,
+	t = time (NULL);
+	rv = mu_index_run (midx, opts->maildir, opts->reindex, stats,
+			   show_progress ? index_msg_cb : index_msg_silent_cb,
 			   NULL, NULL);
-	
-	mu_msg_gmime_init ();
 
+	if (!opts->quiet) {
+		print_stats (stats, TRUE);
+		g_print ("\n");
+		show_time ((unsigned)(time(NULL)-t),stats->_processed);
+	}
+	
+	if (rv == MU_OK && !opts->nocleanup) {
+		mu_index_stats_clear (stats);
+		rv = cmd_cleanup (midx, opts, stats, show_progress);
+	}
+	
+	if (rv == MU_OK || rv == MU_STOP) {
+		MU_WRITE_LOG ("processed: %u; updated/new: %u, cleaned-up: %u",
+			      stats->_processed, stats->_updated,
+			      stats->_cleaned_up);
+		return TRUE;
+	}
+	
+	return FALSE;
+}
+
+
+
+static gboolean
+cmd_index_or_cleanup (MuConfigOptions *opts)
+{
+	gboolean rv;
+	MuIndex *midx;
+	MuIndexStats stats;
+	gboolean show_progress;
+	
+	g_return_val_if_fail (opts, FALSE);
+	g_return_val_if_fail (mu_cmd_equals (opts, "index") ||
+			      mu_cmd_equals (opts, "cleanup"), FALSE);
+			  
+	if (!check_index_params (opts) || !database_version_check_and_update(opts))
+		return FALSE;
+	
+	if (!(midx = mu_index_new (opts->xpath))) {
+		g_warning ("Indexing/Cleanup failed");
+		return FALSE;
+	} 
+
+	/* note, 'opts->quiet' already cause g_message output not to
+	 * be shown; here, we make sure we only print progress info if
+	 * opts->quiet is false case and when stdout is a tty */
+	show_progress = !opts->quiet && isatty(fileno(stdout));
+
+	mu_index_stats_clear (&stats);
+	install_sig_handler ();
+	
+	if (mu_cmd_equals (opts, "index"))
+		rv = cmd_index (midx, opts, &stats, show_progress);
+	else if (mu_cmd_equals (opts, "cleanup"))
+		rv = cmd_cleanup (midx, opts, &stats, show_progress);
+	else
+		g_assert_not_reached ();
+	
+	mu_index_destroy (midx);
+		
 	return rv;
 }
 
@@ -216,42 +290,21 @@ run_index (MuIndex *midx, const char* maildir, MuIndexStats *stats,
 gboolean
 mu_cmd_index (MuConfigOptions *opts)
 {
-	gboolean rv;	
-	MuIndex *midx;
-	MuIndexStats stats;
+	g_return_val_if_fail (opts && mu_cmd_equals (opts, "index"),
+			      FALSE);
 	
-	g_return_val_if_fail (opts, FALSE);
-	
-	if (!check_index_params (opts))
-		return FALSE;
-	
-	if (!database_version_check_and_update(opts))
-		return FALSE;
-
-	install_sig_handler ();
-	
-	midx = mu_index_new (opts->xpath);
-	if (!midx) {
-		g_warning ("Indexing failed");
-		return FALSE;
-	} 
-
-	g_message ("Indexing messages from %s", opts->maildir);
-	g_message ("Database: %s", opts->xpath);
-	
-	rv = run_index (midx, opts->maildir, &stats, opts->reindex, opts->quiet);
-	if (rv == MU_OK  && !opts->nocleanup) {
-		stats._processed = 0; /* restart processed at 0 */
-		rv = run_cleanup (midx, &stats, opts->quiet);
-	}
-	
-	mu_index_destroy (midx);
-	
-	MU_WRITE_LOG ("processed: %d; updated/new: %d, cleaned-up: %d",
-		      stats._processed, stats._updated,stats._cleaned_up);
-
-	if (!opts->quiet)
-		g_print ("\n");
-	
-	return (rv == MU_OK || rv == MU_STOP) ? TRUE: FALSE;
+	return cmd_index_or_cleanup (opts);
 }
+
+gboolean
+mu_cmd_cleanup (MuConfigOptions *opts)
+{
+	g_return_val_if_fail (opts && mu_cmd_equals (opts, "cleanup"),
+			      FALSE);
+	
+	return cmd_index_or_cleanup (opts);
+}
+
+
+
+

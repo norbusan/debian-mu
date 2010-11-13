@@ -1,6 +1,36 @@
-#+STARTUP:showall
-
 * Future release
+
+** release 0.9 [%]
+   - [ ] bookmarks
+   - [ ] query on time
+   - [ ] mu-setup (?)
+   - [ ] mu stats
+   - [ ] follow symlinks when indexing
+   - [ ] ansi-colors in output
+   - [ ] config system (config file) (?)
+   - [ ] search for date interval etc.
+   - [ ] detect mail threads (?)
+   - [ ] clean up mu-msg-field, add formatting(?)
+   - [ ] xml,json,sexp output
+   - [ ] completion for zsh
+   - [ ] don't make test mail files executable
+
+* Release already done
+
+** release 0.8 [100%]
+   - [X] remove gio dependency
+   - [X] fix macos/wordexp bug(?)
+   - [X] fix rhel5 installation issue
+   - [X] fix non-ascii searches 
+   - [X] summary
+   - [X] attachment handling
+   - [X] review docs
+   - [X] add summary unit test(s)
+   - [X] add attachment unit test(s)
+   - [X] fix e-mail address searches (issue #21)
+   - [X] mu-easy.1, man page with simple examples
+   - [X] fix progress info
+
 
 ** release 0.7 [100%]
 
@@ -16,25 +46,6 @@
    - [X] auto clean log file
    - [X] configure error for missing ->dt_dtype
 
-** release 0.8 [%]
-   - [ ] bookmarks
-   - [ ] completion for zsh
-   - [ ] query on time
-   - [ ] mu-setup (?)
-   - [ ] mu stats
-   - [ ] mu help <cmd> (?)
-   - [ ] muex.7, man page with simple examples
-   - [ ] follow symlinks when indexing
-   - [ ] ansi-colors in output
-   - [ ] config system (config file) (?)
-   - [ ] UTF-8 output to console
-   - [ ] search for date interval etc.
-   - [ ] detect mail threads (?)
-   - [ ] clean up mu-msg-field, add formatting(?)
-
-
-
-* Release already done
 
 ** release 0.6 [100%] <2010-01-23 Sat>
 
@@ -63,3 +74,6 @@
    - [X] cleanup ascending/descending stuff
    - [X] testing
 
+# Local Variables:
+# mode: org; org-startup-folded: nil
+# End:

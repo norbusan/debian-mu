@@ -1,5 +1,5 @@
 /* 
-** Copyright (C) 2010 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+** Copyright (C) 2008-2010 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 **
 ** This program is free software; you can redistribute it and/or modify
 ** it under the terms of the GNU General Public License as published by
@@ -17,8 +17,13 @@
 **  
 */
 
-#include <stdio.h>
+#ifdef HAVE_CONFIG_H
+#include <config.h>
+#endif /*HAVE_CONFIG_H*/
 
+#include "mu-log.h"
+
+#include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <sys/types.h>
@@ -27,9 +32,7 @@
 #include <time.h>
 #include <errno.h>
 #include <string.h>
-#include <gio/gio.h>
 
-#include "mu-log.h"
 #include "mu-util.h"
 
 #define MU_LOG_FILE "mu.log"
@@ -61,7 +64,6 @@ try_close (int fd)
 			    __FUNCTION__, fd, strerror(errno));
 }
 
-
 static void
 silence (void)
 {
@@ -73,9 +75,9 @@ mu_log_init_silence (void)
 {
 	g_return_val_if_fail (!MU_LOG, FALSE);
 	
-        MU_LOG = g_new(MuLog, 1);
-        MU_LOG->_fd     = -1;
-	MU_LOG->_own    = FALSE; /* nobody owns silence */
+        MU_LOG	     = g_new(MuLog, 1);
+        MU_LOG->_fd  = -1;
+	MU_LOG->_own = FALSE;	/* nobody owns silence */
 	
 	MU_LOG->_old_log_func =
 		g_log_set_default_handler ((GLogFunc)silence, NULL);
@@ -114,36 +116,25 @@ mu_log_init_with_fd (int fd, gboolean doclose,
 	return TRUE;
 }
 
-
-
-/* log file is too big!; we move it to <logfile>.old, overwriting */
 static gboolean
-move_log_file (const char* logfile)
+move_log_file (const char *logfile)
 {
-	GFile *src, *dst;
-	gchar *tmp;
-	GError *err;
-	gboolean rv;
+	gchar *logfile_old;
+	int rv;
 	
-	src = g_file_new_for_path (logfile);
-	tmp = g_strdup_printf ("%s.old", logfile);
-	dst = g_file_new_for_path (tmp);
-	g_free (tmp);
+	logfile_old = g_strdup_printf ("%s.old", logfile);
+	rv = rename (logfile, logfile_old);
+	g_free (logfile_old);
 	
-	err = NULL;
-	rv = g_file_move (src, dst, G_FILE_COPY_OVERWRITE, NULL, NULL, NULL, &err);
-	if (!rv) {
-		g_warning ("Failed to move %s to %s.old: %s", logfile, logfile,
-				   err ? err->message : "?");
-		if (err)
-			g_error_free (err);
-		}
-	
-	g_object_unref (G_OBJECT(src));
-	g_object_unref (G_OBJECT(dst));
-	
-	return rv;
+	if (rv != 0) {
+		g_warning ("Failed to move %s to %s.old: %s",
+			   logfile, logfile, strerror(rv));
+		return FALSE;
+	} else
+		return TRUE;
+
 }
+
 
 static gboolean
 log_file_backup_maybe (const char *logfile)
@@ -154,7 +145,7 @@ log_file_backup_maybe (const char *logfile)
 		if (errno == ENOENT)
 			return TRUE; /* it did not exist yet, no problem */
 		else {
-			g_warning ("Failed to stat(2) %s", logfile);
+			g_warning ("failed to stat(2) %s", logfile);
 			return FALSE;
 		}
 	}
@@ -180,7 +171,7 @@ mu_log_init  (const char* muhome,
 	g_return_val_if_fail (muhome, FALSE);
 
 	if (!mu_util_create_dir_maybe(muhome)) {
-		g_warning ("Failed to init log in %s", muhome);
+		g_warning ("failed to init log in %s", muhome);
 		return FALSE;
 	}
 	
@@ -188,13 +179,13 @@ mu_log_init  (const char* muhome,
 				   G_DIR_SEPARATOR, MU_LOG_FILE);
 
 	if (backup && !log_file_backup_maybe(logfile)) {
-		g_warning ("Failed to backup log file");
+		g_warning ("failed to backup log file");
 		return FALSE;
 	}
 	
-	fd = open (logfile,  O_WRONLY|O_CREAT|O_APPEND, 00600);
+	fd = open (logfile, O_WRONLY|O_CREAT|O_APPEND, 00600);
 	if (fd < 0) 
-		g_warning ("%s: open() of '%s' failed: %s\n",  __FUNCTION__,
+		g_warning ("%s: open() of '%s' failed: %s",  __FUNCTION__,
 			   logfile, strerror(errno));
 	g_free (logfile);
 	
@@ -254,12 +245,12 @@ log_write (const char* domain, GLogLevelFlags level,
 	if (len == sizeof(buf))
 		buf[sizeof(buf)-2] = '\n';
 	
-	len = write (MU_LOG->_fd, buf, len);
+	len = write (MU_LOG->_fd, buf, (size_t)len);
 	if (len < 0)
 		fprintf (stderr, "%s: failed to write to log: %s\n",
 			 __FUNCTION__,  strerror(errno));
 
-	if (!(MU_LOG->_quiet) && level & G_LOG_LEVEL_MESSAGE)
+	if (!(MU_LOG->_quiet) && (level & G_LOG_LEVEL_MESSAGE))
 		g_print ("mu: %s\n", msg);
 	
 	/* for serious errors, log them to stderr as well */

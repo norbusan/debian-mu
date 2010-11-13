@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2010 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+** Copyright (C) 2008-2010 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 **
 ** This program is free software; you can redistribute it and/or modify it
 ** under the terms of the GNU General Public License as published by the
@@ -26,11 +26,19 @@
 #include <stdlib.h>
 
 #include "mu-maildir.h"
-
-#include "mu-cmd-index.h"
-#include "mu-cmd-find.h"
-
 #include "mu-cmd.h"
+
+gboolean
+mu_cmd_equals (MuConfigOptions *config, const gchar *cmd)
+{
+	g_return_val_if_fail (config, FALSE);
+	g_return_val_if_fail (cmd, FALSE);
+	
+	if (!config->params || !config->params[0])
+		return FALSE;
+
+	return (strcmp (config->params[0], cmd) == 0);
+}
 
 
 static MuCmd 
@@ -42,13 +50,14 @@ cmd_from_string (const char* cmd)
 		MuCmd        _cmd;
 	} Cmd;
 
-	Cmd cmd_map[]= {
+	Cmd cmd_map[] = {
 		{ "index",   MU_CMD_INDEX },
 		{ "find",    MU_CMD_FIND },
 		{ "cleanup", MU_CMD_CLEANUP },
 		{ "mkdir",   MU_CMD_MKDIR },
 		{ "view",    MU_CMD_VIEW },
-		{ "index",   MU_CMD_INDEX }};
+		{ "extract", MU_CMD_EXTRACT }
+	};
 	
 	for (i = 0; i != G_N_ELEMENTS(cmd_map); ++i) 
 		if (strcmp (cmd, cmd_map[i]._name) == 0)
@@ -57,96 +66,59 @@ cmd_from_string (const char* cmd)
 	return MU_CMD_UNKNOWN;
 }
 
-
-
-static int
-cmd_mkdir (MuConfigOptions *opts)
-{
-	int i;
-	
-	if (!opts->params[0])
-		return FALSE;  /* shouldn't happen */
- 	
-	if (!opts->params[1]) {
-		g_printerr (
-			"usage: mu mkdir [-u,--mode=<mode>] "
-			"<dir> [more dirs]\n");
-		return FALSE;
-	}
-	
-	i = 1;
-	while (opts->params[i]) {
-		if (!mu_maildir_mkmdir (opts->params[i], opts->dirmode,
-					FALSE))
-			return FALSE;
-		++i;
-	}
-
-	return TRUE;
-}
-
-static gboolean
+static void
 show_usage (gboolean noerror)
 {
 	const char* usage=
 		"usage: mu [options] command [parameters]\n"
-		"\twhere command is one of index, find, mkdir, cleanup or view\n"
-		"see mu(1) (the mu manpage) for more information\n";
+		"where command is one of index, find, view, mkdir, cleanup "
+		"or extract\n\n"
+		"see the mu or mu-easy manpages for more information\n";
 
 	if (noerror)
 		g_print ("%s", usage);
 	else
 		g_printerr ("%s", usage);
-
-	return noerror;
 }
 
-static gboolean
+static void
 show_version (void)
 {
-	const char* msg =
-		"mu (mail indexer / searcher version) " VERSION "\n\n"
-		"Copyright (C) 2010 Dirk-Jan C. Binnema\n"
-		"License GPLv3+: GNU GPL version 3 or later "
-		"<http://gnu.org/licenses/gpl.html>.\n\n"
-		"This is free software: you are free to change "
-		"and redistribute it.\n"
-		"There is NO WARRANTY, to the extent permitted by law.";
-
-	g_print ("%s\n", msg);
-
-	return TRUE;
+	g_print ("mu (mail indexer/searcher) " VERSION "\n"
+		 "Copyright (C) 2008-2010 Dirk-Jan C. Binnema (GPLv3+)\n");
 }
-
-
-
 
 gboolean
 mu_cmd_execute (MuConfigOptions *opts)
 {
 	MuCmd cmd;
 	
-	if (opts->version)
-		return show_version ();
+	if (opts->version) {
+		show_version ();
+		return TRUE;
+	}
 	
 	if (!opts->params||!opts->params[0]) {/* no command? */
 		show_version ();
 		g_print ("\n");
-		return show_usage (FALSE);
+		show_usage (TRUE);
+		return FALSE;
 	}
 	
 	cmd = cmd_from_string (opts->params[0]);
 
 	switch (cmd) {
 
-	case MU_CMD_INDEX:   return mu_cmd_index (opts);
-	case MU_CMD_FIND:    return mu_cmd_find (opts);
-	case MU_CMD_MKDIR:   return cmd_mkdir (opts);
-	case MU_CMD_CLEANUP: return mu_cmd_cleanup (opts);
-	case MU_CMD_VIEW:    return mu_cmd_view (opts);
-
+	case MU_CMD_CLEANUP:    return mu_cmd_cleanup (opts);
+	case MU_CMD_EXTRACT:    return mu_cmd_extract (opts);
+	case MU_CMD_FIND:       return mu_cmd_find (opts);
+	case MU_CMD_INDEX:      return mu_cmd_index (opts);
+	case MU_CMD_MKDIR:      return mu_cmd_mkdir (opts);
+	case MU_CMD_VIEW:       return mu_cmd_view (opts);
+		
 	case MU_CMD_UNKNOWN:
-		return show_usage (FALSE);
+		show_usage (FALSE);
+		return FALSE;
 	default:
 		g_return_val_if_reached (FALSE);
 	}	
