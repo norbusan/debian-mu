@@ -11,9 +11,9 @@ I believe that the problem is in readdir_with_stat_fallback() function which was
 
 Index: maildir-utils.git/src/mu-maildir.c
 ===================================================================
---- maildir-utils.git.orig/src/mu-maildir.c	2010-11-02 00:06:04.000000000 +0900
-+++ maildir-utils.git/src/mu-maildir.c	2010-11-02 00:06:21.000000000 +0900
-@@ -328,7 +328,7 @@
+--- maildir-utils.git.orig/src/mu-maildir.c	2010-11-13 22:11:34.000000000 +0900
++++ maildir-utils.git/src/mu-maildir.c	2010-11-13 22:12:46.000000000 +0900
+@@ -327,7 +327,7 @@
  
  		/* note, fullpath_s returns a static buffer */
  		fullpath = fullpath_s (path, entry->d_name);
