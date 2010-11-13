@@ -1,3 +1,11 @@
+maildir-utils (0.8-1) experimental; urgency=low
+
+  * upload to experimental to keep sid for squeeze fixes
+  * new upstream release
+  * disable patch fix-msgid-search, included upstream
+
+ -- Norbert Preining <preining@debian.org>  Sat, 13 Nov 2010 22:13:58 +0900
+
 maildir-utils (0.7-2) unstable; urgency=low
 
   * fix broken search of msgids, patch by Benjamin Mako Hill
