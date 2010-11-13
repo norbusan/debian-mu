@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2010 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+** Copyright (C) 2008-2010 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 **
 ** This program is free software; you can redistribute it and/or modify it
 ** under the terms of the GNU General Public License as published by the
@@ -17,7 +17,9 @@
 **
 */
 
+#ifdef HAVE_CONFIG_H
 #include "config.h"
+#endif /*HAVE_CONFIG_H*/
 
 #include <unistd.h>
 #include <stdio.h>
@@ -26,16 +28,16 @@
 #include <stdlib.h>
 #include <signal.h>
 
-#include "mu-msg-gmime.h"
+#include "mu-msg.h"
 #include "mu-maildir.h"
 #include "mu-index.h"
-#include "mu-query-xapian.h"
-#include "mu-msg-iter-xapian.h"
+#include "mu-query.h"
+#include "mu-msg-iter.h"
 #include "mu-msg-str.h"
 
 #include "mu-util.h"
-#include "mu-util-xapian.h"
-#include "mu-cmd-find.h"
+#include "mu-util-db.h"
+#include "mu-cmd.h"
 
 
 static void
@@ -49,13 +51,13 @@ update_warning (void)
 
 
 static gboolean
-print_xapian_query (MuQueryXapian *xapian, const gchar *query)
+print_xapian_query (MuQuery *xapian, const gchar *query)
 {
 	char *querystr;
 
 	MU_WRITE_LOG ("query: '%s' (xquery)", query); 
 	
-	querystr = mu_query_xapian_as_string (xapian, query);
+	querystr = mu_query_as_string (xapian, query);
 	g_print ("%s\n", querystr);
 	g_free (querystr);
 
@@ -64,34 +66,34 @@ print_xapian_query (MuQueryXapian *xapian, const gchar *query)
 
 
 static const gchar*
-display_field (MuMsgIterXapian *iter, const MuMsgField* field)
+display_field (MuMsgIter *iter, const MuMsgField* field)
 {
 	gint64 val;
 
 	switch (mu_msg_field_type(field)) {
 	case MU_MSG_FIELD_TYPE_STRING:
-		return mu_msg_iter_xapian_get_field (iter, field);
+		return mu_msg_iter_get_field (iter, field);
 
 	case MU_MSG_FIELD_TYPE_INT:
 	
-		if (mu_msg_field_id(field) == MU_MSG_FIELD_ID_PRIORITY) {
-			val = mu_msg_iter_xapian_get_field_numeric (iter, field);
-			return mu_msg_str_prio ((MuMsgPriority)val);
+		if (mu_msg_field_id(field) == MU_MSG_FIELD_ID_PRIO) {
+			val = mu_msg_iter_get_field_numeric (iter, field);
+			return mu_msg_str_prio ((MuMsgPrio)val);
 		}
 		
 		if (mu_msg_field_id(field) == MU_MSG_FIELD_ID_FLAGS) {
-			val = mu_msg_iter_xapian_get_field_numeric (iter, field);
-			return mu_msg_str_flags_s ((MuMsgPriority)val);
+			val = mu_msg_iter_get_field_numeric (iter, field);
+			return mu_msg_str_flags_s ((MuMsgPrio)val);
 		}
 
-		return mu_msg_iter_xapian_get_field (iter, field); /* as string */
+		return mu_msg_iter_get_field (iter, field); /* as string */
 
 	case MU_MSG_FIELD_TYPE_TIME_T: 
-		val = mu_msg_iter_xapian_get_field_numeric (iter, field);
+		val = mu_msg_iter_get_field_numeric (iter, field);
 		return mu_msg_str_date_s ((time_t)val);
 
 	case MU_MSG_FIELD_TYPE_BYTESIZE: 
-		val = mu_msg_iter_xapian_get_field_numeric (iter, field);
+		val = mu_msg_iter_get_field_numeric (iter, field);
 		return mu_msg_str_size_s ((time_t)val);
 	default:
 		g_return_val_if_reached (NULL);
@@ -116,13 +118,33 @@ sort_field_from_string (const char* fieldstr)
 	return field;
 }
 
+static void
+print_summary (MuMsgIter *iter, size_t summary_len)
+{
+	const char *summ;
+	MuMsg *msg;
+
+	msg = mu_msg_iter_get_msg (iter);
+	if (!msg) {
+		g_warning ("%s: failed to create msg object", __FUNCTION__);
+		return;
+	}
+
+	summ = mu_msg_get_summary (msg, summary_len);
+	g_print ("Summary: %s\n", summ ? summ : "<none>");
+	
+	mu_msg_destroy (msg);
+}
+
+
+
 static size_t
-print_rows (MuMsgIterXapian *iter, const char *fields)
+print_rows (MuMsgIter *iter, const char *fields, size_t summary_len)
 {
 	size_t count = 0;
 	const char* myfields;
 
-	if (mu_msg_iter_xapian_is_null (iter))
+	if (mu_msg_iter_is_done (iter))
 		return 0;
 	
 	do {
@@ -132,7 +154,8 @@ print_rows (MuMsgIterXapian *iter, const char *fields)
 		while (*myfields) {
 			const MuMsgField* field;
 			field =	mu_msg_field_from_shortcut (*myfields);
-			if (!field || !mu_msg_field_xapian_value (field)) 
+			if (!field || ( !mu_msg_field_xapian_value (field) &&
+					!mu_msg_field_xapian_contact (field)))
 				len += printf ("%c", *myfields);
 			else
 				len += printf ("%s",
@@ -143,9 +166,12 @@ print_rows (MuMsgIterXapian *iter, const char *fields)
 		if (len > 0)
 			g_print ("\n");
 
+		if (summary_len > 0)
+			print_summary (iter, summary_len);
+
 		++count;
 		
-	} while (mu_msg_iter_xapian_next (iter));
+	} while (mu_msg_iter_next (iter));
 	
 	return count;
 }
@@ -167,7 +193,7 @@ create_or_clear_linksdir_maybe (const char *linksdir, gboolean clearlinks)
 
 
 static size_t
-make_links (MuMsgIterXapian *iter, const char* linksdir, gboolean clearlinks)
+make_links (MuMsgIter *iter, const char* linksdir, gboolean clearlinks)
 {
 	size_t count = 0;
 	const MuMsgField *pathfield;
@@ -175,7 +201,7 @@ make_links (MuMsgIterXapian *iter, const char* linksdir, gboolean clearlinks)
 	if (!create_or_clear_linksdir_maybe (linksdir, clearlinks))
 		return 0;
 
-	if (mu_msg_iter_xapian_is_null (iter))
+	if (mu_msg_iter_is_done (iter))
 		return 0;
 	
 	pathfield = mu_msg_field_from_id (MU_MSG_FIELD_ID_PATH);
@@ -185,10 +211,10 @@ make_links (MuMsgIterXapian *iter, const char* linksdir, gboolean clearlinks)
 		const char *path;
 		
 		/* there's no data in the iter */
-		if (mu_msg_iter_xapian_is_null (iter))
+		if (mu_msg_iter_is_done (iter))
 			return count;		
 		
-		path = mu_msg_iter_xapian_get_field (iter, pathfield);
+		path = mu_msg_iter_get_field (iter, pathfield);
 		if (!path)
 			continue;
 			
@@ -203,7 +229,7 @@ make_links (MuMsgIterXapian *iter, const char* linksdir, gboolean clearlinks)
 			break;
 		++count;
 
-	} while (mu_msg_iter_xapian_next (iter));
+	} while (mu_msg_iter_next (iter));
 		 
 	return count;
 }
@@ -211,9 +237,9 @@ make_links (MuMsgIterXapian *iter, const char* linksdir, gboolean clearlinks)
 
 
 static gboolean
-run_query (MuQueryXapian *xapian, const gchar *query, MuConfigOptions *opts)
+run_query (MuQuery *xapian, const gchar *query, MuConfigOptions *opts)
 {
-	MuMsgIterXapian *iter;
+	MuMsgIter *iter;
 	const MuMsgField *sortfield;
 	size_t matches;
 	
@@ -226,7 +252,7 @@ run_query (MuQueryXapian *xapian, const gchar *query, MuConfigOptions *opts)
 			return FALSE;
 	}
 	
-	iter = mu_query_xapian_run (xapian, query, sortfield,
+	iter = mu_query_run (xapian, query, sortfield,
 				    !opts->descending, 0);
 	if (!iter) {
 		g_printerr ("error: running query failed\n");
@@ -236,19 +262,19 @@ run_query (MuQueryXapian *xapian, const gchar *query, MuConfigOptions *opts)
 	if (opts->linksdir)
 		matches = make_links (iter, opts->linksdir, opts->clearlinks);
 	else
-		matches = print_rows (iter, opts->fields);
+		matches = print_rows (iter, opts->fields, opts->summary_len);
 	
 	if (matches == 0) 
 		g_printerr ("No matches found\n");
 
-	mu_msg_iter_xapian_destroy (iter);
+	mu_msg_iter_destroy (iter);
 
 	return matches > 0;
 }
 
 
 static gboolean
-do_output (MuQueryXapian *xapian, MuConfigOptions* opts,
+do_output (MuQuery *xapian, MuConfigOptions* opts,
 	   const gchar **params)
 {
 	gchar *query;
@@ -295,111 +321,40 @@ query_params_valid (MuConfigOptions *opts)
 gboolean
 mu_cmd_find (MuConfigOptions *opts)
 {
-	MuQueryXapian *xapian;
+	MuQuery *xapian;
 	gboolean rv;
 	const gchar **params;
 
 	g_return_val_if_fail (opts, FALSE);
+	g_return_val_if_fail (mu_cmd_equals (opts, "find"), FALSE);
 	
 	if (!query_params_valid (opts))
 		return FALSE;
 
-	if (mu_util_xapian_db_is_empty (opts->xpath)) {
+	if (mu_util_db_is_empty (opts->xpath)) {
 		g_printerr ("The database is empty; "
 			    "use 'mu index' to add some messages\n");
 		return FALSE;
 	}
 		
-	if (!mu_util_xapian_db_version_up_to_date (opts->xpath)) {
+	if (!mu_util_db_version_up_to_date (opts->xpath)) {
 		update_warning ();
 		return FALSE;
 	}
 	
 	/* first param is 'query', search params are after that */
 	params = (const gchar**)&opts->params[1];
-
-	mu_msg_gmime_init();
 	
-	xapian = mu_query_xapian_new (opts->xpath);
+	xapian = mu_query_new (opts->xpath);
 	if (!xapian) {
 		g_printerr ("Failed to create a Xapian query\n");
-		mu_msg_gmime_uninit ();
 		return FALSE;
 	}
 
 	rv = do_output (xapian, opts, params);
 	
-	mu_query_xapian_destroy (xapian);
-	mu_msg_gmime_uninit();
+	mu_query_destroy (xapian);
 	
 	return rv;
 }
 
-/* we ignore fields for now */
-static gboolean
-view_file (const gchar *path, const gchar *fields)
-{
-	MuMsgGMime* msg;
-	const char *field;
-	time_t date;
-	
-	msg = mu_msg_gmime_new (path, NULL);
-	if (!msg)
-		return FALSE;
-
-	field = mu_msg_gmime_get_from (msg);
-	if (field)
-		g_print ("From: %s\n", field);
-	
-	field = mu_msg_gmime_get_to (msg);
-	if (field)
-		g_print ("To: %s\n", field);
-
-	field = mu_msg_gmime_get_cc (msg);
-	if (field)
-		g_print ("Cc: %s\n", field);
-
-	field = mu_msg_gmime_get_subject (msg);
-	if (field)
-		g_print ("Subject: %s\n", field);
-	
-	date = mu_msg_gmime_get_date (msg);
-	if (date)
-		g_print ("Date: %s\n",
-			 mu_msg_str_date_s (date));
-			 
-	field = mu_msg_gmime_get_body_text (msg);
-	if (field) 
-		g_print ("\n%s\n", field);
-	else
-		/* not really an error */
-		g_warning ("No text body found for %s", path);
-
-	mu_msg_gmime_destroy (msg);
-	return TRUE;
-}
-
-gboolean
-mu_cmd_view (MuConfigOptions *opts)
-{
-	gboolean rv;
-	int i;
-	
-	g_return_val_if_fail (opts, FALSE);
-
-	/* note: params[0] will be 'view' */
-	if (!opts->params[0] || !opts->params[1]) {
-		g_printerr ("Missing files to view\n");
-		return FALSE;
-	}
-	
-	mu_msg_gmime_init();
-
-	rv = TRUE;
-	for (i = 1; opts->params[i] && rv; ++i) 	
-		rv = view_file (opts->params[i], NULL);
-
-	mu_msg_gmime_uninit();
-	
-	return rv;
-}

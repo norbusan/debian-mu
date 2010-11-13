@@ -1,5 +1,5 @@
 /* 
-** Copyright (C) 2010 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+** Copyright (C) 2008-2010 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 **
 ** This program is free software; you can redistribute it and/or modify it
 ** under the terms of the GNU General Public License as published by the
@@ -27,8 +27,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 
-
-
+#include "test-mu-common.h"
 #include "src/mu-util.h"
 
 static void
@@ -63,6 +62,20 @@ test_mu_util_dir_expand_02 (void)
 	g_free (got);
 	g_free (expected);
 }
+
+
+static void
+test_mu_util_dir_expand_03 (void)
+{
+	gchar *got;
+	
+	got = mu_util_dir_expand (".");	
+	g_assert_cmpstr (got,==,ABS_CURDIR);
+
+	g_free (got);
+}
+
+
 
 
 static void
@@ -184,22 +197,16 @@ test_mu_util_str_from_strv_03 (void)
 
 
 
-
-
-static void
-shutup (void) {}
-
 int
 main (int argc, char *argv[])
 {
 	g_test_init (&argc, &argv, NULL);
 
 	/* mu_util_dir_expand */
-	g_test_add_func ("/mu-util/mu-util-dir-expand-01",
-			 test_mu_util_dir_expand_01);
-	g_test_add_func ("/mu-util/mu-util-dir-expand-02",
-			 test_mu_util_dir_expand_02);
-
+	g_test_add_func ("/mu-util/mu-util-dir-expand-01", test_mu_util_dir_expand_01);
+	g_test_add_func ("/mu-util/mu-util-dir-expand-02", test_mu_util_dir_expand_02);
+	g_test_add_func ("/mu-util/mu-util-dir-expand-03", test_mu_util_dir_expand_03);
+	
 	/* mu_util_guess_maildir */
 	g_test_add_func ("/mu-util/mu-util-guess-maildir-01",
 			 test_mu_util_guess_maildir_01);
@@ -207,14 +214,10 @@ main (int argc, char *argv[])
 			 test_mu_util_guess_maildir_02);
 
 	/* mu_util_check_dir */
-	g_test_add_func ("/mu-util/mu-util-check-dir-01",
-			 test_mu_util_check_dir_01);
-	g_test_add_func ("/mu-util/mu-util-check-dir-02",
-			 test_mu_util_check_dir_02);
-	g_test_add_func ("/mu-util/mu-util-check-dir-03",
-			 test_mu_util_check_dir_03);
-	g_test_add_func ("/mu-util/mu-util-check-dir-04",
-			 test_mu_util_check_dir_04);
+	g_test_add_func ("/mu-util/mu-util-check-dir-01", test_mu_util_check_dir_01);
+	g_test_add_func ("/mu-util/mu-util-check-dir-02", test_mu_util_check_dir_02);
+	g_test_add_func ("/mu-util/mu-util-check-dir-03", test_mu_util_check_dir_03);
+	g_test_add_func ("/mu-util/mu-util-check-dir-04", test_mu_util_check_dir_04);
 
 	/* test_mu_util_str_from_strv */
 	g_test_add_func ("/mu-util/mu-util-str-from-strv-01",
@@ -227,7 +230,7 @@ main (int argc, char *argv[])
 	g_log_set_handler (NULL,
 			   G_LOG_LEVEL_DEBUG|
 			   G_LOG_LEVEL_MESSAGE|
-			   G_LOG_LEVEL_INFO, (GLogFunc)shutup, NULL);
+			   G_LOG_LEVEL_INFO, (GLogFunc)black_hole, NULL);
 
 	return g_test_run ();
 }

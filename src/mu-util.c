@@ -1,5 +1,5 @@
-/*
-** Copyright (C) 2010 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+/* 
+** Copyright (C) 2008-2010 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 **
 ** This program is free software; you can redistribute it and/or modify
 ** it under the terms of the GNU General Public License as published by
@@ -17,45 +17,124 @@
 **
 */
 
-#define _XOPEN_SOURCE
+#ifdef HAVE_CONFIG_H
+#include <config.h>
+#endif /*HAVE_CONFIG_H*/
+
+#include "mu-util.h"
+
+#define _XOPEN_SOURCE 500
 #include <wordexp.h> /* for shell-style globbing */
-
 #include <stdlib.h>
-#include <string.h>
 
+/* hopefully, the should get us a sane PATH_MAX */
+#include <limits.h>
+/* not all systems provide PATH_MAX in limits.h */
+#ifndef PATH_MAX
+#include <sys/param.h>
+#ifndef PATH_MAX
+#define PATH_MAX MAXPATHLEN
+#endif /*!PATH_MAX*/
+#endif /*PATH_MAX*/
+
+#include <string.h>
+#include <locale.h> /* for setlocale() */
+
+#include <fcntl.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
+#include <glib-object.h>
 #include <glib/gstdio.h>
 #include <errno.h>
 
-#include "mu-util.h"
-
-char*
-mu_util_dir_expand (const char *path)
+static char*
+do_wordexp (const char *path)
 {
 	wordexp_t wexp;
 	char *dir;
-	
-	g_return_val_if_fail (path, NULL);
 
-	dir = NULL;
-	wordexp (path, &wexp, 0);
-	if (wexp.we_wordc != 1) 
-		g_warning ("error expanding dir '%s'", path);
-	else 
-		dir = g_strdup (wexp.we_wordv[0]);
+	if (!path) {
+		g_debug ("%s: path is empty", __FUNCTION__);
+		return NULL;
+	}
 	
+	if (wordexp (path, &wexp, 0) != 0) {
+		/* g_debug ("%s: expansion failed for %s", __FUNCTION__, path); */
+		return NULL;
+	}
+	
+	/* if (wexp.we_wordc != 1) /\* not an *error*, we just take the first one *\/ */
+	/* 	g_debug ("%s: expansion ambiguous for '%s'", __FUNCTION__, path); */
+	
+	dir = g_strdup (wexp.we_wordv[0]);
+
+	/* strangely, below seems to lead to a crash on MacOS (BSD);
+	   so we have to allow for a tiny leak here on that
+	   platform... maybe instead of __APPLE__ it should be
+	   __BSD__?*/
+#ifndef __APPLE__     
 	wordfree (&wexp);
+#endif /*__APPLE__*/
 
 	return dir;
 }
 
+
+/* note, the g_debugs are commented out because this function may be
+ * called before the log handler is installed. */
+char*
+mu_util_dir_expand (const char *path)
+{
+	char *dir;
+	char resolved[PATH_MAX + 1];
+	
+	g_return_val_if_fail (path, NULL);
+
+	dir = do_wordexp (path);
+	if (!dir)
+		return NULL; /* error */
+	
+	/* now, resolve any symlinks, .. etc. */
+	if (!realpath (dir, resolved)) {
+		/* g_debug ("%s: could not get realpath for '%s': %s", */
+		/* 	 __FUNCTION__, dir, strerror(errno)); */
+		g_free (dir);
+		return NULL;
+	} else 
+		g_free (dir);
+	
+	return g_strdup (resolved);
+}
+
+gboolean
+mu_util_init_system (void)
+{
+	/* without setlocale, non-ascii cmdline params (like search
+	 * terms) won't work */
+	setlocale (LC_ALL, "");
+
+	/* on FreeBSD, it seems g_slice_new and friends lead to
+	 * segfaults. So we shut if off */
+#ifdef 	__FreeBSD__
+	if (!g_setenv ("G_SLICE", "always-malloc", TRUE)) {
+		g_critical ("cannot set G_SLICE");
+		return FALSE;
+	}
+	MU_LOG_FILE("setting G_SLICE to always-malloc");
+#endif /*__FreeBSD__*/
+
+	g_type_init ();
+
+	return TRUE;
+}
+
+
 gboolean
 mu_util_check_dir (const gchar* path, gboolean readable, gboolean writeable)
 {
-	mode_t mode;
+	int mode;
 	struct stat statbuf;
 	
 	if (!path) 
@@ -64,14 +143,12 @@ mu_util_check_dir (const gchar* path, gboolean readable, gboolean writeable)
 	mode = F_OK | (readable ? R_OK : 0) | (writeable ? W_OK : 0);
 
 	if (access (path, mode) != 0) {
-		MU_WRITE_LOG ("Cannot access %s: %s", path,
-			      strerror (errno));
+		g_debug ("Cannot access %s: %s", path, strerror (errno));
 		return FALSE;
 	}
 
 	if (stat (path, &statbuf) != 0) {
-		MU_WRITE_LOG ("Cannot stat %s: %s", path,
-			      strerror (errno));
+		g_debug ("Cannot stat %s: %s", path, strerror (errno));
 		return FALSE;
 	}
 	
@@ -142,10 +219,43 @@ mu_util_str_from_strv (const gchar **params)
 	str = g_string_sized_new (64); /* just a guess */
 	
 	for (i = 0; params[i]; ++i) {
+
 		if (i>0)
 			g_string_append_c (str, ' ');
+
 		g_string_append (str, params[i]);
 	}		
 	
 	return g_string_free (str, FALSE);
 }
+
+int
+mu_util_create_writeable_fd (const char* filename, const char* dir,
+			     gboolean overwrite)
+{
+	int fd;
+	char *fullpath;
+	
+	errno = 0; /* clear! */
+	g_return_val_if_fail (filename, -1);
+
+	fullpath = g_strdup_printf ("%s%s%s",
+				    dir ? dir : "",
+				    dir ? G_DIR_SEPARATOR_S : "",
+				    filename);
+
+	if (overwrite)
+		fd = open (fullpath, O_WRONLY|O_CREAT|O_TRUNC, 0644);
+	else
+		fd = open (fullpath, O_WRONLY|O_CREAT, 0644);
+
+	if (fd < 0)
+		g_debug ("%s: cannot open %s for writing: %s",
+			 __FUNCTION__, fullpath, strerror(errno));
+
+	g_free (fullpath);
+	
+	return fd;
+}
+
+

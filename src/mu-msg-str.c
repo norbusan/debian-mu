@@ -18,9 +18,11 @@
 */
 
 #include <glib.h>
+#include <string.h>
 
 #include "mu-msg-str.h"
 #include "mu-msg-flags.h"
+
 
 const char* 
 mu_msg_str_date_s (time_t t)
@@ -45,15 +47,24 @@ mu_msg_str_date (time_t t)
 const char*
 mu_msg_str_size_s  (size_t s)
 {
-	/* note: we we use the powers-of-10, not powers-of-2 */
-
 	static char buf[32];
-	
+
+#ifdef HAVE_GLIB216
+	char *tmp;
+
+	tmp = g_format_size_for_display ((goffset)s);
+	strncpy (buf, tmp, sizeof(buf));
+	buf[sizeof(buf) -1] = '\0'; /* just in case */
+	g_free (tmp);
+
+#else
 	if (s >= 1000 * 1000)
 		g_snprintf(buf, sizeof(buf), "%.1f MB", (double)s/(1000*1000));
 	else
 		g_snprintf(buf, sizeof(buf), "%.1f kB", (double)s/(1000));
+#endif /*HAVE_GLIB216*/
 
+	
 	return buf;
 }
 
@@ -76,18 +87,18 @@ mu_msg_str_flags  (MuMsgFlags flags)
 }
 
 const char* 
-mu_msg_str_prio  (MuMsgPriority prio)
+mu_msg_str_prio  (MuMsgPrio prio)
 {
 	switch (prio) {
 
-	case MU_MSG_PRIORITY_LOW:
+	case MU_MSG_PRIO_LOW:
 		return "low";
 		
-	case MU_MSG_PRIORITY_NONE:
-	case MU_MSG_PRIORITY_NORMAL:
+	case MU_MSG_PRIO_NONE:
+	case MU_MSG_PRIO_NORMAL:
 		return "normal";
 
-	case MU_MSG_PRIORITY_HIGH:
+	case MU_MSG_PRIO_HIGH:
 		return "high";
 
 	default:
@@ -96,4 +107,45 @@ mu_msg_str_prio  (MuMsgPriority prio)
 	}
 }
 
+
+char*
+mu_msg_str_summarize (const char* str, size_t max_lines)
+{
+	char *summary;
+	size_t nl_seen;
+	unsigned i,j;
+	gboolean last_was_blank;
+
+	g_return_val_if_fail (str, NULL);
+	g_return_val_if_fail (max_lines > 0, NULL);
+	
+	/* len for summary <= original len */
+	summary = g_new (gchar, strlen(str) + 1);
+
+	/* copy the string up to max_lines lines, replace CR/LF/tab with
+	 * single space */
+	for (i = j = 0, nl_seen = 0, last_was_blank = TRUE;
+	     nl_seen < max_lines && str[i] != '\0'; ++i) {
+
+		if (str[i] == '\n' || str[i] == '\r' ||
+		    str[i] == '\t' || str[i] == ' ' ) {
+
+			if (str[i] == '\n')
+				++nl_seen;
+
+			/* no double-blanks or blank at end of str */
+			if (!last_was_blank && str[i+1] != '\0')
+				summary[j++] = ' ';
+
+			last_was_blank = TRUE;
+		} else {
+
+			summary[j++] = str[i];
+			last_was_blank = FALSE;
+		}
+	}
+
+	summary[j] = '\0';
+	return summary;
+}
 

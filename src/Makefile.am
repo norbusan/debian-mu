@@ -23,13 +23,12 @@ if HAVE_GTEST
 SUBDIRS += tests
 endif
 
-
 INCLUDES=$(XAPIAN_CXXFLAGS) $(GMIME_CFLAGS) $(GLIB_CFLAGS)
 
 # don't use -Werror, as it might break on other compilers
 # use -Wno-unused-parameters, because some callbacks may not
 # really need all the params they get
-AM_CFLAGS=-Wall -Wextra -Wno-unused-parameter
+AM_CFLAGS=-Wall -Wextra -Wno-unused-parameter -Wdeclaration-after-statement
 AM_CXXFLAGS=-Wall -Wextra -Wno-unused-parameter
 
 bin_PROGRAMS=				\
@@ -47,12 +46,13 @@ mu_LDADD=				\
 	libmu.la
 
 libmu_la_SOURCES=			\
+	mu-cmd-extract.c		\
+	mu-cmd-find.c			\
+	mu-cmd-index.c			\
+	mu-cmd-mkdir.c			\
+	mu-cmd-view.c			\
 	mu-cmd.c			\
 	mu-cmd.h			\
-	mu-cmd-find.h			\
-	mu-cmd-find.c			\
-	mu-cmd-index.h			\
-	mu-cmd-index.c			\
 	mu-config.c			\
 	mu-config.h			\
 	mu-index.c			\
@@ -61,25 +61,32 @@ libmu_la_SOURCES=			\
 	mu-log.h			\
 	mu-maildir.c			\
 	mu-maildir.h			\
+	mu-msg-contact.c		\
+	mu-msg-contact.h		\
 	mu-msg-fields.c			\
 	mu-msg-fields.h			\
 	mu-msg-flags.c			\
 	mu-msg-flags.h			\
-	mu-msg-gmime.c			\
-	mu-msg-gmime.h			\
-	mu-msg-iter-xapian-priv.hh	\
-	mu-msg-iter-xapian.cc		\
-	mu-msg-iter-xapian.h		\
+	mu-msg-prio.h			\
+	mu-msg-status.h			\
+	mu-msg.c			\
+	mu-msg.h			\
+	mu-msg-priv.h			\
+	mu-msg-iter-priv.hh		\
+	mu-msg-iter.cc			\
+	mu-msg-iter.h			\
+	mu-msg-part.c			\
+	mu-msg-part.h			\
 	mu-msg-str.c			\
 	mu-msg-str.h			\
 	mu-msg.h			\
-	mu-query-xapian.cc		\
-	mu-query-xapian.h		\
+	mu-query.cc			\
+	mu-query.h			\
 	mu-result.h			\
-	mu-store-xapian.cc		\
-	mu-store-xapian.h		\
-	mu-util-xapian.cc		\
-	mu-util-xapian.h		\
+	mu-store.cc			\
+	mu-store.h			\
+	mu-util-db.cc			\
+	mu-util-db.h			\
 	mu-util.c			\
 	mu-util.h
 

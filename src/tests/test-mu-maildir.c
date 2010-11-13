@@ -1,5 +1,5 @@
 /* 
-** Copyright (C) 2010 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+** Copyright (C) 2008-2010 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 **
 ** This program is free software; you can redistribute it and/or modify it
 ** under the terms of the GNU General Public License as published by the
@@ -118,10 +118,6 @@ test_mu_maildir_mkmdir_03 (void)
 }
 		
 
-static void
-shutup (void) {}
-
-
 static gchar*
 copy_test_data (void)
 {
@@ -154,10 +150,13 @@ typedef struct {
 static MuResult
 dir_cb (const char *fullpath, gboolean enter, WalkData *data)
 {
-	if (enter)
+	if (enter) 
 		++data->_dir_entered;
 	else
 		++data->_dir_left;
+
+	/* g_print ("%s: %s: %s\n", __FUNCTION__, enter ? "entering" : "leaving", */
+	/* 	 fullpath); */
 
 	return MU_OK;
 }
@@ -181,6 +180,8 @@ test_mu_maildir_walk_01 (void)
 	
 	tmpdir = copy_test_data ();
 	memset (&data, 0, sizeof(WalkData));
+
+	/* g_print ("tmpdir: %s\n", tmpdir); */
 	
 	rv = mu_maildir_walk (tmpdir,
 			      (MuMaildirWalkMsgCallback)msg_cb, 
@@ -188,7 +189,7 @@ test_mu_maildir_walk_01 (void)
 			      &data);
 
 	g_assert_cmpuint (MU_OK, ==, rv);
-	g_assert_cmpuint (data._file_count, ==, 10);
+	g_assert_cmpuint (data._file_count, ==, 11); 
 	g_assert_cmpuint (data._dir_entered,==, 5);
 	g_assert_cmpuint (data._dir_left,==, 5);
 
@@ -219,7 +220,7 @@ test_mu_maildir_walk_02 (void)
 			      &data);
 
 	g_assert_cmpuint (MU_OK, ==, rv);
-	g_assert_cmpuint (data._file_count, ==, 6);
+	g_assert_cmpuint (data._file_count, ==, 7);
 	g_assert_cmpuint (data._dir_entered,==, 4);
 	g_assert_cmpuint (data._dir_left,==, 4);
 
@@ -247,7 +248,7 @@ main (int argc, char *argv[])
 	
 	g_log_set_handler (NULL,
 			   G_LOG_LEVEL_MASK | G_LOG_FLAG_FATAL| G_LOG_FLAG_RECURSION,
-			   (GLogFunc)shutup, NULL);
+			   (GLogFunc)black_hole, NULL);
 	
 	return g_test_run ();
 }

@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2010 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+** Copyright (C) 2008-2010 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 **
 ** This program is free software; you can redistribute it and/or modify
 ** it under the terms of the GNU General Public License as published by
@@ -17,22 +17,22 @@
 **
 */
 
-#ifndef __MU_MSG_XAPIAN_PRIV_HH__
-#define __MU_MSG_XAPIAN_PRIV_HH__
+#ifndef __MU_MSG_PRIV_HH__
+#define __MU_MSG_PRIV_HH__
 
 #include <xapian.h>
 
-
 /** 
- * create a new MuMsgIterXapian -- basically, an iterator over the search
+ * create a new MuMsgIter -- basically, an iterator over the search
  * results
  * 
  * @param enq a Xapian::Enquiry providing access to search results 
  * @param batchsize how many results to retrieve at once
  * 
- * @return a new MuMsgIterXapian, or NULL in case of error
+ * @return a new MuMsgIter, or NULL in case of error
  */
-MuMsgIterXapian *mu_msg_iter_xapian_new
-   (const Xapian::Enquire& enq, size_t batchsize)G_GNUC_WARN_UNUSED_RESULT;
+MuMsgIter *mu_msg_iter_new (const Xapian::Enquire& enq,
+			    size_t batchsize) G_GNUC_WARN_UNUSED_RESULT;
 
-#endif /*__MU_MSG_XAPIAN_PRIV_HH__*/
+
+#endif /*__MU_MSG_PRIV_HH__*/

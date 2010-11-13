@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2010 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+** Copyright (C) 2008-2010 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 **
 ** This program is free software; you can redistribute it and/or modify it
 ** under the terms of the GNU General Public License as published by the
@@ -17,13 +17,14 @@
 **
 */
 
+#ifdef HAVE_CONFIG_H
 #include <config.h>
+#endif /*HAVE_CONFIG_H*/
 
 #include <glib.h>
-#include <glib-object.h>
-#include <string.h>
 #include <stdio.h> /* for fileno() */
 
+#include "mu-util.h"
 #include "mu-config.h"
 #include "mu-cmd.h"
 #include "mu-log.h"
@@ -40,21 +41,23 @@ init_log (MuConfigOptions *opts)
 		rv = mu_log_init (opts->muhome, TRUE, opts->quiet,
 				  opts->debug);
 
+	/* we use g_printerr here because g_warning does not give
+	 * the desired result when log initialization failed */
 	if (!rv)
 		g_printerr ("error: failed to initialize log\n");
 	
 	return rv;
 }
 
-
 int
 main (int argc, char *argv[])
 {
 	MuConfigOptions config;
 	gboolean rv;
-	
-	g_type_init ();
 
+	if (!mu_util_init_system()) 
+		return 1;
+	
 	if (!mu_config_init (&config, &argc, &argv))
 		return 1;
 

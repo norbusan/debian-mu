@@ -1,5 +1,5 @@
 /* 
-** Copyright (C) 2010 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+** Copyright (C) 2010-2010 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 **
 ** This program is free software; you can redistribute it and/or modify it
 ** under the terms of the GNU General Public License as published by the
@@ -17,7 +17,9 @@
 **  
 */
 
+#ifdef HAVE_CONFIG_H
 #include "config.h"
+#endif /*HAVE_CONFIG_H*/
 
 #include <unistd.h>
 #include <sys/types.h>
@@ -32,13 +34,12 @@
 #include "mu-util.h"
 #include "mu-maildir.h"
 
-
 #define MU_MAILDIR_WALK_MAX_FILE_SIZE (32*1000*1000)
 #define MU_MAILDIR_NOINDEX_FILE       ".noindex"
 #define MU_MAILDIR_CACHE_FILE         ".mu.cache"
 
 /* note: this function is *not* re-entrant, it returns a static buffer */
-const char*
+static const char*
 fullpath_s (const char* path, const char* name)
 {
 	static char buf[4096];
@@ -52,7 +53,7 @@ fullpath_s (const char* path, const char* name)
 
 
 static gboolean
-create_maildir (const char *path, int mode)
+create_maildir (const char *path, mode_t mode)
 {
 	int i;
 	const gchar* subdirs[] = {"new", "cur", "tmp"};
@@ -72,8 +73,7 @@ create_maildir (const char *path, int mode)
 
 		/* static buffer */
 		fullpath = fullpath_s (path, subdirs[i]);
-		
-		rv = g_mkdir_with_parents (fullpath, mode);
+		rv = g_mkdir_with_parents (fullpath, (int)mode);
 		if (rv != 0) {
 			g_warning ("g_mkdir_with_parents failed: %s",
 				   strerror (errno));
@@ -242,7 +242,6 @@ process_file (const char* fullpath, const gchar* mdir,
 	 * use the ctime, so any status change will be visible (perms,
 	 * filename etc.)
 	 */
-	g_debug ("[%s]", mdir);
 	result = (msg_cb)(fullpath, mdir, statbuf.st_ctime, data);
 	if (result == MU_STOP) 
 		g_debug ("callback said 'MU_STOP' for %s", fullpath);
@@ -313,7 +312,7 @@ readdir_with_stat_fallback (DIR* dir, const char* path)
 	entry = readdir (dir);
 	
 	if (!entry) {
-		if (errno) 
+		if (errno != 0) 
 			g_warning ("readdir failed in %s: %s",
 				   path, strerror (errno));
 		return NULL;
@@ -440,23 +439,35 @@ process_dir_entry (const char* path,
 static struct dirent* 
 dirent_copy (struct dirent *entry)
 {
-	struct dirent *d = g_slice_new (struct dirent);
+	struct dirent *d; 
+
 	/* NOTE: simply memcpy'ing sizeof(struct dirent) bytes will
-	 * give memory errors*/
-	return (struct dirent*)memcpy (d, entry, entry->d_reclen);
+	 * give memory errors. Also note, g_slice_new has been to
+	 * crash on FreeBSD */
+	d = g_slice_new (struct dirent);
+	
+	return (struct dirent*) memcpy (d, entry, entry->d_reclen);
 }
 
 static void
 dirent_destroy (struct dirent *entry)
 {
-	g_slice_free(struct dirent, entry);
+	g_slice_free (struct dirent, entry);
 }
 
 #ifdef HAVE_STRUCT_DIRENT_D_INO	
-static gint
+static int
 dirent_cmp (struct dirent *d1, struct dirent *d2)
 {
-	return d1->d_ino - d2->d_ino;
+	/* we do it his way instead of a simple d1->d_ino - d2->d_ino
+	 * because this way, we don't need 64-bit numbers for the
+	 * actual sorting */
+	if (d1->d_ino < d2->d_ino)
+		return -1;
+	else if (d1->d_ino > d2->d_ino)
+		return 1;
+	else
+		return 0;
 }
 #endif /*HAVE_STRUCT_DIRENT_D_INO*/
 
@@ -515,13 +526,14 @@ process_dir (const char* path, const char* mdir,
 
 	dir = opendir (path);		
 	if (G_UNLIKELY(!dir)) {
-		g_warning ("%s: ignoring  %s: %s", path,
-			   __FUNCTION__, strerror(errno));
+		g_warning ("%s: ignoring  %s: %s",  __FUNCTION__,
+			   path, strerror(errno));
 		return MU_OK;
 	}
 	
 	if (dir_cb) {
-		MuResult rv = dir_cb (path, TRUE, data);
+		MuResult rv;
+		rv = dir_cb (path, TRUE, data);
 		if (rv != MU_OK) {
 			closedir (dir);
 			return rv;
@@ -530,10 +542,10 @@ process_dir (const char* path, const char* mdir,
 	
 	result = process_dir_entries_sorted (dir, path, mdir, msg_cb, dir_cb,
 					     data);
-	
 	closedir (dir);
 
-	if (dir_cb) 
+	/* only run dir_cb if it exists and so far, things went ok */
+	if (dir_cb && result == MU_OK)
 		return dir_cb (path, FALSE, data);
 	
 	return result;
