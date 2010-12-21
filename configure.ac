@@ -14,7 +14,7 @@
 ## along with this program; if not, write to the Free Software Foundation,
 ## Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.  
 
-AC_INIT([mu],[0.8],[http://www.djcbsoftware.nl/code/mu])
+AC_INIT([mu],[0.9.1],[http://code.google.com/p/mu0/issues/list])
 AC_CONFIG_HEADERS([config.h])
 AC_CONFIG_SRCDIR([src/mu.cc])
 AM_INIT_AUTOMAKE([dist-bzip2])
@@ -29,7 +29,7 @@ AM_SILENT_RULES([yes])
 # note that MU_XAPIAN_DB_VERSION does not necessarily follow MU
 # versioning, as we hopefully don't have updates for each version;
 # also, this has nothing to do with Xapian's software version
-AC_DEFINE(MU_XAPIAN_DB_VERSION,["8.0"], [Schema version of the database])
+AC_DEFINE(MU_XAPIAN_DB_VERSION,["9.0"], [Schema version of the database])
 
 LT_INIT # don't use AC_PROG_LIBTOOL anymore
 
@@ -41,27 +41,8 @@ AC_PROG_CC
 AC_PROG_CXX
 AC_HEADER_STDC
 
-# require pkg-config
-AC_PATH_PROG([PKG_CONFIG], [pkg-config], [no])
-AS_IF([test "x$PKG_CONFIG" = "xno"],[
-   AC_MSG_ERROR([
-   *** The pkg-config script could not be found. Make sure it is
-   *** in your path, or set the PKG_CONFIG environment variable
-   *** to the full path to pkg-config.])
-])
 
-
-# check for pmccabe		
-AC_PATH_PROG([PMCCABE], [pmccabe], [no])
-AS_IF([test "x$PMCCABE" = "xno"],[
-   AC_MSG_WARN([
-   *** Developers: you don't seem to have the 'pmccabe' tool installed.
-   *** Please install it if you want to run the automated code checks])
-])
-
-
-#
-# currently, we don' support systems without d_type in their struct
+# currently, we don't support systems without d_type in their struct
 # dirent (Solaris 10); but we do support FSs for which d_type is always
 # DT_UNKNOWN (Like ReiserFS, XFS on Linux)
 #
@@ -79,21 +60,24 @@ AC_STRUCT_DIRENT_D_INO
 # we need these
 AC_CHECK_FUNCS([memset realpath setlocale strerror])
 
+
+# require pkg-config
+AC_PATH_PROG([PKG_CONFIG], [pkg-config], [no])
+AS_IF([test "x$PKG_CONFIG" = "xno"],[
+   AC_MSG_ERROR([
+   *** The pkg-config script could not be found. Make sure it is
+   *** in your path, or set the PKG_CONFIG environment variable
+   *** to the full path to pkg-config.])
+])
+
+
 # glib2?
 PKG_CHECK_MODULES(GLIB, glib-2.0)
 AC_SUBST(GLIB_CFLAGS)
 AC_SUBST(GLIB_LIBS)
 
-# gio has only been added to recent glib
-dnl PKG_CHECK_MODULES(GIO,gio-2.0,[have_gio=yes],[have_gio=no])
-dnl AM_CONDITIONAL(HAVE_GIO, [test "x$have_gio" = "xyes"])
-dnl AS_IF([test "x$have_gio" = "xno"],[
-dnl    AC_MSG_WARN([GIO not supported])
-dnl ],[
-dnl    AC_DEFINE(HAVE_GIO,[1],[Wether we have GIO])
-dnl ])
 
-# g_test was introduced in glib 2.16
+# gtest was introduced in glib 2.16
 PKG_CHECK_MODULES(g_test,glib-2.0 >= 2.16, [have_gtest=yes],[have_gtest=no])
 AM_CONDITIONAL(HAVE_GTEST, test "x$have_gtest" = "xyes")
 AM_CONDITIONAL(HAVE_GLIB216, test "x$have_gtest" = "xyes")
@@ -102,19 +86,27 @@ AS_IF([test "x$have_gtest" = "xno"],[
 ])
 
 
-# gmime2.4?	
-PKG_CHECK_MODULES(GMIME,gmime-2.4,[have_gmime=yes],[have_gmime=no])
+# gmime 2.4 or 2.6? mu has only been tested with gmime-2.4, but Fedora
+# 14 ships with gmime 2.5.x, which registers itself (pkgconfig) as 2.6
+# it is reported mu works fine with this new gmime as well, so we support
+# both; based on patch by GooseYArd
+PKG_CHECK_MODULES(GMIME,gmime-2.4,[have_gmime_24=yes],[have_gmime_24=no])
+AS_IF([test "x$have_gmime_24" = "xno"],[
+   PKG_CHECK_MODULES(GMIME,gmime-2.6,[have_gmime_26=yes],[have_gmime_26=no])
+   AS_IF([test "x$have_gmime_26" = "xno"],[   
+      AC_MSG_ERROR([
+      *** neither gmime-2.4 nor gmime-2.6 could not be found; please install it
+      *** e.g., in debian/ubuntu the package would be 'libgmime-2.4-dev'
+      *** If you compiled it yourself, you should ensure that the pkgconfig
+      *** installation dir (e.g., /usr/local/lib/pkgconfig) is in your
+      *** PKG_CONFIG_PATH.
+      ])
+    ])
+ ])
 AC_SUBST(GMIME_CFLAGS)
 AC_SUBST(GMIME_LIBS)
-AS_IF([test "x$have_gmime" = "xno"],[
-   AC_MSG_ERROR([
-   *** gmime-2.4 could not be found; please install it
-   *** e.g., in debian/ubuntu the package would be 'libgmime-2.4-dev'
-   *** If you compiled it yourself, you should ensure that the pkgconfig
-   *** installation dir (e.g., /usr/local/lib/pkgconfig) is in your
-   *** PKG_CONFIG_PATH.
-   ])
-])
+ 
+
 
 # xapian?
 AC_CHECK_PROG(XAPIAN,xapian-config,xapian-config,no)
@@ -130,16 +122,57 @@ AS_IF([test "x$XAPIAN" = "xno"],[
    XAPIAN_CXXFLAGS=`$XAPIAN --cxxflags`
    XAPIAN_LIBS=`$XAPIAN --libs`		
    have_xapian="yes"
-   AC_DEFINE(HAVE_XAPIAN,[1],[Whether we have Xapian])
-])
-   
+   xapian_version="`xapian-config --version`"
+])   
 AC_SUBST(XAPIAN_CXXFLAGS)
 AC_SUBST(XAPIAN_LIBS)
+
+
+
+# we test for gtk, which we need if we want to build 'mug'; for
+# experiments it can try to build with gtk3, but since that is still
+# under development, you need to explicitly enable this with '--with-gtk3'
+#
+have_gtk=no
+AC_ARG_WITH([gtk3],
+   [AS_HELP_STRING([--with-gtk3],
+   [enable support for gtk3])],
+   [],
+   [with_gtk3=no])
+   
+AS_IF([test "x$with_gtk3" != "xno"],[
+  PKG_CHECK_MODULES(GTK,gtk+-3.0,[have_gtk3=yes],[have_gtk3=no])
+  AC_SUBST(GTK_CFLAGS)
+  AC_SUBST(GTK_LIBS)
+  have_gtk=gtk3
+])
+
+AS_IF([test "x$have_gtk3" != "xyes"],[
+  PKG_CHECK_MODULES(GTK,gtk+-2.0,[have_gtk2=yes],[have_gtk2=no])
+  AC_SUBST(GTK_CFLAGS)
+  AC_SUBST(GTK_LIBS)
+  have_gtk=gtk2
+])
+AM_CONDITIONAL(HAVE_GTK, [test "x$have_gtk2" = "xyes" -o "x$have_gtk3" = "xyes"])
+
+
+# check for pmccabe		
+AC_PATH_PROG([PMCCABE],[pmccabe],[yes],[no])
+AS_IF([test "x$PMCCABE" != "xyes"],[
+   AC_MSG_WARN([
+   *** Developers: you don't seem to have the 'pmccabe' tool installed.
+   *** Please install it if you want to run the automated code checks])
+])
+
+
 
 AC_CONFIG_FILES([
 Makefile
 src/Makefile
 src/tests/Makefile
+toys/Makefile
+toys/mug/Makefile
+toys/mug/mug.desktop
 man/Makefile
 contrib/Makefile
 ])
@@ -149,10 +182,16 @@ echo
 echo "mu configuration is complete."
 echo "-----------------------------"
 
-echo
-echo "Note: the Xapian database is no longer stored as <muhome>/xapian-0.6"
-echo "but instead simply as <muhome>/xapian. You can remove the older"
-echo "<muhome>/xapian-0.6 directory to save some disk space"
+if test -e ~/.mu/xapian-0.6; then
+   echo "Note: since version 0.7, the Xapian database is no longer stored as "
+   echo "~/.mu/xapian-0.6 but instead simply as ~/.mu/xapian. You can "
+   echo "remove the old <muhome>/xapian-0.6 directory to save some disk space"
+fi
+
+echo "Xapian version                       : $xapian_version"
+echo "Build unit tests (glib >= 2.16)      : $have_gtest"
+echo "Build UI (requires GTK+)             : $have_gtk"
+echo "McCabe's Cyclomatic Complexity tool  : $PMCCABE"
 
 echo
 echo "type 'make' to build mu, or 'make check' to run the unit tests."

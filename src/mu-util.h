@@ -33,14 +33,16 @@ G_BEGIN_DECLS
 gboolean mu_util_init_system (void);
 
 /**
- * get the expanded path; ie. perform shell expansion on the path
+ * get the expanded path; ie. perform shell expansion on the path. the
+ * path does not have to exist
  *
  * @param path path to expand
  * 
  * @return the expanded path as a newly allocated string, or NULL in
  * case of error
  */
-char*       mu_util_dir_expand (const char* path) G_GNUC_WARN_UNUSED_RESULT;
+char* mu_util_dir_expand (const char* path)
+    G_GNUC_MALLOC G_GNUC_WARN_UNUSED_RESULT;
 
 /**
  * guess the maildir; first try $MAILDIR; if it is unset or
@@ -48,9 +50,20 @@ char*       mu_util_dir_expand (const char* path) G_GNUC_WARN_UNUSED_RESULT;
  * 
  * @return full path of the guessed Maildir, or NULL; must be freed (gfree)
  */
-char*       mu_util_guess_maildir (void) G_GNUC_WARN_UNUSED_RESULT;
+char* mu_util_guess_maildir (void)
+   G_GNUC_MALLOC G_GNUC_WARN_UNUSED_RESULT;
 
 
+/**
+ * guess the place of the mu homedir (typically, ~/.mu). Note, this
+ * directory does not necessarily exist. mu_util_check_dir can be use
+ * to check that
+ *  
+ * @return the guessed mu homedir, which needs to be freed with g_free
+ * when no longer needed.
+ */
+gchar* mu_util_guess_mu_homedir (void)
+    G_GNUC_MALLOC G_GNUC_WARN_UNUSED_RESULT;
 
 /**
  * if path exists, check that's a read/writeable dir; otherwise try to
@@ -61,7 +74,8 @@ char*       mu_util_guess_maildir (void) G_GNUC_WARN_UNUSED_RESULT;
  * @return TRUE if a read/writeable directory `path' exists after
  * leaving this function, FALSE otherwise
  */
-gboolean mu_util_create_dir_maybe (const gchar *path) G_GNUC_WARN_UNUSED_RESULT;
+gboolean mu_util_create_dir_maybe (const gchar *path)
+    G_GNUC_WARN_UNUSED_RESULT;
 
 
 /**
@@ -75,7 +89,8 @@ gboolean mu_util_create_dir_maybe (const gchar *path) G_GNUC_WARN_UNUSED_RESULT;
  * @return TRUE if dir exist and has the specified properties
  */
 gboolean mu_util_check_dir (const gchar* path, gboolean readable,
-			    gboolean writeable) G_GNUC_WARN_UNUSED_RESULT;
+			    gboolean writeable)
+    G_GNUC_WARN_UNUSED_RESULT;
 
 
 
@@ -88,11 +103,12 @@ gboolean mu_util_check_dir (const gchar* path, gboolean readable,
  * @param overwrite should we allow for overwriting existing files?
  * 
  * @return a file descriptor, or -1 in case of error. If it's a fily
- * system error, 'errno' may have more info.
+ * system error, 'errno' may have more info. use 'close()' when done
+ * with the file descriptor
  */
 int mu_util_create_writeable_fd (const char* filename, const char* dir,
-				 gboolean overwrite);
-
+				 gboolean overwrite)
+    G_GNUC_WARN_UNUSED_RESULT;
 
 /**
  * convert a string array in to a string, with the elements separated
@@ -102,7 +118,8 @@ int mu_util_create_writeable_fd (const char* filename, const char* dir,
  * 
  * @return a newly allocated string
  */
-gchar* mu_util_str_from_strv (const gchar **params) G_GNUC_WARN_UNUSED_RESULT;
+gchar* mu_util_str_from_strv (const gchar **params)
+        G_GNUC_MALLOC G_GNUC_WARN_UNUSED_RESULT;
 
 /**
  * 
@@ -111,27 +128,54 @@ gchar* mu_util_str_from_strv (const gchar **params) G_GNUC_WARN_UNUSED_RESULT;
  */
 
 #define MU_XAPIAN_CATCH_BLOCK						\
-	catch (const Xapian::Error &err) {				\
+	catch (const Xapian::Error &xerr) {				\
                 g_critical ("%s: caught xapian exception '%s'",		\
-			__FUNCTION__, err.get_msg().c_str());		\
+			__FUNCTION__, xerr.get_msg().c_str());		\
         } catch (...) {							\
                 g_critical ("%s: caught exception", __FUNCTION__);	\
         }
+
+#define MU_XAPIAN_CATCH_BLOCK_G_ERROR(GE,E)				\
+	catch (const Xapian::Error &xerr) {				\
+		g_set_error ((GE),0,(E),				\
+			     "%s: caught xapian exception '%s'",	\
+			__FUNCTION__, xerr.get_msg().c_str());		\
+        } catch (...) {							\
+		g_set_error ((GE),0,(MU_ERROR_INTERNAL),		\
+			     "%s: caught exception", __FUNCTION__);	\
+        }
+
 
 
 #define MU_XAPIAN_CATCH_BLOCK_RETURN(R)					\
-	catch (const Xapian::Error &err) {				\
+	catch (const Xapian::Error &xerr) {				\
                 g_critical ("%s: caught xapian exception '%s'",		\
-			   __FUNCTION__, err.get_msg().c_str());	\
+			   __FUNCTION__, xerr.get_msg().c_str());	\
 		return (R);						\
         } catch (...) {							\
                 g_critical ("%s: caught exception", __FUNCTION__);	\
 		return (R);						\
         }
+
+#define MU_XAPIAN_CATCH_BLOCK_G_ERROR_RETURN(GE,E,R)			\
+	catch (const Xapian::Error &xerr) {				\
+		g_set_error ((GE),0,(E),				\
+			     "%s: caught xapian exception '%s'",	\
+			   __FUNCTION__, xerr.get_msg().c_str());	\
+		return (R);						\
+        } catch (...) {							\
+		g_set_error ((GE),0,(MU_ERROR_INTERNAL),		\
+			     "%s: caught exception", __FUNCTION__);	\
+		return (R);						\
+        }
+
 
 /* the name of the (leaf) dir which has the xapian database */
 #define MU_XAPIAN_DIR_NAME    "xapian"
 #define MU_XAPIAN_VERSION_KEY "db_version"
+
+/* name of the bookmark file */
+#define MU_BOOKMARK_FILENAME "bookmarks"
 
 /**
  * log something in the log file; note, we use G_LOG_LEVEL_INFO

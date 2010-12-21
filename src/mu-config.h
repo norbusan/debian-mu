@@ -36,7 +36,6 @@ struct _MuConfigOptions {
 	gboolean	 quiet;         /* don't give any output */
 	gboolean	 debug;         /* spew out debug info */
 	char		*muhome;        /* the House of Mu */
-	char             *xpath;	/* path to the Xapian dir */
 	gboolean	 version;	/* request mu version */
 	gboolean	 log_stderr;	/* log to stderr (not logfile) */
 	gchar**	         params;	/* parameters (for querying) */
@@ -54,7 +53,8 @@ struct _MuConfigOptions {
 	char		*fields;	/* fields to show in output */	
 	char	        *sortfield;	/* field to sort by (string) */
 	gboolean        descending;	/* sort descending? */
-	unsigned        summary_len;    /* max # of lines of msg in summary */		
+	unsigned        summary_len;    /* max # of lines of msg in summary */
+	char            *bookmark;      /* use bookmark */
 	/* output to a maildir with symlinks */
 	char            *linksdir;      /* maildir to output symlinks */
 	gboolean	clearlinks;     /* clear a linksdir before filling */

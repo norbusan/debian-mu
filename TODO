@@ -1,21 +1,44 @@
 * Future release
 
-** release 0.9 [%]
-   - [ ] bookmarks
-   - [ ] query on time
-   - [ ] mu-setup (?)
+** release 0.10 [9%]
+
    - [ ] mu stats
    - [ ] follow symlinks when indexing
    - [ ] ansi-colors in output
    - [ ] config system (config file) (?)
-   - [ ] search for date interval etc.
    - [ ] detect mail threads (?)
-   - [ ] clean up mu-msg-field, add formatting(?)
    - [ ] xml,json,sexp output
    - [ ] completion for zsh
    - [ ] don't make test mail files executable
+   - [ ] make commit batch size configure param
+   - [ ] fix -pedantic build
+   - [ ] better 'usage' info
+   - [ ] add version info to output of configure, mu.log
+   - [ ] make 'make check' more useful for others
+   - [ ] see whether the other (slower, more complete) str_normalize is worth it
+	 
+* Releases already done
 
-* Release already done
+** release 0.9 [100%]
+
+   - [X] bookmarks
+   - [X] gtk-ui for searching
+   - [X] clean up mu-msg-field
+   - [X] normalize search fields
+   - [X] cleanup version check
+   - [X] propagate errors to ui
+   - [X] update mug for GErrors feedback
+   - [X] improve date ranges
+   - [X] improve spacing in mug
+   - [X] fix flag searches + synonyms
+   - [X] unbreak cc10/line33
+   - [X] fix issue #28 (lstat)
+   - [X] fix sorting by date in mug
+   - [X] make mug icon square
+   - [X] fix sort-order
+   - [X] pre-process terms, queries for '@'/':'/'.'
+   - [X] add support for Fedora14 (GMime 2.6)
+   - [X] normalize error output
 
 ** release 0.8 [100%]
    - [X] remove gio dependency

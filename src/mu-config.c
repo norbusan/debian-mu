@@ -17,7 +17,7 @@
 **
 */
 
-#ifdef HAVE_CONFIG_H
+#if HAVE_CONFIG_H
 #include "config.h"
 #endif /*HAVE_CONFIG_H*/
 
@@ -27,32 +27,19 @@
 #include "mu-util.h"
 #include "mu-config.h"
 
-
-static gchar*
-guess_muhome (void)
-{
-	const char* home;
-
-	home = g_getenv ("HOME");
-	if (!home)
-		home = g_get_home_dir ();
-
-	if (!home)
-		MU_WRITE_LOG ("failed to determine homedir");
-	
-	return g_strdup_printf ("%s%c%s", home ? home : ".", G_DIR_SEPARATOR,
-				".mu");
-}
-
 static void
 set_group_mu_defaults (MuConfigOptions *opts)
 {
-	if (!opts->muhome)
-		opts->muhome = guess_muhome ();
+	gchar *exp;
 	
-	/* note: xpath is is *not* settable from the cmdline */
-	opts->xpath = g_strdup_printf ("%s%c%s", opts->muhome,G_DIR_SEPARATOR,
-				       MU_XAPIAN_DIR_NAME);
+	if (!opts->muhome) 
+		opts->muhome = mu_util_guess_mu_homedir ();
+
+	exp = mu_util_dir_expand (opts->muhome);
+	if (exp) {
+		g_free (opts->muhome);
+		opts->muhome = exp;
+	}
 }
 
 
@@ -87,20 +74,16 @@ config_options_group_mu (MuConfigOptions *opts)
 static void
 set_group_index_defaults (MuConfigOptions *opts)
 {
-	gchar *old;
-	
-	old = opts->maildir;
-	if (opts->maildir)
-		opts->maildir = mu_util_dir_expand (opts->maildir);
-	else
+	gchar *exp;
+
+	if (!opts->maildir)
 		opts->maildir = mu_util_guess_maildir();
 
-	/* note, this may be an invalid dir, but we're checking for
-	 * validity of the dir later */
-	if (!opts->maildir)
-		opts->maildir = old;
-	else
-		g_free (old);
+	exp = mu_util_dir_expand (opts->maildir);
+	if (exp) {
+		g_free (opts->maildir);
+		opts->maildir = exp;
+	}	
 }
 
 
@@ -139,9 +122,11 @@ set_group_find_defaults (MuConfigOptions *opts)
 	 * date-from-subject, and sort descending by date. If fields
 	 * *are* specified, we sort in ascending order. */
 	if (!opts->fields) {
-		opts->descending = TRUE;
 		opts->fields     = "d f s";
-		opts->sortfield  = "d";
+		if (!opts->sortfield) {
+			opts->sortfield  = "d";
+			opts->descending = TRUE;
+		}
 	}
 
 	if (opts->linksdir) {
@@ -170,6 +155,8 @@ config_options_group_find (MuConfigOptions *opts)
 		 "fields to display in the output", NULL},
 		{"sortfield", 's', 0, G_OPTION_ARG_STRING, &opts->sortfield,
 		 "field to sort on", NULL},
+		{"bookmark", 'b', 0, G_OPTION_ARG_STRING, &opts->bookmark,
+		 "use a bookmarked query", NULL},
 		{"descending", 'z', 0, G_OPTION_ARG_NONE, &opts->descending,
 		 "sort in descending order (z -> a)", NULL},
 		{"summary-len", 'k', 0, G_OPTION_ARG_INT, &opts->summary_len,
@@ -218,7 +205,8 @@ config_options_group_extract (MuConfigOptions *opts)
 {
 	GOptionGroup *og;
 	GOptionEntry entries[] = {
-		{"save-attachments", 'a', 0, G_OPTION_ARG_NONE, &opts->save_attachments,
+		{"save-attachments", 'a', 0, G_OPTION_ARG_NONE,
+		 &opts->save_attachments,
 		 "save all attachments", NULL},
 		{"save-all", 0, 0, G_OPTION_ARG_NONE, &opts->save_all,
 		 "save all parts (incl. non-attachments)", NULL},
@@ -248,7 +236,7 @@ config_options_group_extract (MuConfigOptions *opts)
 static gboolean
 parse_params (MuConfigOptions *opts, int *argcp, char ***argvp)
 {
-	GError *error = NULL;
+	GError *err;
 	GOptionContext *context;
 	gboolean rv;
 	
@@ -264,13 +252,15 @@ parse_params (MuConfigOptions *opts, int *argcp, char ***argvp)
 				    config_options_group_mkdir (opts));
 	g_option_context_add_group (context,
 				    config_options_group_extract (opts));
-	
-	rv = g_option_context_parse (context, argcp, argvp, &error);
+
+	err = NULL;
+	rv = g_option_context_parse (context, argcp, argvp, &err);
 	if (!rv) {
-		g_printerr ("error in options: %s\n", error->message);
-		g_error_free (error);
-	} else
-		g_option_context_free (context);
+		g_warning ("error in options: %s\n", err->message);
+		g_error_free (err);
+	}
+
+	g_option_context_free (context);
 
 	/* fill in the defaults if user did not specify */
 	set_group_mu_defaults (opts);
@@ -303,10 +293,10 @@ mu_config_uninit (MuConfigOptions *opts)
 	g_return_if_fail (opts);
 
 	g_free (opts->muhome);
-	g_free (opts->xpath);
 	g_free (opts->maildir);
 	g_free (opts->linksdir);
-
+	g_free (opts->targetdir);
+	
 	g_strfreev (opts->params);
 }
 

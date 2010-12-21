@@ -17,7 +17,7 @@
 **  
 */
 
-#ifdef HAVE_CONFIG_H
+#if HAVE_CONFIG_H
 #include "config.h"
 #endif /*HAVE_CONFIG_H*/
 
@@ -66,7 +66,8 @@ test_mu_msg_01 (void)
 	gint i;
 
 	msg = mu_msg_new (MU_TESTMAILDIR
-			  "cur/1220863042.12663_1.mindcrime!2,S", NULL);
+					  "cur/1220863042.12663_1.mindcrime!2,S",
+					  NULL, NULL);
 
 	g_assert_cmpstr (mu_msg_get_to(msg),
 			 ==, "Donald Duck <gcc-help@gcc.gnu.org>");
@@ -127,8 +128,9 @@ test_mu_msg_02 (void)
 	int i;
 
 	msg = mu_msg_new (MU_TESTMAILDIR
-			  "cur/1220863087.12663_19.mindcrime!2,S", NULL);
-
+					  "cur/1220863087.12663_19.mindcrime!2,S",
+					  NULL, NULL);
+	
 	g_assert_cmpstr (mu_msg_get_to(msg),
 			 ==, "help-gnu-emacs@gnu.org");
 	g_assert_cmpstr (mu_msg_get_subject(msg),
@@ -145,9 +147,13 @@ test_mu_msg_02 (void)
 			  ==, 1218051515);
 	
 	i = 0;
-	mu_msg_contact_foreach (msg, (MuMsgContactForeachFunc)check_contact_02,
+	mu_msg_contact_foreach (msg,
+				(MuMsgContactForeachFunc)check_contact_02,
 				&i);
 	g_assert_cmpint (i,==,2);
+
+	g_assert_cmpuint (mu_msg_get_flags(msg),
+			  ==, MU_MSG_FLAG_SEEN);
 	
 	mu_msg_destroy (msg);
 }
@@ -158,7 +164,8 @@ test_mu_msg_03 (void)
 	MuMsg *msg;
 
 	msg = mu_msg_new (MU_TESTMAILDIR
-			  "cur/1283599333.1840_11.cthulhu!2,", NULL);
+			  "cur/1283599333.1840_11.cthulhu!2,",
+					  NULL, NULL);
 
 	g_assert_cmpstr (mu_msg_get_to(msg),
 			 ==, "Bilbo Baggins <bilbo@anotherexample.com>");
@@ -173,9 +180,40 @@ test_mu_msg_03 (void)
 	g_assert_cmpstr (mu_msg_get_body_text(msg),
 			 ==,
 			 "\nLet's write some fünkÿ text\nusing umlauts.\n\nFoo.\n");
+
+	g_assert_cmpuint (mu_msg_get_flags(msg),
+			  ==, 0);
+
 	
 	mu_msg_destroy (msg);
 }
+
+
+static void
+test_mu_msg_04 (void)
+{
+	MuMsg *msg;
+
+	msg = mu_msg_new (MU_TESTMAILDIR2
+					  "Foo/cur/mail4", NULL, NULL);
+
+	g_assert_cmpstr (mu_msg_get_to(msg),
+			 ==, "George Custer <gac@example.com>");
+	g_assert_cmpstr (mu_msg_get_subject(msg),
+			 ==, "pics for you");
+	g_assert_cmpstr (mu_msg_get_from(msg),
+			 ==, "Sitting Bull <sb@example.com>");
+	g_assert_cmpuint (mu_msg_get_prio(msg), /* 'low' */
+			  ==, MU_MSG_PRIO_NORMAL);
+	g_assert_cmpuint (mu_msg_get_date(msg),
+			  ==, 0);
+
+	g_assert_cmpuint (mu_msg_get_flags(msg),
+			  ==, MU_MSG_FLAG_HAS_ATTACH);
+	
+	mu_msg_destroy (msg);
+}
+
 
 
 /* static gboolean */
@@ -190,19 +228,27 @@ test_mu_msg_03 (void)
 int
 main (int argc, char *argv[])
 {
-	g_test_init (&argc, &argv, NULL);
+		int rv;
+		g_test_init (&argc, &argv, NULL);
 
-	/* mu_msg_str_date */
-	g_test_add_func ("/mu-msg/mu-msg-01",
-			 test_mu_msg_01);
-	g_test_add_func ("/mu-msg/mu-msg-02",
-			 test_mu_msg_02);
-	g_test_add_func ("/mu-msg/mu-msg-03",
-			 test_mu_msg_03);
-	
-	g_log_set_handler (NULL,
-			   G_LOG_LEVEL_MASK | G_LOG_FLAG_FATAL| G_LOG_FLAG_RECURSION,
-			   (GLogFunc)black_hole, NULL);
-	
-	return g_test_run ();
+		/* mu_msg_str_date */
+		g_test_add_func ("/mu-msg/mu-msg-01",
+						 test_mu_msg_01);
+		g_test_add_func ("/mu-msg/mu-msg-02",
+						 test_mu_msg_02);
+		g_test_add_func ("/mu-msg/mu-msg-03",
+						 test_mu_msg_03);
+		g_test_add_func ("/mu-msg/mu-msg-04",
+						 test_mu_msg_04);
+		
+		g_log_set_handler (NULL,
+						   G_LOG_LEVEL_MASK | G_LOG_FLAG_FATAL| G_LOG_FLAG_RECURSION,
+						   (GLogFunc)black_hole, NULL);
+
+		mu_msg_gmime_init ();
+		rv = g_test_run ();
+		mu_msg_gmime_uninit ();
+		
+		return rv;
+		
 }

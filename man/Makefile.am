@@ -18,10 +18,12 @@ include $(top_srcdir)/gtest.mk
 
 dist_man_MANS =		\
 	mu-cleanup.1	\
+	mu-bookmarks.5	\
 	mu-easy.1	\
 	mu-extract.1	\
 	mu-find.1	\
 	mu-index.1	\
 	mu-mkdir.1	\
 	mu-view.1	\
-	mu.1
+	mu.1		\
+	mug.1

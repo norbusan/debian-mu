@@ -34,15 +34,16 @@
 
 #include "mu-msg.h"
 #include "mu-index.h"
+#include "mu-runtime.h"
 
 static gboolean MU_CAUGHT_SIGNAL;
 
 static void
 update_warning (void)
 {
-	g_warning ("Note: the database needs to be upgraded to version %s",
+	g_warning ("note: the database needs to be upgraded to version %s",
 		   MU_XAPIAN_DB_VERSION);
-	g_warning ("Please run 'mu index --rebuild' (see the manpage)");
+	g_warning ("please run 'mu index --rebuild' (see the manpage)");
 }
 
 static void
@@ -50,7 +51,7 @@ sig_handler (int sig)
 {
 	if (!MU_CAUGHT_SIGNAL && sig == SIGINT) { /* Ctrl-C */
 		g_print ("\n");
-		g_warning ("Shutting down gracefully, "
+		g_warning ("shutting down gracefully, "
 			   "press again to kill immediately");
 	}
 	
@@ -77,8 +78,15 @@ install_sig_handler (void)
 
 
 static gboolean
-check_index_params (MuConfigOptions *opts)
+check_index_or_cleanup_params (MuConfigOptions *opts)
 {
+	/* param[0] == 'index' or 'cleanup', there should be no
+	 * param[1] */
+	if (opts->params[1]) {
+		g_warning ("usage: mu %s [options]", opts->params[0]);
+		return FALSE;
+	}
+		
 	if (opts->linksdir || opts->xquery) {
 		g_warning ("invalid option(s) for command");
 		return FALSE;
@@ -126,7 +134,6 @@ print_stats (MuIndexStats* stats, gboolean clear)
 				   (unsigned)stats->_processed,
 				   (unsigned)stats->_updated,
 				   (unsigned)stats->_cleaned_up);
-
         g_print ("%s", output);
 }
 
@@ -147,24 +154,29 @@ index_msg_cb  (MuIndexStats* stats, void *user_data)
 static gboolean
 database_version_check_and_update (MuConfigOptions *opts)
 {
-	if (mu_util_db_is_empty (opts->xpath))
+	const gchar *xpath;
+
+	xpath = mu_runtime_xapian_dir ();
+	
+	if (mu_util_db_is_empty (xpath))
 		return TRUE;
 	
-	/* we empty the database before doing anything */
+	/* when rebuilding, we empty the database before doing
+	 * anything */
 	if (opts->rebuild) {
 		opts->reindex = TRUE;
-		g_message ("Clearing database %s", opts->xpath);
-		return mu_util_clear_database (opts->xpath);
+		g_message ("clearing database %s", xpath);
+		return mu_util_clear_database (xpath);
 	}
 
-	if (mu_util_db_version_up_to_date (opts->xpath))
+	if (mu_util_db_version_up_to_date (xpath))
 		return TRUE; /* ok, nothing to do */
 	
 	/* ok, database is not up to date */
 	if (opts->autoupgrade) {
 		opts->reindex = TRUE;
-		g_message ("Auto-upgrade: clearing old database first");
-		return mu_util_clear_database (opts->xpath);
+		g_message ("auto-upgrade: clearing old database first");
+		return mu_util_clear_database (xpath);
 	}
 
 	update_warning ();
@@ -176,10 +188,10 @@ static void
 show_time (unsigned t, unsigned processed)
 {
 	if (t)
-		g_message ("Elapsed: %u second(s), ~ %u msg/s",
+		g_message ("elapsed: %u second(s), ~ %u msg/s",
 			   t, processed/t);
 	else
-		g_message ("Elapsed: %u second(s)", t);
+		g_message ("elapsed: %u second(s)", t);
 }
 
 
@@ -191,7 +203,7 @@ cmd_cleanup (MuIndex *midx, MuConfigOptions *opts, MuIndexStats *stats,
 	MuResult rv;
 	time_t t;
 	
-	g_message ("Cleaning up messages [%s]", opts->xpath);
+	g_message ("cleaning up messages [%s]", mu_runtime_xapian_dir());
 	
 	t = time (NULL);
 	rv = mu_index_cleanup (midx, stats,
@@ -216,11 +228,12 @@ cmd_index (MuIndex *midx, MuConfigOptions *opts, MuIndexStats *stats,
 	MuResult rv;
 	time_t t;
 	
-	g_message ("Indexing messages under %s [%s]", opts->maildir, opts->xpath);
-
+	g_message ("indexing messages under %s [%s]", opts->maildir,
+		   mu_runtime_xapian_dir());
+	
 	t = time (NULL);
 	rv = mu_index_run (midx, opts->maildir, opts->reindex, stats,
-			   show_progress ? index_msg_cb : index_msg_silent_cb,
+			   show_progress ? index_msg_cb:index_msg_silent_cb,
 			   NULL, NULL);
 
 	if (!opts->quiet) {
@@ -235,7 +248,8 @@ cmd_index (MuIndex *midx, MuConfigOptions *opts, MuIndexStats *stats,
 	}
 	
 	if (rv == MU_OK || rv == MU_STOP) {
-		MU_WRITE_LOG ("processed: %u; updated/new: %u, cleaned-up: %u",
+		MU_WRITE_LOG ("processed: %u; updated/new: %u, "
+			      "cleaned-up: %u",
 			      stats->_processed, stats->_updated,
 			      stats->_cleaned_up);
 		return TRUE;
@@ -253,16 +267,21 @@ cmd_index_or_cleanup (MuConfigOptions *opts)
 	MuIndex *midx;
 	MuIndexStats stats;
 	gboolean show_progress;
+	GError *err;
 	
 	g_return_val_if_fail (opts, FALSE);
 	g_return_val_if_fail (mu_cmd_equals (opts, "index") ||
 			      mu_cmd_equals (opts, "cleanup"), FALSE);
 			  
-	if (!check_index_params (opts) || !database_version_check_and_update(opts))
+	if (!check_index_or_cleanup_params (opts) ||
+	    !database_version_check_and_update(opts))
 		return FALSE;
-	
-	if (!(midx = mu_index_new (opts->xpath))) {
-		g_warning ("Indexing/Cleanup failed");
+
+	err = NULL;
+	if (!(midx = mu_index_new (mu_runtime_xapian_dir(), &err))) {
+		g_warning ("index/cleanup failed: %s",
+			   err->message);
+		g_error_free (err);
 		return FALSE;
 	} 
 

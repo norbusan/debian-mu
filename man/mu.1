@@ -1,10 +1,13 @@
-.TH MU 1 "October 2010" "User Manuals"
+.TH MU 1 "November 2010" "User Manuals"
 
 .SH NAME 
 
-mu \- index and search e-mail messages stored in Maildirs
+mu \- a set of tools to deal with Maildirs; in particular to index and search
+e-mail messages.
 
 .SH SYNOPSIS
+
+.B mu [options]
 
 .B mu index [options]
 
@@ -18,21 +21,25 @@ mu \- index and search e-mail messages stored in Maildirs
 
 .B mu extract [options] <file> [<parts>]
 
-.B mu [options]
-
 .SH DESCRIPTION
 
-\fBmu\fR is a set of tools for dealing with e-mail messages in Maildirs. 
+\fBmu\fR is a set of tools for dealing with Maildirs and the e-mail messages
+in them.
 
-Its main function is enable searching of e-mail messages. It does so by
-scanning a Maildir directory tree and analyzing the e-mail messages found. The
-results of this analysis are stored in a database, which can then be queried.
+\fBmu\fRs main function is to enable searching of e-mail messages. It does so
+by scanning a Maildir directory tree and analyzing the e-mail messages found
+('indexing'). The results of this analysis are stored in a database, which can
+then be queried.
 
 In addition to indexing and searching, \fBmu\fR also offers functionality for
 viewing messages, extracting attachments and creating maildirs.
 
-\fBmu\fR can be used from the command line or can be integrated with e-mail
-clients. Note: the various sub-commands have their own manpages.
+\fBmu\fR can be used from the command line or can be integrated with various
+e-mail clients.
+
+This manpage gives a general overview of the available commands
+(\fBindex\fR, \fBfind\fR, etc.); each of the \fBmu\fR commands has its
+own man-page as well.
 
 .SH COMMANDS
 
@@ -78,7 +85,7 @@ for extract MIME-parts (such as attachments) from messages. See
 \.
 
 
-.SH " "
+.SH COMMANDS
 
 Commands \fBmu index\fR, \fBfind\fR and \fBcleanup\fR work with the database,
 while the other ones work on invidual mail files. Hence, running \fview\fR,
@@ -102,8 +109,8 @@ store and read its database and logs. By default, \fI~/.mu\fR is used.
 makes \fBmu\fR generate extra debug information,
 useful for debugging the program itself. By default, debug information goes to
 the log file, \fI~/.mu/mu.log\fR. It can safely be deleted when \fBmu\fR is
-not running. Note, with the debug option, the log file can grow rather
-quickly. See the note on logging below.
+not running. When running with \fB--debug\fR option, the log file can grow
+rather quickly. See the note on logging below.
 
 .TP
 \fB\-q\fR, \fB\-\-quiet\fR
@@ -115,21 +122,21 @@ use this option when using \fBmu\fR from scripts etc.
 
 .TP
 \fB\-\-log-stderr\fR
-causes \fBmu\fR not to output all log messages
-to standard error, in addition to sending them to the log file.
+causes \fBmu\fR to \fBnot\fR output log messages to standard error, in
+addition to sending them to the log file.
 
 .TP
 \fB\-v\fR, \fB\-\-version\fR
-outputs the \fBmu\fR-version and copyright
-information.
+prints \fBmu\fR version and copyright information.
 
 .TP
 \fB\-h\fR, \fB\-\-help\fR
-list the various command line options, while
-\fB\-\-help\-index\fR, \fB\-\-help\-find\fR and \fB\-\-help\-all\fR list only
-the options for one command, or all of the commands.
+lists the various command line options, while \fB\-\-help\-index\fR,
+\fB\-\-help\-find\fR and \fB\-\-help\-all\fR list only the options for
+respectively the specified command or for all commands.
 
 .SH BUGS
+
 Please report bugs if you find them:
 .BR http://code.google.com/p/mu0/issues/list
 
@@ -139,14 +146,5 @@ Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 
 .SH "SEE ALSO"
 
-.BR mu-index(1)
-
-.BR mu-cleanup(1)
-
-.BR mu-find(1)
-
-.BR mu-mkdir(1)
-
-.BR mu-view(1)
-
-.BR mu-extract(1)
+.BR mu-index(1) mu-cleanup(1) mu-find(1) mu-mkdir(1) mu-view(1)
+.BR mu-extract(1) mu-easy(1) mu-bookmarks(5)

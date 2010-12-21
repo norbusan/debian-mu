@@ -17,7 +17,7 @@
 **
 */
 
-#ifdef HAVE_CONFIG_H
+#if HAVE_CONFIG_H
 #include "config.h"
 #endif /*HAVE_CONFIG_H*/
 
@@ -25,7 +25,6 @@
 
 #include "mu-msg.h"
 #include "mu-msg-part.h"
-#include "mu-msg-str.h"
 #include "mu-cmd.h"
 #include "mu-util.h"
 
@@ -85,7 +84,8 @@ save_part_if (MuMsgPart *part, SaveData *sd)
 	 * the attachment check may be a bit too strict */
 	if (sd->attachments_only) 
 		if (!part->disposition ||
-		    ((g_ascii_strcasecmp (part->disposition, "attachment") != 0) &&
+		    ((g_ascii_strcasecmp (part->disposition,
+					  "attachment") != 0) &&
 		     g_ascii_strcasecmp (part->disposition, "inline")))
 			return;
 
@@ -104,8 +104,8 @@ save_part_if (MuMsgPart *part, SaveData *sd)
 }
 
 static gboolean
-save_certain_parts (MuMsg *msg, gboolean attachments_only, const gchar *targetdir,
-		    gboolean overwrite)
+save_certain_parts (MuMsg *msg, gboolean attachments_only,
+		    const gchar *targetdir, gboolean overwrite)
 {
 	SaveData sd;
 
@@ -135,11 +135,16 @@ save_parts (const char *path, MuConfigOptions *opts)
 {	
 	MuMsg* msg;
 	gboolean rv;
-	
-	msg = mu_msg_new (path, NULL);
-	if (!msg)
-		return FALSE;
+	GError *err;
 
+	err = NULL;
+	msg = mu_msg_new (path, NULL, &err);
+	if (!msg) {
+		g_warning ("error: %s", err->message);
+		g_error_free (err);
+		return FALSE;
+	}
+		
 	/* note, mu_cmd_extract already checks whether what's in opts
 	 * is somewhat, so no need for extensive checking here */
 	
@@ -177,10 +182,15 @@ static gboolean
 show_parts (const char* path, MuConfigOptions *opts)
 {
 	MuMsg* msg;
-	
-	msg = mu_msg_new (path, NULL);
-	if (!msg)
+	GError *err;
+
+	err = NULL;
+	msg = mu_msg_new (path, NULL, &err);
+	if (!msg) {
+		g_warning ("error: %s", err->message);
+		g_error_free (err);
 		return FALSE;
+	}
 
 	g_print ("MIME-parts in this message:\n");
 	mu_msg_msg_part_foreach (msg, each_part_show, NULL);
@@ -195,17 +205,19 @@ static gboolean
 check_params (MuConfigOptions *opts)
 {
 	if (!opts->params[1]) {
-		g_warning ("missing mail file to extract something from");
+		g_warning ("usage: mu extract [options] <file>");
 		return FALSE;
 	}
 
 	if (!mu_util_check_dir(opts->targetdir, FALSE, TRUE)) {
-		g_warning ("target '%s' is not a writable directory", opts->targetdir);
+		g_warning ("target '%s' is not a writable directory",
+			   opts->targetdir);
 		return FALSE;
 	}
 	
 	if (opts->save_attachments && opts->save_all) {
-		g_warning ("only one of --save-attachments and --save-all is allowed");
+		g_warning ("only one of --save-attachments and"
+			   " --save-all is allowed");
 		return FALSE;
 	}
 	

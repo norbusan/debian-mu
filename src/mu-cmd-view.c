@@ -26,7 +26,7 @@
 #include <stdlib.h>
 
 #include "mu-msg.h"
-#include "mu-msg-str.h"
+#include "mu-str.h"
 #include "mu-cmd.h"
 
 #include "mu-util.h"
@@ -34,16 +34,11 @@
 
 /* we ignore fields for now */
 static gboolean
-view_file (const gchar *path, const gchar *fields, size_t summary_len)
+view_msg (MuMsg *msg, const gchar *fields, size_t summary_len)
 {
-	MuMsg* msg;
 	const char *field;
 	time_t date;
-	
-	msg = mu_msg_new (path, NULL);
-	if (!msg)
-		return FALSE;
-	
+
 	if ((field = mu_msg_get_from (msg)))
 		g_print ("From: %s\n", field);
 	
@@ -57,18 +52,13 @@ view_file (const gchar *path, const gchar *fields, size_t summary_len)
 		g_print ("Subject: %s\n", field);
 	
 	if ((date = mu_msg_get_date (msg)))
-		g_print ("Date: %s\n", mu_msg_str_date_s (date));
+		g_print ("Date: %s\n", mu_str_date_s ("%c", date));
 
 	if (summary_len > 0) {
 		field = mu_msg_get_summary (msg, summary_len);
 		g_print ("Summary: %s\n", field ? field : "<none>");
 	} else if ((field = mu_msg_get_body_text (msg))) 
 		g_print ("\n%s\n", field);
-	else
-		/* not really an error */
-		g_debug ("No text body found for %s", path);
-		
-	mu_msg_destroy (msg);
 
 	return TRUE;
 }
@@ -83,14 +73,24 @@ mu_cmd_view (MuConfigOptions *opts)
 
 	/* note: params[0] will be 'view' */
 	if (!opts->params[0] || !opts->params[1]) {
-		g_printerr ("Missing files to view\n");
+		g_warning ("usage: mu view [options] <file> [<files>]");
 		return FALSE;
 	}
 	
 	rv = TRUE;
-	for (i = 1; opts->params[i] && rv; ++i) 	
-		rv = view_file (opts->params[i], NULL,
-				opts->summary_len);
+	for (i = 1; opts->params[i] && rv; ++i) {
+
+		GError *err = NULL;
+		MuMsg  *msg = mu_msg_new (opts->params[i], NULL, &err);
+		if (!msg) {
+			g_warning ("error: %s", err->message);
+			g_error_free (err);
+			return FALSE;
+		}
+		
+		rv = view_msg (msg, NULL, opts->summary_len);
+		mu_msg_destroy (msg);
+	}
 	
 	return rv;
 }
