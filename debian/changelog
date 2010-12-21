@@ -1,3 +1,9 @@
+maildir-utils (0.9.1-1) experimental; urgency=low
+
+  * new upstream releases
+
+ -- Norbert Preining <preining@debian.org>  Tue, 21 Dec 2010 14:55:37 +0900
+
 maildir-utils (0.8-1) experimental; urgency=low
 
   * upload to experimental to keep sid for squeeze fixes
