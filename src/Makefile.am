@@ -46,6 +46,8 @@ mu_LDADD=				\
 	libmu.la
 
 libmu_la_SOURCES=			\
+	mu-bookmarks.c			\
+	mu-bookmarks.h			\
 	mu-cmd-extract.c		\
 	mu-cmd-find.c			\
 	mu-cmd-index.c			\
@@ -55,6 +57,7 @@ libmu_la_SOURCES=			\
 	mu-cmd.h			\
 	mu-config.c			\
 	mu-config.h			\
+	mu-error.h			\
 	mu-index.c			\
 	mu-index.h			\
 	mu-log.c			\
@@ -67,24 +70,32 @@ libmu_la_SOURCES=			\
 	mu-msg-fields.h			\
 	mu-msg-flags.c			\
 	mu-msg-flags.h			\
-	mu-msg-prio.h			\
-	mu-msg-status.h			\
-	mu-msg.c			\
-	mu-msg.h			\
-	mu-msg-priv.h			\
 	mu-msg-iter-priv.hh		\
 	mu-msg-iter.cc			\
 	mu-msg-iter.h			\
 	mu-msg-part.c			\
 	mu-msg-part.h			\
-	mu-msg-str.c			\
-	mu-msg-str.h			\
+	mu-msg-prio.c			\
+	mu-msg-prio.h			\
+	mu-msg-priv.h			\
+	mu-msg-status.h			\
+	mu-msg.c			\
 	mu-msg.h			\
+	mu-msg.h			\
+	mu-output-link.c		\
+	mu-output-link.h		\
+	mu-output-plain.c		\
+	mu-output-plain.h		\
 	mu-query.cc			\
 	mu-query.h			\
 	mu-result.h			\
+	mu-runtime.c			\
+	mu-runtime.h			\
 	mu-store.cc			\
 	mu-store.h			\
+	mu-str-normalize.c		\
+	mu-str.c			\
+	mu-str.h			\
 	mu-util-db.cc			\
 	mu-util-db.h			\
 	mu-util.c			\

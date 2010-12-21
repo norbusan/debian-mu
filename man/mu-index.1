@@ -1,4 +1,4 @@
-.TH MU-INDEX 1 "September 2010" "User Manuals"
+.TH MU-INDEX 1 "November 2010" "User Manuals"
 
 .SH NAME 
 
@@ -20,7 +20,7 @@ then be searched using
 understands Maildirs as defined by Daniel Bernstein for qmail(7). In addition,
 it understands recursive Maildirs (Maildirs within Maildirs), Maildir++. It
 can also deal with VFAT-based Maildirs which use '!' as the seperators instead
-of ':' as used by Tinymail/Modest and some other e-mail programs.
+of ':' as used by \fITinymail\fR/\fIModest\fR and some other e-mail programs.
 
 E-mail messages which are not stored in something resembling a maildir leaf
 directory (\fIcur\fR and \fInew\fR) are ignored.
@@ -51,6 +51,9 @@ database etc. If it receives another signal (e.g,, when pressing Ctrl-C once
 more), \fBmu index\fR will terminate immediately.
 
 .SH OPTIONS
+
+Note, some of the important options are described in the \fBmu(1)\fR man-page
+and not here, as they apply to multiple mu-commands.
 
 .TP
 \fB\-m\fR, \fB\-\-maildir\fR=\fI<maildir>\fR
@@ -83,12 +86,12 @@ format. \fBmu index\fR will issue a warning about this.
 \fB\-\-autoupgrade\fR automatically use \fB\-y\fR, \fB\-\-empty\fR
 when \fBmu\fR notices that the database version is not up-to-date. This option
 is for use in cron scripts and the like, so they won't require any user
-interaction, even when mu introduces a new database vesion.
+interaction, even when mu introduces a new database version.
 
 .TP
 
 .B NOTE:
-It is probably not a good idea to run multiple instances of
+It is not a good idea to run multiple instances of
 .B mu index
 concurrently. No data loss should occur, but one or more of the instances may
 experience errors due to database locks.
@@ -103,18 +106,17 @@ with \fB\-\-maildir\fR=~/MyMaildir and \fB\-\-maildir\fR=~/MyMaildir/foo, as
 this may lead to unexpected results when searching with the the 'maildir:'
 search parameter (see below).
 
-
 .SS A note on performance
 As a non-scientific benchmark, a simple test on the authors machine (a
-Thinkpad X61s laptop using Linux 2.6.31 and an ext3 file system) with no
-existing database, and a maildir with 14,200 messages:
+Thinkpad X61s laptop using Linux 2.6.35 and an ext3 file system) with no
+existing database, and a maildir with 27273 messages:
 
 .nf
  $ sudo sh -c 'sync && echo 3 > /proc/sys/vm/drop_caches'
  $ time mu index --quiet
- 83.36s user 6.49s system 43% cpu 3:26.21 total
+ 66,65s user 6,05s system 27% cpu 4:24,20 total
 .si
-(about 69 messages per second)
+(about 103 messages per second)
 
 A second run, which is the more typical use case when there is a database
 already, goes much faster:
@@ -122,9 +124,9 @@ already, goes much faster:
 .nf
  $ sudo sh -c 'sync && echo 3 > /proc/sys/vm/drop_caches'
  $ time mu index --quiet
- 0.29s user 0.62s system 14% cpu 6.409 total
+ 0,48s user 0,76s system 10% cpu 11,796 total
 .si
-(about 2219 message per second)
+(more than 2300 messages per second)
 
 Note that each of test flushes the caches first; a more common use case might
 be to run \fBmu index\fR when new mail has arrived; the cache may stay
@@ -132,10 +134,14 @@ quite 'warm' in that case:
 
 .nf
  $ time mu index --quiet
-0.19s user 0.21s system 98% cpu 0.402 total
+0,33s user 0,40s system 80% cpu 0,905 total
 .si
-which is more than 35,0000 messages per second (there is some variance here,
-but the author has not seen it getting under 30,0000 messages per second).
+which is more than 30000 messages per second.
+
+In general, \fBmu\fR has been getting faster with each release, even with
+relatively expensive new features such as text-normalization (for
+case-insensitve/accent-insensitive matching). The profiles are dominated by
+operations in the Xapian database now.
 
 .SH FILES
 By default, \fBmu index\fR stores its message database in \fI~/.mu/xapian\fR;
@@ -149,21 +155,18 @@ which put the database in \fI~/.mu/xapian\-<version>\fR. These older databases
 can safely be deleted. Starting from version 0.7, this manual cleanup should
 no longer be needed.
 
-By default, \fBmu\fR stores logs of its operations and queries in \fI~/.mu/mu.log\fR.
-Upon startup, \fBmu\fR checks the size of this log file. If it exceeds 1 MB,
-it will be moved to \fI~/.mu/mu.log.old\fR, overwriting any existing file of
-that name, and start with an empty \fI~/.mu/mu.log\fR. This scheme allows for
-continued use of \fBmu\fR without the need for any manual maintenance of log
-files.
-
-To store these files elsewhere from their default location, one can use the
-\fI\-\-muhome\fR option, as discussed in the \fBGENERAL OPTIONS\fR section.
+\fBmu\fR stores logs of its operations and queries in \fI<muhome>/mu.log\fR
+(by default, this is \fI~/.mu/mu.log\fR). Upon startup, \fBmu\fR checks the
+size of this log file. If it exceeds 1 MB, it will be moved to
+\fI~/.mu/mu.log.old\fR, overwriting any existing file of that name, and start
+with an empty log file. This scheme allows for continued use of \fBmu\fR
+without the need for any manual maintenance of log files.
 
 .SH ENVIRONMENT
 
 \fBmu index\fR uses \fBMAILDIR\fR to find the user's Maildir if it has not
-been specified explicitly with \fB\-\-maildir\fR=\fI<maildir>\fR. If MAILDIR
-is not set, \fBmu index\fR will try \fI~/Maildir\fR.
+been specified explicitly with \fB\-\-maildir\fR=\fI<maildir>\fR. If
+\fBMAILDIR\fR is not set, \fBmu index\fR will try \fI~/Maildir\fR.
 
 .SH BUGS
 

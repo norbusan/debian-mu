@@ -27,34 +27,40 @@
 #include <ctype.h>
 
 #include "mu-util.h"
-#include "mu-msg-str.h"
+#include "mu-str.h"
 
 #include "mu-msg-priv.h" /* include before mu-msg.h */
 #include "mu-msg.h"
 
+/* note, we do the gmime initialization here rather than in
+ * mu-runtime, because this way we don't need mu-runtime for simple
+ * cases -- such as our unit tests */
+static gboolean _gmime_initialized = FALSE;
 
-static guint _refcount = 0;
-
-static void
-ref_gmime (void)
+void
+mu_msg_gmime_init (void)
 {
-	if (G_UNLIKELY(_refcount == 0)) {
-		srandom ((unsigned)(getpid()*time(NULL)));
-		g_mime_init(0);
-	}
-	++_refcount;	
+	g_return_if_fail (!_gmime_initialized);
+
+#ifdef GMIME_ENABLE_RFC2047_WORKAROUNDS
+	g_mime_init(GMIME_ENABLE_RFC2047_WORKAROUNDS);
+#else
+	g_mime_init(0);
+#endif /* GMIME_ENABLE_RFC2047_WORKAROUNDS */
+
+	_gmime_initialized = TRUE;
 }
 
 
-static void
-unref_gmime (void)
+void
+mu_msg_gmime_uninit (void)
 {
-	g_return_if_fail (_refcount > 0);
+	g_return_if_fail (_gmime_initialized);
 
-	--_refcount;
-	if (G_UNLIKELY(_refcount == 0))
-		g_mime_shutdown();
+	g_mime_shutdown();
+	_gmime_initialized = FALSE;
 }
+
 
 void 
 mu_msg_destroy (MuMsg *msg)
@@ -73,30 +79,32 @@ mu_msg_destroy (MuMsg *msg)
 		g_free (msg->_fields[i]);
 	
 	g_slice_free (MuMsg, msg);
-	unref_gmime ();
 }
 
 
 static gboolean
-init_file_metadata (MuMsg* msg, const char* path, const gchar* mdir)
+init_file_metadata (MuMsg* msg, const char* path, const gchar* mdir,
+		    GError **err)
 {
 	struct stat statbuf;
 
 	if (access (path, R_OK) != 0) {
-		g_warning ("%s: cannot read file %s: %s", 
-			   __FUNCTION__, path, strerror(errno));
+		g_set_error (err, 0, MU_ERROR_FILE,
+			     "cannot read file %s: %s",
+			     path, strerror(errno));
 		return FALSE;
 	}
 
 	if (stat (path, &statbuf) < 0) {
-		g_warning ("%s: cannot stat %s: %s", 
-			   __FUNCTION__, path, strerror(errno));
+		g_set_error (err, 0, MU_ERROR_FILE,
+			     "cannot stat %s: %s",
+			     path, strerror(errno));
 		return FALSE;
 	}
 	
 	if (!S_ISREG(statbuf.st_mode)) {
-		g_warning ("%s: not a regular file: %s",
-			   __FUNCTION__, path);
+		g_set_error (err, 0, MU_ERROR_FILE,
+			     "not a regular file: %s", path);
 		return FALSE;
 	}
 	
@@ -113,39 +121,58 @@ init_file_metadata (MuMsg* msg, const char* path, const gchar* mdir)
 }
 
 
-static gboolean
-init_mime_msg (MuMsg *msg)
+
+static GMimeStream*
+get_mime_stream (MuMsg *msg, GError **err)
 {
 	FILE *file;
 	GMimeStream *stream;
-	GMimeParser *parser;
 	
 	file = fopen (mu_msg_get_path(msg), "r");
 	if (!file) {
-		g_warning ("%s:cannot open %s: %s", 
-			   __FUNCTION__, mu_msg_get_path(msg), 
-			   strerror (errno));
-		return FALSE;
+		g_set_error (err, 0, MU_ERROR_FILE,
+			     "cannot open %s: %s", mu_msg_get_path(msg), 
+			     strerror (errno));
+		return NULL;
 	}
 	
 	stream = g_mime_stream_file_new (file);
 	if (!stream) {
-		g_warning ("%s: cannot create mime stream", __FUNCTION__);
+		g_set_error (err, 0, MU_ERROR_GMIME,
+			     "cannot create mime stream for %s",
+			     mu_msg_get_path(msg));
 		fclose (file);
-		return FALSE;
+		return NULL;
 	}
+
+	return stream;
+}
+
+static gboolean
+init_mime_msg (MuMsg *msg, GError **err)
+{
+	GMimeStream *stream;
+	GMimeParser *parser;
+	
+	stream = get_mime_stream (msg, err);
+	if (!stream)
+		return FALSE;
 	
 	parser = g_mime_parser_new_with_stream (stream);
 	g_object_unref (stream);
 	if (!parser) {
-		g_warning ("%s: cannot create mime parser", __FUNCTION__);
+		g_set_error (err, 0, MU_ERROR_GMIME,
+			     "cannot create mime parser for %s",
+			     mu_msg_get_path(msg));
 		return FALSE;
 	}
 	
 	msg->_mime_msg = g_mime_parser_construct_message (parser);
 	g_object_unref (parser);
 	if (!msg->_mime_msg) {
-		g_warning ("%s: cannot create mime message", __FUNCTION__);
+		g_set_error (err, 0, MU_ERROR_GMIME,
+			     "cannot construct mime message for %s",
+			     mu_msg_get_path(msg));
 		return FALSE;
 	}
 
@@ -154,26 +181,26 @@ init_mime_msg (MuMsg *msg)
 
 
 MuMsg*   
-mu_msg_new (const char* filepath, const gchar* mdir)
+mu_msg_new (const char* filepath, const gchar* mdir, GError **err)
 {
 	MuMsg *msg;
 		
-	g_return_val_if_fail (filepath, NULL);
-
-	ref_gmime ();
+	g_return_val_if_fail (filepath, NULL);	
+	g_return_val_if_fail (_gmime_initialized, NULL);
 	
-	msg = g_slice_new0 (MuMsg);
-
-	if (!init_file_metadata(msg, filepath, mdir)) {
+	msg = g_slice_new0 (MuMsg);	
+	msg->_prio      = MU_MSG_PRIO_NONE;
+	
+	if (!init_file_metadata(msg, filepath, mdir, err)) {
 		mu_msg_destroy (msg);
 		return NULL;
 	}
 	
-	if (!init_mime_msg(msg)) {
+	if (!init_mime_msg(msg, err)) {
 		mu_msg_destroy (msg);
 		return NULL;
 	}
-
+	
 	return msg;
 }
 
@@ -231,11 +258,12 @@ get_recipient (MuMsg *msg, GMimeRecipientType rtype, StringFields field)
 
 		char *recep;
 		InternetAddressList *receps;
-		receps = g_mime_message_get_recipients (msg->_mime_msg, rtype);
-
+		receps = g_mime_message_get_recipients (msg->_mime_msg,
+							rtype);
 		/* FIXME: is there an internal leak in
 		 * internet_address_list_to_string? */
-		recep = (char*)internet_address_list_to_string (receps, TRUE);
+		recep = (char*)internet_address_list_to_string (receps,
+								TRUE);
 		if (recep && recep[0]=='\0')
 			g_free (recep);
 		else 
@@ -275,34 +303,47 @@ mu_msg_get_date (MuMsg *msg)
 }
 
 static gboolean
-part_is_inline (GMimeObject *part)
+part_looks_like_attachment (GMimeObject *part)
 {
 	GMimeContentDisposition *disp;
-	gboolean result;
 	const char *str;
-
-	g_return_val_if_fail (GMIME_IS_PART(part), FALSE);
 	
 	disp  = g_mime_object_get_content_disposition (part);
 	if (!GMIME_IS_CONTENT_DISPOSITION(disp))
-		return FALSE;
+		return FALSE; /* no content disp? prob not
+			       * an attachment. */
 	
 	str = g_mime_content_disposition_get_disposition (disp);
 
-	/* if it's not inline, it's an attachment */
-	result = (str && (strcmp(str,GMIME_DISPOSITION_INLINE) == 0));
+	/* ok, it says it's an attachment, so it probably is... */
+	if (!str)
+		return TRUE;
+	if (strcmp (str, GMIME_DISPOSITION_ATTACHMENT) == 0)
+		return TRUE;
+	else if (strcmp (str, GMIME_DISPOSITION_INLINE) == 0) {
+		/* inline-images are also considered attachments... */
+		GMimeContentType *ct;
+		ct = g_mime_object_get_content_type (part);
+		if (ct)
+			return g_mime_content_type_is_type
+				(ct, "image", "*");
+	}
 	
-	return result;
+	return FALSE;
 }
 					  
 
 static void
 msg_cflags_cb (GMimeObject *parent, GMimeObject *part, MuMsgFlags *flags)
-{	
-	if (GMIME_IS_PART(part)) 
-		if ((*flags & MU_MSG_FLAG_HAS_ATTACH) == 0)
-			if (!part_is_inline(part))
-				*flags |= MU_MSG_FLAG_HAS_ATTACH;
+{
+	if (*flags & MU_MSG_FLAG_HAS_ATTACH)
+		return;
+	
+	if (!GMIME_IS_PART(part))
+		return;
+	
+	if (part_looks_like_attachment(part))
+		*flags |= MU_MSG_FLAG_HAS_ATTACH;
 }
 
 
@@ -311,12 +352,13 @@ static MuMsgFlags
 get_content_flags (MuMsg *msg)
 {
 	GMimeContentType *ctype;
-	MuMsgFlags flags = 0;
+	MuMsgFlags flags;
 	GMimeObject *part;
 
 	if (!GMIME_IS_MESSAGE(msg->_mime_msg))
-		return MU_MSG_FLAG_UNKNOWN;
-	
+		return MU_MSG_FLAG_NONE;
+
+	flags = 0;
 	g_mime_message_foreach (msg->_mime_msg,
 				(GMimeObjectForeachFunc)msg_cflags_cb, 
 				&flags);
@@ -333,13 +375,15 @@ get_content_flags (MuMsg *msg)
 		}	
 		
 		if (ctype) {
-			if (g_mime_content_type_is_type (ctype,"*", "signed")) 
+			if (g_mime_content_type_is_type
+			    (ctype,"*", "signed")) 
 				flags |= MU_MSG_FLAG_SIGNED;
-			if (g_mime_content_type_is_type (ctype,"*", "encrypted")) 
+			if (g_mime_content_type_is_type
+			    (ctype,"*", "encrypted")) 
 				flags |= MU_MSG_FLAG_ENCRYPTED;
 		}
 	} else
-		g_warning ("No top level mime part ?!");
+		g_warning ("no top level mime part found");
 
 	return flags;
 }
@@ -348,10 +392,9 @@ get_content_flags (MuMsg *msg)
 MuMsgFlags
 mu_msg_get_flags (MuMsg *msg)
 {
-	g_return_val_if_fail (msg, MU_MSG_FLAG_UNKNOWN);
+	g_return_val_if_fail (msg, MU_MSG_FLAG_NONE);
 	
-	if (msg->_flags == MU_MSG_FLAG_UNKNOWN) {
-		msg->_flags = 0;
+	if (msg->_flags == MU_MSG_FLAG_NONE) {
 		msg->_flags = mu_msg_flags_from_file (mu_msg_get_path(msg));
 		msg->_flags |= get_content_flags (msg);
 	}
@@ -382,7 +425,7 @@ to_lower (char *s)
 
 
 static char*
-get_prio_str (MuMsg *msg)
+get_prio_header_field (MuMsg *msg)
 {
 	const char *str;
 	GMimeObject *obj;
@@ -411,18 +454,18 @@ parse_prio_str (const char* priostr)
 		const char*   _str;
 		MuMsgPrio _prio;
 	} str_prio[] = {
-		{ "high", MU_MSG_PRIO_HIGH },
-		{ "1",    MU_MSG_PRIO_HIGH },
-		{ "2",    MU_MSG_PRIO_HIGH },
+		{ "high",	MU_MSG_PRIO_HIGH },
+		{ "1",		MU_MSG_PRIO_HIGH },
+		{ "2",		MU_MSG_PRIO_HIGH },
 		
-		{ "normal", MU_MSG_PRIO_NORMAL },
-		{ "3",      MU_MSG_PRIO_NORMAL },
+		{ "normal",	MU_MSG_PRIO_NORMAL },
+		{ "3",		MU_MSG_PRIO_NORMAL },
 
-		{ "low",  MU_MSG_PRIO_LOW },
-		{ "list", MU_MSG_PRIO_LOW },
-		{ "bulk", MU_MSG_PRIO_LOW },
-		{ "4",    MU_MSG_PRIO_LOW },
-		{ "5",    MU_MSG_PRIO_LOW }
+		{ "low",	MU_MSG_PRIO_LOW },
+		{ "list",	MU_MSG_PRIO_LOW },
+		{ "bulk",	MU_MSG_PRIO_LOW },
+		{ "4",		MU_MSG_PRIO_LOW },
+		{ "5",		MU_MSG_PRIO_LOW }
 	};
 
 	for (i = 0; i != G_N_ELEMENTS(str_prio); ++i)
@@ -438,22 +481,20 @@ MuMsgPrio
 mu_msg_get_prio (MuMsg *msg)
 {
 	char* priostr;
-	MuMsgPrio prio;
 
 	g_return_val_if_fail (msg, 0);
 
 	if (msg->_prio != MU_MSG_PRIO_NONE)
 		return msg->_prio;
 
-	priostr = get_prio_str (msg);
+	priostr = get_prio_header_field (msg);
 	if (!priostr)
 		return MU_MSG_PRIO_NORMAL;
 	
-	prio = parse_prio_str (priostr);
-
+	msg->_prio = parse_prio_str (priostr);
 	g_free (priostr);
 
-	return prio;
+	return msg->_prio;
 }
 
 
@@ -558,7 +599,8 @@ text_to_utf8 (const char* buffer, const char *charset)
 					NULL, NULL, &err);
 	if (!utf8) {
 		MU_WRITE_LOG ("%s: conversion failed from %s: %s",
-			      __FUNCTION__, charset, err ? err ->message : "");
+			      __FUNCTION__, charset,
+			      err ? err ->message : "");
 		if (err)
 			g_error_free (err);
 	}
@@ -686,17 +728,20 @@ get_body (MuMsg *msg, gboolean want_html)
 				&data);
 	if (want_html)
 		str = data._html_part ?
-			part_to_string (GMIME_PART(data._html_part), FALSE, &err) :
+			part_to_string (GMIME_PART(data._html_part),
+					FALSE, &err) :
 			NULL; 
 	else
 		str = data._txt_part ?
-			part_to_string (GMIME_PART(data._txt_part), TRUE, &err) :
+			part_to_string (GMIME_PART(data._txt_part),
+					TRUE, &err) :
 			NULL;
 
 	/* note, str may be NULL (no body), but that's not necessarily
 	 * an error; we only warn when an actual error occured */
 	if (err) 
-		g_warning ("error occured while retrieving %s body for message %s",
+		g_warning ("error occured while retrieving %s body" 
+			   "for message %s",
 			   want_html ? "html" : "text",
 			   mu_msg_get_path(msg));
 
@@ -744,20 +789,16 @@ mu_msg_get_summary (MuMsg *msg, size_t max_lines)
 		return NULL; /* there was no text body */
 
 	return msg->_fields[SUMMARY_FIELD] =
-		mu_msg_str_summarize (body, max_lines);
+		mu_str_summarize (body, max_lines);
 }
 
 
 const char*
-mu_msg_get_field_string (MuMsg *msg, const MuMsgField* field)
+mu_msg_get_field_string (MuMsg *msg, MuMsgFieldId mfid)
 {
-	MuMsgFieldId id;
-	
 	g_return_val_if_fail (msg, NULL);
-	id = mu_msg_field_id (field);
-	g_return_val_if_fail (id != MU_MSG_FIELD_ID_NONE, NULL);
 
-	switch (id) {
+	switch (mfid) {
 	case MU_MSG_FIELD_ID_BODY_TEXT:  return mu_msg_get_body_text (msg);
 	case MU_MSG_FIELD_ID_BODY_HTML:  return mu_msg_get_body_html (msg);
 	case MU_MSG_FIELD_ID_CC:         return mu_msg_get_cc (msg);
@@ -773,29 +814,15 @@ mu_msg_get_field_string (MuMsg *msg, const MuMsgField* field)
 }
 
 gint64
-mu_msg_get_field_numeric (MuMsg *msg, const MuMsgField* field)
+mu_msg_get_field_numeric (MuMsg *msg, const MuMsgFieldId mfid)
 {
-	MuMsgFieldId id;
-	
 	g_return_val_if_fail (msg, 0);
-	id = mu_msg_field_id (field);
-	g_return_val_if_fail (id != MU_MSG_FIELD_ID_NONE, 0);
 	
-	switch (id) {
-	case MU_MSG_FIELD_ID_DATE:    
-		return mu_msg_get_date(msg);
-	case MU_MSG_FIELD_ID_FLAGS:   
-		return mu_msg_get_flags(msg);
-	case MU_MSG_FIELD_ID_PRIO:
-		return mu_msg_get_prio(msg);
-	case MU_MSG_FIELD_ID_SIZE:    
-		return mu_msg_get_size(msg);
-	default:
-		g_warning ("%s: %u", __FUNCTION__, (guint)id);
-		g_return_val_if_reached (0);
+	switch (mfid) {
+	case MU_MSG_FIELD_ID_DATE: return mu_msg_get_date(msg);
+	case MU_MSG_FIELD_ID_FLAGS: return mu_msg_get_flags(msg);
+	case MU_MSG_FIELD_ID_PRIO: return mu_msg_get_prio(msg);
+	case MU_MSG_FIELD_ID_SIZE: return mu_msg_get_size(msg);
+	default: g_return_val_if_reached (-1);
 	}
 }
-
-
-
-

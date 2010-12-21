@@ -19,7 +19,7 @@ include $(top_srcdir)/gtest.mk
 INCLUDES=$(XAPIAN_CXXFLAGS)					\
 	 $(GMIME_CFLAGS)					\
 	 $(GLIB_CFLAGS)						\
-	-I ${top_srcdir}					\
+	-I ${top_srcdir} -I ${top_srcdir}/src			\
 	-DMU_TESTMAILDIR=\"${abs_srcdir}/testdir/\"		\
 	-DMU_TESTMAILDIR2=\"${abs_srcdir}/testdir2/\"		\
 	-DMU_PROGRAM=\"${abs_top_builddir}/src/mu\"		\
@@ -40,13 +40,17 @@ TEST_PROGS += test-mu-util
 test_mu_util_SOURCES= test-mu-util.c
 test_mu_util_LDADD=   libtestmucommon.la
 
-TEST_PROGS += test-mu-msg-str
-test_mu_msg_str_SOURCES= test-mu-msg-str.c
-test_mu_msg_str_LDADD=  libtestmucommon.la
+TEST_PROGS += test-mu-str
+test_mu_str_SOURCES= test-mu-str.c
+test_mu_str_LDADD=  libtestmucommon.la
 
 TEST_PROGS += test-mu-maildir
 test_mu_maildir_SOURCES= test-mu-maildir.c
 test_mu_maildir_LDADD=  libtestmucommon.la
+
+TEST_PROGS += test-mu-msg-fields
+test_mu_msg_fields_SOURCES= test-mu-msg-fields.c
+test_mu_msg_fields_LDADD=  libtestmucommon.la
 
 TEST_PROGS += test-mu-query
 test_mu_query_SOURCES= test-mu-query.c dummy.cc
@@ -59,6 +63,14 @@ test_mu_cmd_LDADD=    libtestmucommon.la
 TEST_PROGS += test-mu-msg
 test_mu_msg_SOURCES= test-mu-msg.c
 test_mu_msg_LDADD=  libtestmucommon.la
+
+TEST_PROGS += test-mu-runtime
+test_mu_runtime_SOURCES= test-mu-runtime.c
+test_mu_runtime_LDADD=  libtestmucommon.la
+
+TEST_PROGS += test-mu-store
+test_mu_store_SOURCES= test-mu-store.c dummy.cc
+test_mu_store_LDADD= libtestmucommon.la
 
 
 libtestmucommon_la_SOURCES=		\
@@ -88,5 +100,5 @@ EXTRA_DIST=							\
 	testdir2/bar/cur/mail1					\
 	testdir2/bar/cur/mail2					\
 	testdir2/bar/cur/mail3					\
-	testdir2/foo/cur/mail4
+	testdir2/Foo/cur/mail4
 

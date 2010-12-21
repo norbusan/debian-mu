@@ -41,14 +41,14 @@ struct _MuIndex {
 };
 
 MuIndex* 
-mu_index_new (const char *xpath)
+mu_index_new (const char *xpath, GError **err)
 {
 	MuIndex *index;
 
 	g_return_val_if_fail (xpath, NULL);
 	
 	index = g_new0 (MuIndex, 1);				
-	index->_xapian = mu_store_new (xpath);
+	index->_xapian = mu_store_new (xpath, err);
 	
 	if (!index->_xapian) {
 		g_warning ("%s: failed to open xapian store (%s)",
@@ -57,9 +57,10 @@ mu_index_new (const char *xpath)
 		return NULL;
 	}
 
-	/* see we need to reindex the database; note, there is a small race-condition
-	 * here, between mu_index_new and mu_index_run. Maybe do the check in
-	 * mu_index_run instead? */
+	/* see we need to reindex the database; note, there is a small
+	 * race-condition here, between mu_index_new and
+	 * mu_index_run. Maybe do the check in mu_index_run
+	 * instead? */
 	if (mu_util_db_is_empty (xpath))
 		index->_needs_reindex = FALSE;
 	else
@@ -93,51 +94,56 @@ struct _MuIndexCallbackData {
 typedef struct _MuIndexCallbackData	MuIndexCallbackData;
 
 
+/* checks to determine if we need to (re)index this message
+ * note: just check timestamps is not good enough because
+ * message may be moved from other dirs (e.g. from 'new' to
+ * 'cur') and the time stamps won't change.
+ * */
+static inline gboolean
+needs_index (MuIndexCallbackData *data, const char *fullpath,
+	     time_t filestamp)
+{
+	/* unconditionally reindex */
+	if (data->_reindex)
+		return TRUE;
+	
+	/* it's not in the database yet */
+	if (!mu_store_contains_message (data->_xapian, fullpath))
+		return TRUE;
+
+	/* it's there, but it's not up to date */
+	if ((unsigned)filestamp >= (unsigned)data->_dirstamp)
+		return TRUE;
+
+	return FALSE; /* index not needed */
+}
+
+
 static MuResult
 insert_or_update_maybe (const char* fullpath, const char* mdir,
-			time_t filestamp,
-			MuIndexCallbackData *data, gboolean *updated)
+			time_t filestamp, MuIndexCallbackData *data,
+			gboolean *updated)
 { 
 	MuMsg *msg;
+	GError *err;
 	
 	*updated = FALSE;
-
-	/* checks to determine if we need to (re)index this message
-	 * note: just check timestamps is not good enough because
-	 * message may be moved from other dirs (e.g. from 'new' to
-	 * 'cur') and the time stamps won't change.*/
-	do {
-		/* unconditionally reindex */
-		if (data->_reindex)
-			break;
-
-		/* it's not in the database yet */
-		if (!mu_store_contains_message (data->_xapian, fullpath)) {
-			g_debug ("not yet in db: %s", fullpath);
-			break;
-		}
-
-		/* it's there, but it's not up to date */
-		if ((unsigned)filestamp >= (unsigned)data->_dirstamp)
-			break;
-
-		return MU_OK; /* nope: no need to insert/update! */
-
-	} while (0);
-
-		
-	msg = mu_msg_new (fullpath, mdir);
-	if (!msg) {
+	if (!needs_index (data, fullpath, filestamp))
+		return MU_OK; /* nothing to do for this one */
+			
+	err = NULL;
+	msg = mu_msg_new (fullpath, mdir, &err);
+	if ((G_UNLIKELY(!msg))) {
 		g_warning ("%s: failed to create mu_msg for %s",
 			   __FUNCTION__, fullpath);
 		return MU_ERROR;
 	}
 	
 	/* we got a valid id; scan the message contents as well */
-	if (mu_store_store (data->_xapian, msg) != MU_OK) {
+	if (G_UNLIKELY((mu_store_store (data->_xapian, msg) != MU_OK))) {
 		g_warning ("%s: storing content %s failed", __FUNCTION__, 
 			   fullpath);
-		/* ignore...*/
+		return MU_ERROR;
 	} 
 	
 	mu_msg_destroy (msg);
@@ -156,7 +162,7 @@ run_msg_callback_maybe (MuIndexCallbackData *data)
 	
 	result = data->_idx_msg_cb (data->_stats, data->_user_data);
 	if G_UNLIKELY((result != MU_OK && result != MU_STOP))
-		g_warning ("Error in callback");
+		g_warning ("error in callback");
 
 	return result;
 }
@@ -289,9 +295,6 @@ mu_index_run (MuIndex *index, const char* path,
 			      (MuMaildirWalkMsgCallback)on_run_maildir_msg,
 			      (MuMaildirWalkDirCallback)on_run_maildir_dir,
 			      &cb_data);
-	if (rv == MU_OK)
-		if (!mu_store_set_version (index->_xapian, MU_XAPIAN_DB_VERSION))
-			g_warning ("failed to set database version");
 	
 	mu_store_flush (index->_xapian);
 	

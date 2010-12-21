@@ -56,7 +56,7 @@ do_wordexp (const char *path)
 	char *dir;
 
 	if (!path) {
-		g_debug ("%s: path is empty", __FUNCTION__);
+		/* g_debug ("%s: path is empty", __FUNCTION__); */
 		return NULL;
 	}
 	
@@ -65,9 +65,7 @@ do_wordexp (const char *path)
 		return NULL;
 	}
 	
-	/* if (wexp.we_wordc != 1) /\* not an *error*, we just take the first one *\/ */
-	/* 	g_debug ("%s: expansion ambiguous for '%s'", __FUNCTION__, path); */
-	
+	/* we just pick the first one */
 	dir = g_strdup (wexp.we_wordv[0]);
 
 	/* strangely, below seems to lead to a crash on MacOS (BSD);
@@ -89,17 +87,21 @@ mu_util_dir_expand (const char *path)
 {
 	char *dir;
 	char resolved[PATH_MAX + 1];
-	
+
 	g_return_val_if_fail (path, NULL);
 
 	dir = do_wordexp (path);
 	if (!dir)
 		return NULL; /* error */
-	
-	/* now, resolve any symlinks, .. etc. */
-	if (!realpath (dir, resolved)) {
-		/* g_debug ("%s: could not get realpath for '%s': %s", */
-		/* 	 __FUNCTION__, dir, strerror(errno)); */
+
+	/* don't try realpath if the dir does not exist */
+	if (access (dir, F_OK) != 0)
+		return dir;
+
+	/* now resolve any symlinks, .. etc. */
+	if (realpath (dir, resolved) == NULL) {
+		g_debug ("%s: could not get realpath for '%s': %s",
+			 __FUNCTION__, dir, strerror(errno));
 		g_free (dir);
 		return NULL;
 	} else 
@@ -178,6 +180,21 @@ mu_util_guess_maildir (void)
 }
 
 
+gchar*
+mu_util_guess_mu_homedir (void)
+{
+	const char* home;
+
+	home = g_getenv ("HOME");
+	if (!home)
+		home = g_get_home_dir ();
+
+	if (!home)
+		MU_WRITE_LOG ("failed to determine homedir");
+	
+	return g_strdup_printf ("%s%c%s", home ? home : ".", G_DIR_SEPARATOR,
+				".mu");
+}
 
 gboolean
 mu_util_create_dir_maybe (const gchar *path)
@@ -190,7 +207,7 @@ mu_util_create_dir_maybe (const gchar *path)
 	if (stat (path, &statbuf) == 0) {
 		if ((!S_ISDIR(statbuf.st_mode)) ||
 		    (access (path, W_OK|R_OK) != 0)) {
-			g_warning ("Not a rw-directory: %s", path);
+			g_warning ("not a rw-directory: %s", path);
 			return FALSE;
 		}
 	}		
@@ -253,8 +270,7 @@ mu_util_create_writeable_fd (const char* filename, const char* dir,
 		g_debug ("%s: cannot open %s for writing: %s",
 			 __FUNCTION__, fullpath, strerror(errno));
 
-	g_free (fullpath);
-	
+	g_free (fullpath);	
 	return fd;
 }
 

@@ -17,7 +17,7 @@
 **  
 */
 
-#ifdef HAVE_CONFIG_H
+#if HAVE_CONFIG_H
 #include "config.h"
 #endif /*HAVE_CONFIG_H*/
 
@@ -195,7 +195,7 @@ mu_maildir_link (const char* src, const char *targetpath)
 	rv = symlink (src, targetfullpath);
 	
 	if (rv != 0) {
-		g_warning ("Error creating link %s => %s: %s",
+		g_warning ("error creating link %s => %s: %s",
 			   targetfullpath, src,
 			   strerror (errno));
 		g_free (targetfullpath);
@@ -264,8 +264,7 @@ is_maildir_new_or_cur (const char *path)
 	const char *sfx;
 
 	/* path is the full path; it cannot possibly be shorter
-	 * than 4 for a maildir (/cur or /new)
-	 */
+	 * than 4 for a maildir (/cur or /new) */
 	if (!path||(len = strlen(path)) < 4)
 		return FALSE;
 	
@@ -292,7 +291,7 @@ has_noindex_file (const char *path)
 	if (access (noindexpath, F_OK) == 0)
 		return TRUE;
 	
-	else if (errno != ENOENT)
+	else if (G_UNLIKELY(errno != ENOENT))
 		g_warning ("error testing for noindex file %s: %s",
 			   noindexpath, strerror(errno));
 
@@ -311,7 +310,7 @@ readdir_with_stat_fallback (DIR* dir, const char* path)
 	errno = 0;
 	entry = readdir (dir);
 	
-	if (!entry) {
+	if (G_UNLIKELY(!entry)) {
 		if (errno != 0) 
 			g_warning ("readdir failed in %s: %s",
 				   path, strerror (errno));
@@ -319,7 +318,7 @@ readdir_with_stat_fallback (DIR* dir, const char* path)
 	}
 	
 	/* XFS, ReiserFS and some other FSs don't support d_type, and
-	 * always set it to NULL; we use (slow) stat instead then */
+	 * always set it to NULL; we use (slow) lstat instead then */
 	if (G_UNLIKELY(entry->d_type == DT_UNKNOWN)) {
 
 		struct stat statbuf;
@@ -327,9 +326,8 @@ readdir_with_stat_fallback (DIR* dir, const char* path)
 
 		/* note, fullpath_s returns a static buffer */
 		fullpath = fullpath_s (path, entry->d_name);
-		if (stat (fullpath, &statbuf) != 0) {
-			g_warning ("stat failed on %s: %s", fullpath,
-				   strerror(errno));
+		if G_UNLIKELY(lstat (fullpath, &statbuf) != 0) {
+			g_warning ("stat failed on %s: %s", fullpath, strerror(errno));
 			return FALSE;
 		}
 
@@ -392,9 +390,7 @@ get_mdir_for_path (const gchar *old_mdir, const gchar *dir)
 
 
 static MuResult
-process_dir_entry (const char* path,
-		   const char* mdir,
-		   struct dirent *entry,
+process_dir_entry (const char* path, const char* mdir, struct dirent *entry,
 		   MuMaildirWalkMsgCallback cb_msg,
 		   MuMaildirWalkDirCallback cb_dir, 
 		   void *data)
@@ -442,7 +438,7 @@ dirent_copy (struct dirent *entry)
 	struct dirent *d; 
 
 	/* NOTE: simply memcpy'ing sizeof(struct dirent) bytes will
-	 * give memory errors. Also note, g_slice_new has been to
+	 * give memory errors. Also note, g_slice_new has been known to
 	 * crash on FreeBSD */
 	d = g_slice_new (struct dirent);
 	
@@ -473,10 +469,10 @@ dirent_cmp (struct dirent *d1, struct dirent *d2)
 
 
 /* we sort the inodes if the FS's dirent has them. It makes
- * file-access much faster on some filesystems, such as
- * ext3,4. readdir_with_stat_fallback is a wrapper for readdir
- * that falls back to (slow) stats if the FS does not support
- * entry->d_type
+ * file-access much faster on some filesystems, such as ext3,4.
+ *
+ * readdir_with_stat_fallback is a wrapper for readdir that falls back
+ * to (slow) lstats if the FS does not support entry->d_type
  */
 static MuResult
 process_dir_entries_sorted (DIR *dir, const char* path, const char* mdir,

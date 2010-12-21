@@ -17,60 +17,21 @@
 **
 */
 
-#ifdef HAVE_CONFIG_H
-#include <config.h>
-#endif /*HAVE_CONFIG_H*/
-
 #include <glib.h>
-#include <stdio.h> /* for fileno() */
-
-#include "mu-util.h"
-#include "mu-config.h"
 #include "mu-cmd.h"
-#include "mu-log.h"
-
-static gboolean
-init_log (MuConfigOptions *opts)
-{
-	gboolean rv;
-	
-	if (opts->log_stderr)
-		rv = mu_log_init_with_fd (fileno(stderr), FALSE,
-					  opts->quiet, opts->debug);
-	else
-		rv = mu_log_init (opts->muhome, TRUE, opts->quiet,
-				  opts->debug);
-
-	/* we use g_printerr here because g_warning does not give
-	 * the desired result when log initialization failed */
-	if (!rv)
-		g_printerr ("error: failed to initialize log\n");
-	
-	return rv;
-}
+#include "mu-runtime.h"
 
 int
 main (int argc, char *argv[])
 {
-	MuConfigOptions config;
 	gboolean rv;
-
-	if (!mu_util_init_system()) 
+	
+	if (!mu_runtime_init_from_cmdline (&argc, &argv))
 		return 1;
 	
-	if (!mu_config_init (&config, &argc, &argv))
-		return 1;
+	rv = mu_cmd_execute (mu_runtime_config_options());
 
-	if (!init_log (&config)) {
-		mu_config_uninit (&config);
-		return 1;
-	}
-			
-	rv = mu_cmd_execute (&config);
-
-	mu_log_uninit();
-
-	mu_config_uninit (&config);
+	mu_runtime_uninit ();
 	
 	return rv ? 0 : 1;
 }

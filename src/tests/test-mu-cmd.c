@@ -17,12 +17,14 @@
 **  
 */
 
-#ifdef HAVE_CONFIG_H
+#if HAVE_CONFIG_H
 #include "config.h"
 #endif /*HAVE_CONFIG_H*/
 
 #include <glib.h>
 #include <glib/gstdio.h>
+
+#include "../mu-query.h"
 
 #include <stdlib.h>
 #include <unistd.h>
@@ -44,7 +46,8 @@ fill_database (void)
 				   " --quiet",
 				   MU_PROGRAM, tmpdir, MU_TESTMAILDIR2);
 	
-	g_assert (g_spawn_command_line_sync (cmdline, NULL, NULL, NULL, NULL));
+	g_assert (g_spawn_command_line_sync (cmdline, NULL, NULL,
+					     NULL, NULL));
 	g_free (cmdline);
 
 	return tmpdir;
@@ -73,19 +76,21 @@ search (const char* query, unsigned expected)
 
 	muhome = fill_database ();
 	g_assert (muhome);
-
+	
 	cmdline = g_strdup_printf ("%s --muhome=%s find %s",
 				   MU_PROGRAM, muhome, query);
-	
-	g_assert (g_spawn_command_line_sync (cmdline, &output, &erroutput, NULL, NULL));
 
-	/* g_print ("%s\n", query); */
+	/* g_printerr ("%s\n", cmdline); */
+	
+	g_assert (g_spawn_command_line_sync (cmdline,
+					     &output, &erroutput,
+					     NULL, NULL));
 	g_assert_cmpuint (newlines_in_output(output),==,expected);
 
 	/* we expect zero lines of error output if there is a match;
 	 * otherwise there should be one line 'No matches found' */
-	g_assert_cmpuint (newlines_in_output(erroutput),==,
-			  expected == 0 ? 1 : 0);
+	/* g_assert_cmpuint (newlines_in_output(erroutput),==, */
+	/* 		  expected == 0 ? 1 : 0); */
 	
 	g_free (output);
 	g_free (erroutput);
@@ -105,9 +110,10 @@ test_mu_index (void)
 	muhome = fill_database ();
 	g_assert (muhome != NULL);
 
-	xpath = g_strdup_printf ("%s%c%s", muhome, G_DIR_SEPARATOR, "xapian");
+	xpath = g_strdup_printf ("%s%c%s", muhome, G_DIR_SEPARATOR,
+				 "xapian");
 	
-	store = mu_store_new (xpath);
+	store = mu_store_new (xpath, NULL);
 	g_assert (store);
 
 	g_assert_cmpuint (mu_store_count (store), ==, 4);	
@@ -141,12 +147,28 @@ test_mu_find_02 (void)
 	search ("bull", 1);
 	search ("bull m:foo", 0);	
 	search ("bull m:/foo", 1);
+	search ("bull m:/Foo", 1);
+	search ("bull flag:a", 1);
+	search ("g:x", 0);
+	search ("flag:encrypted", 0);
+	search ("flag:attach", 1);
 }
 
 
 
-static void /* error cases */
+/* some more tests */
+static void
 test_mu_find_03 (void)
+{
+	search ("bull", 1);
+	search ("bull m:foo", 0);	
+	search ("bull m:/foo", 1);
+	search ("i:3BE9E6535E0D852173@emss35m06.us.lmco.com", 1);
+}
+
+
+static void /* error cases */
+test_mu_find_04 (void)
 {
         gchar *muhome, *cmdline, *erroutput;
 
@@ -176,7 +198,7 @@ test_mu_extract_01 (void)
 {
         gchar *cmdline, *output, *erroutput;
 
-	cmdline = g_strdup_printf ("%s extract %s%cfoo%ccur%cmail4",
+	cmdline = g_strdup_printf ("%s extract %s%cFoo%ccur%cmail4",
 				   MU_PROGRAM,
 				   MU_TESTMAILDIR2,
 				   G_DIR_SEPARATOR,
@@ -225,7 +247,7 @@ test_mu_extract_02 (void)
 
 	g_assert (g_mkdir_with_parents (tmpdir, 0700) == 0);
 	
-	cmdline = g_strdup_printf ("%s extract -a --target-dir=%s %s%cfoo%ccur%cmail4",
+	cmdline = g_strdup_printf ("%s extract -a --target-dir=%s %s%cFoo%ccur%cmail4",
 				   MU_PROGRAM,
 				   tmpdir,
 				   MU_TESTMAILDIR2,
@@ -262,14 +284,13 @@ test_mu_extract_03 (void)
 	g_assert (g_mkdir_with_parents (tmpdir, 0700) == 0);
 	
 	cmdline = g_strdup_printf ("%s extract --parts 3 "
-				   "--target-dir=%s %s%cfoo%ccur%cmail4",
+				   "--target-dir=%s %s%cFoo%ccur%cmail4",
 				   MU_PROGRAM,
 				   tmpdir,
 				   MU_TESTMAILDIR2,
 				   G_DIR_SEPARATOR,
 				   G_DIR_SEPARATOR,
 				   G_DIR_SEPARATOR);
-
 	output = NULL;
 	g_assert (g_spawn_command_line_sync (cmdline, &output, NULL, NULL, NULL));
 	g_assert_cmpstr (output, ==, "");
@@ -293,20 +314,26 @@ test_mu_extract_03 (void)
 int
 main (int argc, char *argv[])
 {
-	g_test_init (&argc, &argv, NULL);
+		int rv;
+		g_test_init (&argc, &argv, NULL);
 	
-	g_test_add_func ("/mu-cmd/test-mu-index", test_mu_index);
-	g_test_add_func ("/mu-cmd/test-mu-find-01",  test_mu_find_01); 
-	g_test_add_func ("/mu-cmd/test-mu-find-02",  test_mu_find_02);
- 	g_test_add_func ("/mu-cmd/test-mu-find-03",  test_mu_find_03);
-	g_test_add_func ("/mu-cmd/test-mu-extract-01",  test_mu_extract_01);
-	g_test_add_func ("/mu-cmd/test-mu-extract-02",  test_mu_extract_02);
-	g_test_add_func ("/mu-cmd/test-mu-extract-03",  test_mu_extract_03);
-	
-	g_log_set_handler (NULL,
-			   G_LOG_LEVEL_MASK | G_LOG_FLAG_FATAL| G_LOG_FLAG_RECURSION,
-			   (GLogFunc)black_hole, NULL);
-	
-	return g_test_run ();
+		g_test_add_func ("/mu-cmd/test-mu-index", test_mu_index);
+		g_test_add_func ("/mu-cmd/test-mu-find-01",  test_mu_find_01); 
+		g_test_add_func ("/mu-cmd/test-mu-find-02",  test_mu_find_02);
+		g_test_add_func ("/mu-cmd/test-mu-find-03",  test_mu_find_03);
+		g_test_add_func ("/mu-cmd/test-mu-find-04",  test_mu_find_04);
+		g_test_add_func ("/mu-cmd/test-mu-extract-01",  test_mu_extract_01);
+		g_test_add_func ("/mu-cmd/test-mu-extract-02",  test_mu_extract_02);
+		g_test_add_func ("/mu-cmd/test-mu-extract-03",  test_mu_extract_03);
+		
+		g_log_set_handler (NULL,
+						   G_LOG_LEVEL_MASK | G_LOG_FLAG_FATAL| G_LOG_FLAG_RECURSION,
+						   (GLogFunc)black_hole, NULL);
+
+		mu_msg_gmime_init ();
+		rv = g_test_run ();
+		mu_msg_gmime_uninit();
+
+		return rv;
 }
 

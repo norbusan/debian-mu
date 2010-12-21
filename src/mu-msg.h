@@ -24,28 +24,47 @@
 #include "mu-msg-fields.h"
 #include "mu-msg-status.h"
 #include "mu-msg-prio.h"
+#include "mu-error.h"
 
 G_BEGIN_DECLS
 
 struct _MuMsg;
 typedef struct _MuMsg MuMsg;
 
+
+
+/**
+ * initialize the GMime-system; this function needs to be called
+ * before doing anything else with MuMsg. mu_runtime_init will call
+ * this function, so if you use that, you should not call this
+ * function.
+ */
+void mu_msg_gmime_init (void);
+
+/**
+ * uninitialize the GMime-system; this function needs to be called
+ * after you're done with MuMsg. mu_runtime_uninit will call this
+ * function, so if you use that, you should not call this function.
+ */
+void mu_msg_gmime_uninit (void);
+
+
 /**
  * create a new MuMsg* instance which parses a message and provides
  * read access to its properties; call mu_msg_destroy when done with it.
  *
  * @param path full path to an email message file
- *
  * @param mdir the maildir for this message; ie, if the path is
  * ~/Maildir/foo/bar/cur/msg, the maildir would be foo/bar; you can
  * pass NULL for this parameter, in which case some maildir-specific
  * information is not available.
+ * @param err receive error information (MU_ERROR_FILE or MU_ERROR_GMIME), or NULL. There
+ * will only be err info if the function returns NULL
  * 
  * @return a new MuMsg instance or NULL in case of error
  */
-MuMsg*   mu_msg_new		   (const char* filepath,
-					    const char *maildir);
-
+MuMsg *mu_msg_new (const char* filepath, const char *maildir,
+		   GError **err) G_GNUC_MALLOC G_GNUC_WARN_UNUSED_RESULT;
 
 /**
  * destroy a MuMsg* instance; call this function when done with
@@ -105,9 +124,8 @@ const char*     mu_msg_get_summary (MuMsg *msg, size_t max_lines);
  * 
  * @return TRUE if saving succeeded, FALSE otherwise
  */
-gboolean
-mu_msg_mime_part_save (MuMsg *msg, unsigned wanted_idx,
-		       const char *targetdir, gboolean overwrite);
+gboolean mu_msg_mime_part_save (MuMsg *msg, unsigned wanted_idx,
+				const char *targetdir, gboolean overwrite);
 
 /**
  * get the sender (From:) of this message
@@ -197,7 +215,7 @@ const char*     mu_msg_get_msgid           (MuMsg *msg);
  * is no such header. the returned string should *not* be modified or freed.
  */
 const char*     mu_msg_get_header          (MuMsg *msg, 
-						  const char* header);
+					    const char* header);
 
 /**
  * get the message date/time (the Date: field) as time_t, using UTC
@@ -238,8 +256,8 @@ size_t          mu_msg_get_size       (MuMsg *msg);
  * 
  * @return a string that should not be freed
  */
-const char*  mu_msg_get_field_string  (MuMsg *msg, 
-				       const MuMsgField* field);
+const char*  mu_msg_get_field_string  (MuMsg *msg, MuMsgFieldId mfid);
+
 
 /**
  * get some field value as string
@@ -249,8 +267,7 @@ const char*  mu_msg_get_field_string  (MuMsg *msg,
  * 
  * @return a string that should not be freed
  */
-gint64      mu_msg_get_field_numeric (MuMsg *msg, 
-				      const MuMsgField* field);
+gint64      mu_msg_get_field_numeric (MuMsg *msg, MuMsgFieldId mfid);
 
 /**
  * get the message priority for this message (MU_MSG_PRIO_LOW,
@@ -273,9 +290,6 @@ MuMsgPrio   mu_msg_get_prio        (MuMsg *msg);
  * @return the timestamp or 0 in case of error
  */
 time_t          mu_msg_get_timestamp       (MuMsg *msg);
-
-
-
 
 G_END_DECLS
 

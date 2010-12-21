@@ -22,8 +22,8 @@
 
 enum _MuResult {
 	MU_OK,		/* all went ok */
-	MU_STOP,	/* user wants to stop */
-	MU_ERROR	/* some error occured */
+	MU_STOP,	/* user wants to stop */	
+	MU_ERROR	/* some other error occured */
 };
 typedef enum _MuResult MuResult;
 

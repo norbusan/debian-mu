@@ -21,19 +21,22 @@
 #include "mu-msg-fields.h"
 
 /*
- * note: the differences for our purposes between a xapian field and a term:
- * - there is only a single value for some item in per document (msg), ie.
- *   one value containing the list of To: addresses
- * - there can be multiple terms, each containing e.g. one of the To: addresses
- * - searching uses terms, but to display some field, it must be in the
- *   value (at least when using MuMsgIter)
+ * note: the differences for our purposes between a xapian field and a
+ * term: - there is only a single value for some item in per document
+ * (msg), ie.  one value containing the list of To: addresses - there
+ * can be multiple terms, each containing e.g. one of the To:
+ * addresses - searching uses terms, but to display some field, it
+ * must be in the value (at least when using MuMsgIter)
  */
 enum _FieldFlags { 
-	FLAG_GMIME	    = 1 << 1,	/* field retrieved through gmime */
-	FLAG_XAPIAN_INDEX   = 1 << 2,	/* field is indexed in xapian */
-	FLAG_XAPIAN_TERM    = 1 << 3,	/* field stored as term in xapian */
-	FLAG_XAPIAN_VALUE   = 1 << 4,	/* field stored as value in xapian */
-	FLAG_XAPIAN_CONTACT = 1 << 5    /* field contains e-mail address */
+	FLAG_GMIME	      = 1 << 0,	/* field retrieved through gmime */
+	FLAG_XAPIAN_INDEX     = 1 << 1,	/* field is indexed in xapian */
+	FLAG_XAPIAN_TERM      = 1 << 2,	/* field stored as term in xapian */
+	FLAG_XAPIAN_VALUE     = 1 << 3,	/* field stored as value in xapian */
+	FLAG_XAPIAN_CONTACT   = 1 << 4,	/* field contains an e-mail-addr */
+	FLAG_XAPIAN_ESCAPE    = 1 << 5, /* field needs escaping for xapian */
+	FLAG_NORMALIZE	      = 1 << 6  /* field needs fix for case/accents */
+
 };
 typedef enum _FieldFlags	FieldFlags;
 
@@ -44,10 +47,13 @@ struct _MuMsgField {
 	MuMsgFieldId    _id;		/* the id of the field */
 	MuMsgFieldType  _type;		/* the type of the field */
 	const char     *_name;		/* the name of the field */
-	const char     *_shortcut;	/* the shortcut for use in --fields and sorting */
-	const char     *_xprefix;	/* the Xapian-prefix  */ 
-	FieldFlags      _flags;		/* the flags that tells us what to do */
+	const char     _shortcut;	/* the shortcut for use in
+					 * --fields and sorting */
+	const char     _xprefix;	/* the Xapian-prefix  */ 
+	FieldFlags      _flags;		/* the flags that tells us
+					 * what to do */
 };
+typedef struct _MuMsgField MuMsgField;
 
 /* the name and shortcut fields must be lower case, or they might be
  * misinterpreted by the query-preprocesser which turns queries into
@@ -56,209 +62,228 @@ static const MuMsgField FIELD_DATA[] = {
 	{  
 		MU_MSG_FIELD_ID_BODY_TEXT,
 		MU_MSG_FIELD_TYPE_STRING,
-		"body", "b", "B",
-		FLAG_GMIME | FLAG_XAPIAN_INDEX
+		"body", 'b', 'B',
+		FLAG_GMIME | FLAG_XAPIAN_INDEX | FLAG_NORMALIZE
 	},
 	
 	{ 
 		MU_MSG_FIELD_ID_BODY_HTML,
 		MU_MSG_FIELD_TYPE_STRING,
-		"bodyhtml", "h", NULL,
+		"bodyhtml", 'h', 0,
 		FLAG_GMIME
 	},
 	
 	{ 
 		MU_MSG_FIELD_ID_CC,
 		MU_MSG_FIELD_TYPE_STRING,
-		"cc", "c", "C",
-		FLAG_GMIME | FLAG_XAPIAN_CONTACT | FLAG_XAPIAN_VALUE 
+		"cc", 'c', 'C',
+		FLAG_GMIME | FLAG_XAPIAN_CONTACT | FLAG_XAPIAN_VALUE
 	},
 	
 	{ 
 		MU_MSG_FIELD_ID_DATE, 
 		MU_MSG_FIELD_TYPE_TIME_T,
-		"date", "d", "D",
-		FLAG_GMIME | FLAG_XAPIAN_VALUE
+		"date", 'd', 'D',
+		FLAG_GMIME | FLAG_XAPIAN_TERM | FLAG_XAPIAN_VALUE
 	},
 	
 	{ 
 		MU_MSG_FIELD_ID_FLAGS, 
 		MU_MSG_FIELD_TYPE_INT,
-		"flags", "g", "G",  /* flaGs */
-		FLAG_GMIME | FLAG_XAPIAN_VALUE
+		"flag", 'g', 'G',  /* flaGs */
+		FLAG_GMIME | FLAG_XAPIAN_TERM | FLAG_XAPIAN_VALUE
 	},
 
 	{ 
 		MU_MSG_FIELD_ID_FROM,
 		MU_MSG_FIELD_TYPE_STRING,
-		"from", "f", "F",
+		"from", 'f', 'F',
 		FLAG_GMIME | FLAG_XAPIAN_CONTACT | FLAG_XAPIAN_VALUE
 	},
 
 	{   
 		MU_MSG_FIELD_ID_PATH, 
 		MU_MSG_FIELD_TYPE_STRING,
-		"path", "l", "L",   /* 'l' for location */
+		"path", 'l', 'L',   /* 'l' for location */
  		FLAG_GMIME | FLAG_XAPIAN_VALUE
 	},
 
 	{   
 		MU_MSG_FIELD_ID_MAILDIR, 
 		MU_MSG_FIELD_TYPE_STRING,
-		"maildir", "m", "M",
-		FLAG_GMIME | FLAG_XAPIAN_TERM | FLAG_XAPIAN_VALUE
+		"maildir", 'm', 'M',
+		FLAG_GMIME | FLAG_XAPIAN_TERM | FLAG_XAPIAN_VALUE |
+		FLAG_NORMALIZE
 	},
 	
 	{ 
 		MU_MSG_FIELD_ID_PRIO,
 		MU_MSG_FIELD_TYPE_INT,
-		"prio", "p", "P",  
-		FLAG_GMIME | FLAG_XAPIAN_VALUE
+		"prio", 'p', 'P',  
+		FLAG_GMIME | FLAG_XAPIAN_TERM | FLAG_XAPIAN_VALUE
 	},
 
 	{ 
 		MU_MSG_FIELD_ID_SIZE,
 		MU_MSG_FIELD_TYPE_BYTESIZE,
-		"size", "z", "Z", /* siZe */
+		"size", 'z', 'Z', /* siZe */
 		FLAG_GMIME
 	},
 	
 	{ 
 		MU_MSG_FIELD_ID_SUBJECT,
 		MU_MSG_FIELD_TYPE_STRING,
-		"subject", "s", "S",
-		FLAG_GMIME | FLAG_XAPIAN_INDEX | FLAG_XAPIAN_VALUE
+		"subject", 's', 'S',
+		FLAG_GMIME | FLAG_XAPIAN_INDEX | FLAG_XAPIAN_VALUE |
+		FLAG_NORMALIZE
 	},
 	
 	{ 
 		MU_MSG_FIELD_ID_TO,
 		MU_MSG_FIELD_TYPE_STRING,
-		"to", "t", "T",
+		"to", 't', 'T',
 		FLAG_GMIME | FLAG_XAPIAN_CONTACT | FLAG_XAPIAN_VALUE 
 	},
 	
 	{ 
 		MU_MSG_FIELD_ID_MSGID,
 		MU_MSG_FIELD_TYPE_STRING,
-		"msgid", "i", "I",  /* 'i' for Id */
-		FLAG_GMIME | FLAG_XAPIAN_TERM | FLAG_XAPIAN_VALUE
+		"msgid", 'i', 'I',  /* 'i' for Id */
+		FLAG_GMIME | FLAG_XAPIAN_TERM | FLAG_XAPIAN_VALUE |
+		FLAG_XAPIAN_ESCAPE
 	},
 	
 	{ 
 		MU_MSG_FIELD_ID_TIMESTAMP,
 		MU_MSG_FIELD_TYPE_TIME_T,
-		"timestamp", "x", NULL,
+		"timestamp", 'x', 0,
 		FLAG_GMIME 
 	}
 };
+
+/* the MsgField data in an array, indexed by the MsgFieldId;
+ * this allows for O(1) access
+ */
+static MuMsgField* _msg_field_data[MU_MSG_FIELD_ID_NUM];
+static const MuMsgField* mu_msg_field (MuMsgFieldId id)
+{
+	static gboolean _initialized = FALSE;
+
+	/* initialize the array, but only once... */
+	if (G_UNLIKELY(!_initialized)) {
+		int i; 
+		for (i = 0; i != G_N_ELEMENTS(FIELD_DATA); ++i)
+			_msg_field_data[FIELD_DATA[i]._id] =
+				(MuMsgField*)&FIELD_DATA[i];
+		_initialized = TRUE;
+	}
+
+	return _msg_field_data[id];
+}
+
 
 void
 mu_msg_field_foreach (MuMsgFieldForEachFunc func, gconstpointer data)
 {
 	int i;
-	for (i = 0; i != sizeof(FIELD_DATA)/sizeof(FIELD_DATA[0]); ++i)
-		func (&FIELD_DATA[i], data);
+	for (i = 0; i != MU_MSG_FIELD_ID_NUM; ++i)
+		func (i, data);
 }
 
-typedef gboolean (*FieldMatchFunc) (const MuMsgField *field, 
-				    gconstpointer data);
 
-static const MuMsgField*
-find_field (FieldMatchFunc matcher, gconstpointer data)
+MuMsgFieldId
+mu_msg_field_id_from_name (const char* str, gboolean err)
 {
-	int i;
-	for (i = 0; i != sizeof(FIELD_DATA)/sizeof(FIELD_DATA[0]); ++i)
-		if (matcher(&FIELD_DATA[i], data))
-			return &FIELD_DATA[i];
+ 	int i;
 
-	return NULL;
+	g_return_val_if_fail (str, MU_MSG_FIELD_ID_NONE);
+	
+	for (i = 0; i != G_N_ELEMENTS(FIELD_DATA); ++i)
+		if (strcmp(str, FIELD_DATA[i]._name) == 0)
+			return FIELD_DATA[i]._id;
+
+	if (err)
+		g_return_val_if_reached (MU_MSG_FIELD_ID_NONE);
+
+	return MU_MSG_FIELD_ID_NONE;
 }
 
-static gboolean
-match_name (const MuMsgField *field, const gchar* name)
-{
-	return strcmp (field->_name, name) == 0;
-}
 
-const MuMsgField*
-mu_msg_field_from_name (const char* str)
+MuMsgFieldId
+mu_msg_field_id_from_shortcut (char kar, gboolean err)
 {
-	g_return_val_if_fail (str, NULL);
-	return find_field ((FieldMatchFunc)match_name, str);
-}
+ 	int i;
+	for (i = 0; i != G_N_ELEMENTS(FIELD_DATA); ++i)
+		if (kar == FIELD_DATA[i]._shortcut)
+			return FIELD_DATA[i]._id;
 
-static gboolean
-match_shortcut (const MuMsgField *field, char kar)
-{
-	return field->_shortcut[0] == kar;
-}
+	if (err)
+		g_return_val_if_reached (MU_MSG_FIELD_ID_NONE);
 
-const MuMsgField*
-mu_msg_field_from_shortcut (char kar)
-{
-	return find_field ((FieldMatchFunc)match_shortcut,
-			   GUINT_TO_POINTER((guint)kar));
-}
-
-static gboolean
-match_id (const MuMsgField *field, MuMsgFieldId id)
-{
-	return field->_id == id;
-}
-
-const MuMsgField*  
-mu_msg_field_from_id (MuMsgFieldId id)    
-{
-	return find_field ((FieldMatchFunc)match_id,
-			   GUINT_TO_POINTER(id));
+	return MU_MSG_FIELD_ID_NONE;
 }
 
 
 gboolean
-mu_msg_field_gmime (const MuMsgField *field)
+mu_msg_field_gmime (MuMsgFieldId id)
 {
-	g_return_val_if_fail (field, FALSE);
-	return field->_flags & FLAG_GMIME;
+	g_return_val_if_fail (mu_msg_field_id_is_valid(id),FALSE);
+	return mu_msg_field(id)->_flags & FLAG_GMIME;
 }
 
 
 gboolean
-mu_msg_field_xapian_index  (const MuMsgField *field)
+mu_msg_field_xapian_index  (MuMsgFieldId id)
 {
-	g_return_val_if_fail (field, FALSE);
-	return field->_flags & FLAG_XAPIAN_INDEX;
+	g_return_val_if_fail (mu_msg_field_id_is_valid(id),FALSE);
+	return mu_msg_field(id)->_flags & FLAG_XAPIAN_INDEX;
 }
 
 gboolean
-mu_msg_field_xapian_value (const MuMsgField *field)
+mu_msg_field_xapian_value (MuMsgFieldId id)
 {
-	g_return_val_if_fail (field, FALSE);
-	return field->_flags & FLAG_XAPIAN_VALUE;
+	g_return_val_if_fail (mu_msg_field_id_is_valid(id),FALSE);
+	return mu_msg_field(id)->_flags & FLAG_XAPIAN_VALUE;
 }
 
 gboolean
-mu_msg_field_xapian_term (const MuMsgField *field)
+mu_msg_field_xapian_term (MuMsgFieldId id)
 {
-	g_return_val_if_fail (field, FALSE);
-	return field->_flags & FLAG_XAPIAN_TERM;
+	g_return_val_if_fail (mu_msg_field_id_is_valid(id),FALSE);
+	return mu_msg_field(id)->_flags & FLAG_XAPIAN_TERM;
 }
 
 gboolean
-mu_msg_field_xapian_contact (const MuMsgField *field)
+mu_msg_field_xapian_contact (MuMsgFieldId id)
 {
-	g_return_val_if_fail (field, FALSE);
-	return field->_flags & FLAG_XAPIAN_CONTACT;
+	g_return_val_if_fail (mu_msg_field_id_is_valid(id),FALSE);
+	return mu_msg_field(id)->_flags & FLAG_XAPIAN_CONTACT;
 }
 
 
 gboolean
-mu_msg_field_is_numeric (const MuMsgField *field)
+mu_msg_field_normalize (MuMsgFieldId id)
+{
+	g_return_val_if_fail (mu_msg_field_id_is_valid(id),FALSE);
+	return mu_msg_field(id)->_flags & FLAG_NORMALIZE;
+}
+
+gboolean
+mu_msg_field_xapian_escape (MuMsgFieldId id)
+{
+	g_return_val_if_fail (mu_msg_field_id_is_valid(id),FALSE);
+	return mu_msg_field(id)->_flags & FLAG_XAPIAN_ESCAPE;
+}
+
+
+gboolean
+mu_msg_field_is_numeric (MuMsgFieldId mfid)
 {
 	MuMsgFieldType type;
 	
-	g_return_val_if_fail (field, FALSE);
-	
-	type = mu_msg_field_type (field);
+	g_return_val_if_fail (mu_msg_field_id_is_valid(mfid),FALSE);
+
+	type = mu_msg_field_type (mfid);
 	
 	return  type == MU_MSG_FIELD_TYPE_BYTESIZE ||
 		type == MU_MSG_FIELD_TYPE_TIME_T ||
@@ -266,37 +291,34 @@ mu_msg_field_is_numeric (const MuMsgField *field)
 }
 
 const char*    
-mu_msg_field_name (const MuMsgField *field)
+mu_msg_field_name (MuMsgFieldId id)
 {
-	g_return_val_if_fail (field, NULL);
-	return field->_name;
+	g_return_val_if_fail (mu_msg_field_id_is_valid(id),NULL);
+	return mu_msg_field(id)->_name;
 }
 
-const char*
-mu_msg_field_shortcut (const MuMsgField *field)
-{
-	g_return_val_if_fail (field, NULL);
-	return field->_shortcut;
+char
+mu_msg_field_shortcut (MuMsgFieldId id)
+{	
+	g_return_val_if_fail (mu_msg_field_id_is_valid(id),0);
+	return mu_msg_field(id)->_shortcut;
 }
 
-MuMsgFieldId
-mu_msg_field_id (const MuMsgField *field)
+
+char
+mu_msg_field_xapian_prefix (MuMsgFieldId id)
 {
-	g_return_val_if_fail (field, MU_MSG_FIELD_ID_NONE);
-	return field->_id;
+	g_return_val_if_fail (mu_msg_field_id_is_valid(id),0);
+	return mu_msg_field(id)->_xprefix;
 }
 
-const char*
-mu_msg_field_xapian_prefix (const MuMsgField *field)
-{
-	g_return_val_if_fail (field, NULL);
-	return field->_xprefix;
-}
+
 
 
 MuMsgFieldType 
-mu_msg_field_type (const MuMsgField *field)
+mu_msg_field_type (MuMsgFieldId id)
 {
-	g_return_val_if_fail (field, MU_MSG_FIELD_TYPE_NONE);
-	return field->_type;
+	g_return_val_if_fail (mu_msg_field_id_is_valid(id),
+			      MU_MSG_FIELD_TYPE_NONE);
+	return mu_msg_field(id)->_type;
 }

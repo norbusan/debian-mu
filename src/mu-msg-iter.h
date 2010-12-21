@@ -20,7 +20,8 @@
 #ifndef __MU_MSG_ITER_H__
 #define __MU_MSG_ITER_H__
 
-#include "mu-msg.h"
+#include <glib.h>
+#include <mu-msg.h>
 
 G_BEGIN_DECLS
 
@@ -28,7 +29,7 @@ struct _MuMsgIter;
 typedef struct _MuMsgIter MuMsgIter;
 
 /**
- * get the next next message (which you got from
+ * get the next message (which you got from
  * e.g. mu_query_run)
  * 
  * @param iter a valid MuMsgIter iterator
@@ -66,13 +67,16 @@ void		 mu_msg_iter_destroy           (MuMsgIter *iter);
  * MuMsg should use only when information is needed that is not
  * provided from the iter).
  * 
- * @param iter a valid MuMsgIter instance
+ * @param iter a valid MuMsgIter instance 
+ * @param err which receives error info or NULL. err is only filled
+ * when the function returns NULL
  * 
  * @return a MuMsgGMime instance, or NULL in case of error. Use
  * mu_msg_gmime_destroy when the instance is no longer needed
  */
-MuMsg* mu_msg_iter_get_msg (MuMsgIter *iter);
-
+MuMsg* mu_msg_iter_get_msg (MuMsgIter *iter, GError **err)
+        G_GNUC_MALLOC G_GNUC_WARN_UNUSED_RESULT;
+   
 /**
  * get the document id for the current message
  * 
@@ -84,13 +88,25 @@ unsigned int     mu_msg_iter_get_docid         (MuMsgIter *iter);
 
 
 /**
- * get the directory path of the message
+ * get the full path of the message file
  * 
  * @param iter a valid MuMsgIter iterator
  * 
  * @return the path, or NULL in case of error
  */
 const char*      mu_msg_iter_get_path          (MuMsgIter *iter);
+
+
+/**
+ * get the maildir of the message - e.g., a message file 
+ * /home/user/Maildir/foo/bar/cur/abc123 would have maildir
+ *   "/foo/bar"
+ * 
+ * @param iter a valid MuMsgIter iterator
+ * 
+ * @return the path, or NULL in case of error
+ */
+const char*      mu_msg_iter_get_maildir (MuMsgIter *iter);
 
 
 /**
@@ -186,7 +202,7 @@ MuMsgPrio    mu_msg_iter_get_prio      (MuMsgIter *iter);
  * @return the field value, or NULL
  */
 const gchar*     mu_msg_iter_get_field         (MuMsgIter *iter, 
-						  const MuMsgField *field);
+						MuMsgFieldId mfid);
 
 /**
  * get some numeric message field
@@ -197,7 +213,7 @@ const gchar*     mu_msg_iter_get_field         (MuMsgIter *iter,
  * @return the field value, or -1 in case of error
  */
 gint64           mu_msg_iter_get_field_numeric     (MuMsgIter *iter, 
-						      const MuMsgField *field);
+						    MuMsgFieldId mfid);
 G_END_DECLS
 
 #endif /*__MU_MSG_ITER_H__*/

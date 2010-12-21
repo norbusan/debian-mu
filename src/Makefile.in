@@ -52,12 +52,14 @@ LTLIBRARIES = $(noinst_LTLIBRARIES)
 am__DEPENDENCIES_1 =
 libmu_la_DEPENDENCIES = $(am__DEPENDENCIES_1) $(am__DEPENDENCIES_1) \
 	$(am__DEPENDENCIES_1)
-am_libmu_la_OBJECTS = mu-cmd-extract.lo mu-cmd-find.lo mu-cmd-index.lo \
-	mu-cmd-mkdir.lo mu-cmd-view.lo mu-cmd.lo mu-config.lo \
-	mu-index.lo mu-log.lo mu-maildir.lo mu-msg-contact.lo \
-	mu-msg-fields.lo mu-msg-flags.lo mu-msg.lo mu-msg-iter.lo \
-	mu-msg-part.lo mu-msg-str.lo mu-query.lo mu-store.lo \
-	mu-util-db.lo mu-util.lo
+am_libmu_la_OBJECTS = mu-bookmarks.lo mu-cmd-extract.lo mu-cmd-find.lo \
+	mu-cmd-index.lo mu-cmd-mkdir.lo mu-cmd-view.lo mu-cmd.lo \
+	mu-config.lo mu-index.lo mu-log.lo mu-maildir.lo \
+	mu-msg-contact.lo mu-msg-fields.lo mu-msg-flags.lo \
+	mu-msg-iter.lo mu-msg-part.lo mu-msg-prio.lo mu-msg.lo \
+	mu-output-link.lo mu-output-plain.lo mu-query.lo mu-runtime.lo \
+	mu-store.lo mu-str-normalize.lo mu-str.lo mu-util-db.lo \
+	mu-util.lo
 libmu_la_OBJECTS = $(am_libmu_la_OBJECTS)
 AM_V_lt = $(am__v_lt_$(V))
 am__v_lt_ = $(am__v_lt_$(AM_DEFAULT_VERBOSITY))
@@ -185,6 +187,8 @@ GLIB_LIBS = @GLIB_LIBS@
 GMIME_CFLAGS = @GMIME_CFLAGS@
 GMIME_LIBS = @GMIME_LIBS@
 GREP = @GREP@
+GTK_CFLAGS = @GTK_CFLAGS@
+GTK_LIBS = @GTK_LIBS@
 INSTALL = @INSTALL@
 INSTALL_DATA = @INSTALL_DATA@
 INSTALL_PROGRAM = @INSTALL_PROGRAM@
@@ -306,6 +310,8 @@ mu_LDADD = \
 	libmu.la
 
 libmu_la_SOURCES = \
+	mu-bookmarks.c			\
+	mu-bookmarks.h			\
 	mu-cmd-extract.c		\
 	mu-cmd-find.c			\
 	mu-cmd-index.c			\
@@ -315,6 +321,7 @@ libmu_la_SOURCES = \
 	mu-cmd.h			\
 	mu-config.c			\
 	mu-config.h			\
+	mu-error.h			\
 	mu-index.c			\
 	mu-index.h			\
 	mu-log.c			\
@@ -327,24 +334,32 @@ libmu_la_SOURCES = \
 	mu-msg-fields.h			\
 	mu-msg-flags.c			\
 	mu-msg-flags.h			\
-	mu-msg-prio.h			\
-	mu-msg-status.h			\
-	mu-msg.c			\
-	mu-msg.h			\
-	mu-msg-priv.h			\
 	mu-msg-iter-priv.hh		\
 	mu-msg-iter.cc			\
 	mu-msg-iter.h			\
 	mu-msg-part.c			\
 	mu-msg-part.h			\
-	mu-msg-str.c			\
-	mu-msg-str.h			\
+	mu-msg-prio.c			\
+	mu-msg-prio.h			\
+	mu-msg-priv.h			\
+	mu-msg-status.h			\
+	mu-msg.c			\
 	mu-msg.h			\
+	mu-msg.h			\
+	mu-output-link.c		\
+	mu-output-link.h		\
+	mu-output-plain.c		\
+	mu-output-plain.h		\
 	mu-query.cc			\
 	mu-query.h			\
 	mu-result.h			\
+	mu-runtime.c			\
+	mu-runtime.h			\
 	mu-store.cc			\
 	mu-store.h			\
+	mu-str-normalize.c		\
+	mu-str.c			\
+	mu-str.h			\
 	mu-util-db.cc			\
 	mu-util-db.h			\
 	mu-util.c			\
@@ -453,6 +468,7 @@ mostlyclean-compile:
 distclean-compile:
 	-rm -f *.tab.c
 
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mu-bookmarks.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mu-cmd-extract.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mu-cmd-find.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mu-cmd-index.Plo@am__quote@
@@ -468,10 +484,15 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mu-msg-flags.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mu-msg-iter.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mu-msg-part.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mu-msg-str.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mu-msg-prio.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mu-msg.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mu-output-link.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mu-output-plain.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mu-query.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mu-runtime.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mu-store.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mu-str-normalize.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mu-str.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mu-util-db.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mu-util.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mu.Po@am__quote@

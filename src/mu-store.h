@@ -23,8 +23,9 @@
 #include <glib.h>
 #include <inttypes.h>
 
-#include "mu-result.h"
-#include "mu-msg.h"
+#include <mu-result.h>
+#include <mu-msg.h>
+#include <mu-error.h>
 
 G_BEGIN_DECLS
 
@@ -35,17 +36,21 @@ typedef struct _MuStore MuStore;
  * create a new Xapian store, a place to store documents
  * 
  * @param path the path to the database
+  * @param err to receive error info or NULL. err->code can be found in
+ * mu-error.h
  * 
  * @return a new MuStore object, or NULL in case of error
  */
-MuStore*    mu_store_new     (const char* path);
+MuStore*    mu_store_new     (const char *path, GError **err)
+    G_GNUC_MALLOC G_GNUC_WARN_UNUSED_RESULT;
+
 
 /**
  * destroy the MuStore object and free resources
  * 
  * @param store a valid store, or NULL
  */
-void              mu_store_destroy (MuStore *store);
+void        mu_store_destroy (MuStore *store);
 
 
 /**
@@ -59,13 +64,15 @@ void              mu_store_destroy (MuStore *store);
 unsigned mu_store_count (MuStore *store);
 
 /**
- * get a version string for the database
+ * get a version string for the database; it's a const string, which
+ * is valid as long MuStore exists and mu_store_version is not called
+ * again.
  * 
  * @param store a valid MuStore
  * 
- * @return the version string (free with g_free), or NULL in case of error
+ * @return the version string or NULL in case of error
  */
-char* mu_store_version (MuStore *store);
+const char* mu_store_version (MuStore *store);
 
 /**
  * set the version string for the database
@@ -76,7 +83,7 @@ char* mu_store_version (MuStore *store);
  * @return TRUE if setting the version succeeded, FALSE otherwise  
  */
 gboolean  mu_store_set_version (MuStore *store,
-				       const char* version);
+				const char* version);
 
 
 /**
@@ -109,7 +116,7 @@ MuResult	  mu_store_store   (MuStore *store, MuMsg *msg);
  * @return TRUE if it succeeded, FALSE otherwise
  */
 MuResult          mu_store_remove (MuStore *store,
-					  const char* msgpath);
+				   const char* msgpath);
 
 
 /**
@@ -131,8 +138,8 @@ gboolean          mu_store_contains_message (MuStore *store,
  * @param stamp a timestamp
  */
 void              mu_store_set_timestamp (MuStore *store,
-						 const char* msgpath, 
-						 time_t stamp);
+					 const char* msgpath, 
+					 time_t stamp);
 
 /**
  * get the timestamp for a directory
@@ -143,7 +150,7 @@ void              mu_store_set_timestamp (MuStore *store,
  * @return the timestamp, or 0 in case of error
  */
 time_t            mu_store_get_timestamp (MuStore *store,
-						 const char* msgpath);
+					 const char* msgpath);
 
 /**
  * call a function for each document in the database

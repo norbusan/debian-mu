@@ -42,8 +42,11 @@ fill_database (void)
 	cmdline = g_strdup_printf ("%s index --muhome=%s --maildir=%s"
 				   " --quiet",
 				   MU_PROGRAM, tmpdir, MU_TESTMAILDIR);
+
+	/* g_printerr ("\n%s\n", cmdline); */
 	
-	g_assert (g_spawn_command_line_sync (cmdline, NULL, NULL, NULL, NULL));
+	g_assert (g_spawn_command_line_sync (cmdline, NULL, NULL,
+					     NULL, NULL));
 	g_free (cmdline);
 
 	xpath= g_strdup_printf ("%s%c%s", tmpdir, G_DIR_SEPARATOR, "xapian");
@@ -61,22 +64,20 @@ run_and_count_matches (const char *xpath, const char *query)
 	MuMsgIter *iter;
 	guint count;
 	
-	mquery = mu_query_new (xpath);
+	mquery = mu_query_new (xpath, NULL);
 	g_assert (query);
 
-	iter = mu_query_run (mquery, query, NULL, FALSE, 1);
-	g_assert (iter);
-	/* { */
-	/* 	gchar *prep = mu_query_preprocess (query); */
-	/* 	g_print ("\n%s:\n(1)'%s'\n(2)'%s'\n", xpath, query, prep); */
-	/* 	g_free (prep); */
-	/* } */
+	/* g_printerr ("\n=>'%s'\n", query); */
 	
+	iter = mu_query_run (mquery, query, MU_MSG_FIELD_ID_NONE,
+			     FALSE, 1, NULL);
+	mu_query_destroy (mquery);
+	g_assert (iter);
+
 	for (count = 0; !mu_msg_iter_is_done(iter);
 	     mu_msg_iter_next(iter), ++count);
 	
 	mu_msg_iter_destroy (iter);
-	mu_query_destroy (mquery);
 	
 	return count;
 }
@@ -103,15 +104,18 @@ test_mu_query_01 (void)
 		{ "html and contains",  1 },
 		{ "from:pepernoot",     0 },
 		{ "foo:pepernoot",      0 },
+		{ "funky",              1 },
 		{ "fünkÿ",              1 },
-//		{ "funky",              1 }
 	};
+
+	
 	xpath = fill_database ();
 	g_assert (xpath != NULL);
 	
- 	for (i = 0; i != G_N_ELEMENTS(queries); ++i)
+ 	for (i = 0; i != G_N_ELEMENTS(queries); ++i) 
 		g_assert_cmpuint (run_and_count_matches (xpath, queries[i].query),
 				  ==, queries[i].count);
+
 	g_free (xpath);
 }
 
@@ -139,9 +143,21 @@ test_mu_query_03 (void)
 	
 	QResults queries[] = {
 		{ "ploughed", 1},
-		{ "s:Re:Learning LISP; Scheme vs elisp.", 1},
+		{ "i:3BE9E6535E3029448670913581E7A1A20D852173@"
+		  "emss35m06.us.lmco.com", 1},
+
+		/* subsets of the words in the subject should match */
+		{ "s:gcc include search order" , 1},
+		{ "s:gcc include search" , 1},
+		{ "s:search order" , 1},
+		{ "s:include" , 1},
+		
+		{ "s:lisp", 1},
+		{ "s:LISP", 1},
+		
+		{ "s:Learning LISP; Scheme vs elisp.", 1},
 		{ "subject:Re Learning LISP; Scheme vs elisp.", 1},
-		{ "t:help-gnu-emacs@gnu.org", 4},
+		{ "to:help-gnu-emacs@gnu.org", 4},
 		{ "t:help-gnu-emacs", 0},
 	};
 	
@@ -163,14 +179,19 @@ test_mu_query_04 (void)
 	int i;
 	
 	QResults queries[] = {
-//		{ "frodo@example.com", 1},
+		{ "frodo@example.com", 1}, /* does not match: see mu-find (1) */
 		{ "f:frodo@example.com", 1},
 		{ "f:Frodo Baggins", 1},
-//		{ "bilbo@anotherexample.com", 1},
+		{ "bilbo@anotherexample.com", 1}, /* same things */
 		{ "t:bilbo@anotherexample.com", 1},
 		{ "t:bilbo", 1},
 		{ "f:bilbo", 0},
-		{ "baggins", 1}
+ 		{ "baggins", 1},
+		{ "prio:high", 1},
+		{ "prio:normal", 3},
+		{ "prio:h", 1},
+		{ "prio:l", 7},
+		{ "not prio:l", 4}
 	};
 	
 	xpath = fill_database ();
@@ -194,15 +215,16 @@ test_mu_query_05 (void)
 	
 	xpath = fill_database ();
 	g_assert (xpath != NULL);
-	
-	query = mu_query_new (xpath);
-	iter = mu_query_run (query, "fünkÿ", NULL, FALSE, 1);
-	msg = mu_msg_iter_get_msg (iter);
 
+	query = mu_query_new (xpath, NULL);
+	iter = mu_query_run (query, "fünkÿ", MU_MSG_FIELD_ID_NONE,
+			     FALSE, 1, NULL);
+	msg = mu_msg_iter_get_msg (iter, NULL);
+		
 	g_assert_cmpstr (mu_msg_get_subject(msg),==, 
 			 "Greetings from Lothlórien");
 	g_assert_cmpstr (mu_msg_get_summary(msg,5),==,
-		"Let's write some fünkÿ text using umlauts. Foo.");
+			 "Let's write some fünkÿ text using umlauts. Foo.");
 	
 	mu_msg_destroy (msg);
 	mu_msg_iter_destroy (iter);
@@ -214,8 +236,9 @@ test_mu_query_05 (void)
 int
 main (int argc, char *argv[])
 {
-	g_test_init (&argc, &argv, NULL);
+	int rv;
 	
+	g_test_init (&argc, &argv, NULL);	
 	g_test_add_func ("/mu-query/test-mu-query-01", test_mu_query_01);
 	g_test_add_func ("/mu-query/test-mu-query-02", test_mu_query_02); 
 	g_test_add_func ("/mu-query/test-mu-query-03", test_mu_query_03);
@@ -225,7 +248,11 @@ main (int argc, char *argv[])
 	g_log_set_handler (NULL,
 			   G_LOG_LEVEL_MASK | G_LOG_FLAG_FATAL| G_LOG_FLAG_RECURSION,
 			   (GLogFunc)black_hole, NULL);
+
+	mu_msg_gmime_init ();
+	rv = g_test_run ();
+	mu_msg_gmime_uninit ();
 	
-	return g_test_run ();
+	return rv;
 }
 

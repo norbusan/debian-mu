@@ -1,8 +1,8 @@
-.TH MU FIND 1 "September 2010" "User Manuals"
+.TH MU FIND 1 "November 2010" "User Manuals"
 
 .SH NAME 
 
-mu find \- search for e-mails in the
+mu find \- find e-mail messages in the
 .B mu
 database
 
@@ -12,52 +12,73 @@ database
 
 .SH DESCRIPTION
 
-\fBmu find\fR is the \fBmu\fR sub-command for searching e-mails there were
-store earlier using
-.BR mu-index(1)
-\.
+\fBmu find\fR is the \fBmu\fR sub-command for searching e-mail message that
+were stored earlier using
+\fBmu index(1)\bR.
 
-The \fBfind\fR command starts a search for messages in the database that match
-the search pattern.
+.SH SEARCHING MAIL
+
+\fBmu find\fR starts a search for messages in the database that match some
+search pattern. For example:
+
+.nf
+   $ mu find subject:snow from:john
+.fi
+
+would find all messages from John with 'snow' in the subject field.
 
 The search pattern is taken as a command-line parameter. If the search
-parameter consists of multiple parts (multiple command line parameters) they
-are treated as if there were a logical \fBAND\fR between them.
+parameter consists of multiple parts (as in the example) they are treated as
+if there were a logical \fBAND\fR between them.
 
 If you want to make your own constructions (using \fBAND\fR, \fBOR\fR,
 \fBNOT\fR etc., you have to put quotes around them so \fBmu\fR can consider
 them as a unit; for example to find mails with oranges OR mandarins in the
-subject-field, you'd use:
+subject-field, you can use:
+
 .nf
-	mu find 'subject:orange OR subject:mandarin'
+  $ mu find 'subject:orange OR subject:mandarin'
 .fi
 
-\fBmu find\fR does not distinguish between uppercase or lowercase for search
-terms.
 
 \fBmu\fR relies on the Xapian database for its searching capabilities, so it
-offers all the search functionality that Xapian offers; please refer to:
-
+offers all the search functionality that Xapian offers; for all the details,
+see:
      \fIhttp://xapian.org/docs/queryparser.html\fR
 
-Note that queries are logged in \fI<mu-home>/mu.log\fR.   
+One special feature of \fBmu\fR is that is does not distinguish between
+uppercase and lowercase, nor the accented or unaccented versions of
+characters. All match. In general, \fBmu\fR tries to be 'eager' in matching,
+as filtering out unwanted results is usually preferrable over non matching
+messages.
+     
+In older versions of mu, queries were logged in \fI<mu-home>/mu.log\fR;
+however, since version 0.9, mu no longer does this.
      
 The basic way to search a message is to type some words matching it, as you
 would do in an internet search engine. For example,
 
 .nf
-	mu find monkey banana
+  $ mu find monkey banana
 .fi
 
-will find all message that contain both 'monkey' and 'banana'. Matching is
-case-insensitive and recognizes various forms of a word such as plurals; this
-is all courtesy of Xapian.
+will find all messages that contain both 'monkey' and 'banana' in either body
+or subject or one of the address-fields (to/from/cc).
+
+As mentioned, matching is case-insensitive and accent-insensitive;
+thus
+
+.nf
+  $ mu find Mönkey BÄNAÑå
+.fi
+
+yields the same results as the example above.
 
 \fBmu\fR also recognizes prefixes for specific fields in a messages; for
 example:
 
 .nf
-	mu find subject:penguin
+  $ mu find subject:penguin
 .fi
 
 to find messages with have the word \fBpenguin\fR in the subject field. You
@@ -71,6 +92,44 @@ search fields and their abbreviations:
 	to,t            To: recipient
 	maildir,m       Maildir	
 	msgid,i         Message-ID
+	prio,p          Message priority ('low', 'normal' or 'high')
+	flag,g		Message Flags
+	date,d          Date-Range
+.fi
+
+For clarity, this man-page uses the longer versions.
+
+The meaning of most of these fields should be clear, but some require some
+extra discusion.
+
+First, the message flags field describes certain properties of the message, as
+listed in the following table:
+.nf
+	d,draft         Draft Message
+	f,flagged       Flagged
+	n,new           New message (in new/ Maildir)
+	p,passed        Passed ('Handled')
+	r,replied       Replied
+	s,seen          Seen
+	t,thrashed      Marked for deletion
+	a,attach        Has attachment
+	z,signed        Signed message
+	x,encrypted     Encrypted message
+.fi
+
+Using this, we can search e.g. for all signed messages that have an
+attachment:
+
+.nf
+  $ mu find flag:signed flag:attach
+.fi
+
+The message-priority has three possible values: low, normal or high. We can
+match them using \fBprio:\fR - for example, to get all high-priority messages
+with a subject containing some bird:
+
+.nf
+  $ mu find prio:high subject:nightingale
 .fi
 
 The Maildir field describes the directory path starting \fBafter\fR the
@@ -78,18 +137,78 @@ Maildir-base path, and before the \fI/cur/\fR or \fI/new/\fR part. So for
 example, if there's a message with the file name
 \fI~/Maildir/lists/running/cur/1234.213:2,\fR, you could find it (and all the
 other messages in the same maildir) with:
+
 .nf
-	mu find maildir:/lists/running
+  $ mu find maildir:/lists/running
 .fi
+
 Note the starting '/'. If you want to match mails in the 'root' maildir, you
 can do with a single '/':
+
 .nf
-	mu find maildir:/ 
+  $ mu find maildir:/ 
 .fi
 
+(and of course you can use the \fBm:\fR shortcut instead of \fBmaildir:\fR) 
 
+The \fBdate:\fR (or \fBd:\fR) search parameter is 'special' in the fact that
+it takes a range of dates. For now, these dates are in ISO 8601 format
+(YYYYMMDDHHMM); you can leave out the right part, and mu will add the rest,
+depending on whether this is the beginning or end of the date interval. For
+example, for the beginning of the interval "201012" would be interpreted as
+"20101201010000", or December 1, 2010 at 00:00, while for the end of the
+interval, this would be interpreted as "20101231122359", or December 31, 2010
+at 23:59.
 
-.SS Find options
+To get all messages between (inclusive) the 5th of May 2009 and the 2nd of
+June 2010, you could use:
+.nf
+  $ mu find date:20090505..20100602 
+.fi
+Characters like ':', '/', '-' and single '.' are ignored, so the following is
+equivalent but more readable:
+.nf
+  $ mu find date:2009-05-05..2010-06-02 
+.fi
+Precision is up to the minute and 24-hour notation for times is used, so
+another example would be:
+.nf
+  $ mu find date:2009-05-05/12:23..2010-06-02/17:18 
+.fi
+
+An important point here is that the date matches are against local the local
+time zone active the time when the mu database was filled (using \fBmu
+index\fR).
+
+\fBmu\fR also understand relative dates, in the form of a posiive number
+followed by h (hour), d (day), w (week), m (30 days) or y (365 days). Some
+examples will explain this:
+
+.nf
+	5h      five hours in the past
+	2w      one week in the past
+	3m      three times 30 days in the past
+	1y      365 days in the past
+.fi
+
+Using this notation, you can for example match messages between two and three
+weeks old:
+.nf
+  $ mu find date:3w..2w 
+.fi
+
+Finally, there are some special keywords for dates, namely 'now', meaning the
+prsent moment and 'today' for the beginning of today. So to get all messages
+sent or received today, you could use:
+
+.nf
+  $ mu find date:today..now 
+.fi
+
+.SH OPTIONS
+
+Note, some of the important options are described in the \fBmu(1)\fR man-page
+and not here, as they apply to multiple mu-commands.
 
 The \fBfind\fR-command has various options that influence the way \fBmu\fR
 displays the results. If you don't specify anything, the defaults are
@@ -104,13 +223,13 @@ not known will be output as-is, allowing for some simple formatting.
 
 For example:
 .nf
-	mu find subject:snow --fields "d f s"
+  $ mu find subject:snow --fields "d f s"
 .fi
 would list the date, subject and sender of all messages with 'snow' in the
 their subject.
 
 The table of replacement characters is superset of the list mentions for
-search parameters:
+search parameters; the complete list:
 
 .nf
 	t	\fBt\fRo: recipient
@@ -125,25 +244,12 @@ search parameters:
 	m	\fBm\fRaildir
 .fi
 
-The message-flags output is a string, consisting of zero or more of the
-following characters.
 
-.nf
-	D	Draft Message
-	F	Flagged
-	N	New message (in new/ Maildir)
-	P	Passed ('Handled')
-	R	Replied
-	S	Seen
-	T	Marked for deletion
-	a	Has attachment
-	s	Signed message
-	x	Encrypted message
-.fi
+The message flags are the same ones we already saw in the message flags
+above. Thus, a message which is 'seen', has an attachment and is signed would
+have 'asz' as its corresponding output string, while an encrypted new message
+would have 'nx'.
 
-Note that these are theoretical flags, which may or may not be actually in
-use.
- 
 .TP
 \fB\-s\fR, \fB\-\-sortfield\fR \fR=\fI<field>\fR and \fB\-z\fR, \fB\-\-descending\fR
 specifies the field to sort the search results by, and the direction. The
@@ -166,9 +272,9 @@ Thus, for example, to sort messages by date, you could specify:
   $ mu find fahrrad --fields "d f s" --sortfield=date --descending
 .fi
 
-Note, if you specify a sortfield, by default, they are sorted in descending
-order (e.g., from lowest to highest). This is usually a good choice, but for
-dates it may be more useful to sort in the opposite direction.
+Note, if you specify a sortfield, by default, messages are sorted in
+descending order (e.g., from lowest to highest). This is usually a good
+choice, but for dates it may be more useful to sort in the opposite direction.
 
 .TP
 \fB\-\-xquery\fR
@@ -203,6 +309,11 @@ Note: when \fBmu\fR creates a Maildir for these links, it automatically
 inserts a \fI.noindex\fR file, to exclude the directory from \fBmu
 index\fR.
 
+.TP
+\fB\-b\fR, \fB\-\-bookmark\fR=\fI<bookmark>\fR
+use a bookmarked search query. Using this option, a query from your bookmark
+file will be prepended to other search queries. See mu-bookmarks(1) for the
+details of the bookmarks file.
 
 .SS Example queries
 
@@ -238,7 +349,13 @@ Find all messages with the 'wombat' as subject, and 'capibara' anywhere:
 Find all messages in the 'Archive' folder from Fred:
 
 .nf
-  $ mu find from:fred maildir:Archive
+  $ mu find from:fred maildir:/Archive
+.fi
+
+Find all messages with attachments:
+
+.nf
+  $ mu find flag:attach
 .fi
 
 
@@ -262,8 +379,8 @@ macro index <F9> "<change-folder-readonly>~/Maildir/search" \
 .TP
 
 \fBWanderlust\fR
-If you use Wanderlust for \fBemacs\fR, the following definitons can be used;
-typing 'Q' will start a query.
+If you use the Wanderlust e-mail client for \fBemacs\fR, the following
+definitions can be used; typing 'Q' will start a query.
 
 .nf
 ;; mu integration for Wanderlust
@@ -292,11 +409,12 @@ typing 'Q' will start a query.
     (message "Query failed")))
 .fi
 
-
 .SH BUGS
 
 Please report bugs if you find them:
 .BR http://code.google.com/p/mu0/issues/list
+If you have specific messages which are not matched correctly, please attach
+them (appropriately censored of course).
 
 .SH AUTHOR
 

@@ -21,7 +21,8 @@
 #define __MU_QUERY_H__
 
 #include <glib.h>
-#include "mu-msg-iter.h"
+#include <mu-msg-iter.h>
+#include <mu-error.h>
 
 G_BEGIN_DECLS
 
@@ -31,14 +32,18 @@ typedef struct _MuQuery MuQuery;
 /**
  * create a new MuQuery instance. 
  * 
- * @param path path to the xapian db to search
- * @param err receives error information (if there is any)
- *
+ * @param path path to the xapian db to search 
+ * @param err receives error information (if there is any); if
+ * function returns non-NULL, err will _not_be set. err can be NULL
+ * possble errors (err->code) are MU_ERROR_XAPIAN_DIR and 
+ * MU_ERROR_XAPIAN_NOT_UPTODATE
+ * 
  * @return a new MuQuery instance, or NULL in case of error.
  * when the instance is no longer needed, use mu_query_destroy
  * to free it
  */
-MuQuery  *mu_query_new  (const char* path) G_GNUC_WARN_UNUSED_RESULT;
+MuQuery  *mu_query_new  (const char* path, GError **err)
+      G_GNUC_MALLOC G_GNUC_WARN_UNUSED_RESULT;
 
 /**
  * destroy the MuQuery instance
@@ -55,7 +60,8 @@ void mu_query_destroy  (MuQuery *self);
  * 
  * @return the version string (free with g_free), or NULL in case of error
  */
-char* mu_query_version (MuQuery *store) G_GNUC_WARN_UNUSED_RESULT;
+char* mu_query_version (MuQuery *store)
+    G_GNUC_MALLOC G_GNUC_WARN_UNUSED_RESULT;
 
 /**
  * run a Xapian query; for the syntax, please refer to the mu-find
@@ -63,35 +69,40 @@ char* mu_query_version (MuQuery *store) G_GNUC_WARN_UNUSED_RESULT;
  * 
  * @param self a valid MuQuery instance
  * @param expr the search expression
- * @param sortfield the field to sort by
+ * @param sortfield the field id to sort by or MU_MSG_FIELD_ID_NONE if
+ * sorting is not desired
  * @param ascending if TRUE sort in ascending (A-Z) order, otherwise,
  * sort in descending (Z-A) order
  * @param batchsize the size of batches to receive; this is mainly for
  * reasons - it's best to get the size one wants to show the user at once.
  * If you pass '0' as the batchsize, mu will use the maximum size (the count
  * of documents in the database)
+ * @param err receives error information (if there is any); if
+ * function returns non-NULL, err will _not_be set. err can be NULL
+ * possible error (err->code) is MU_ERROR_QUERY,
  *
  * @return a MuMsgIter instance you can iterate over, or NULL in
  * case of error
  */
-MuMsgIter* mu_query_run (MuQuery *self, 
-				const char* expr,
-				const MuMsgField* sortfield,
-				gboolean ascending,
-				size_t batchsize) G_GNUC_WARN_UNUSED_RESULT;
+MuMsgIter* mu_query_run (MuQuery *self, const char* expr,
+			 MuMsgFieldId sortfieldid, gboolean ascending,
+			 size_t batchsize, GError **err)
+    G_GNUC_MALLOC G_GNUC_WARN_UNUSED_RESULT;
 
 /**
  * get a string representation of the Xapian search query
  * 
  * @param self a MuQuery instance 
  * @param searchexpr a xapian search expression
+ * @param err receives error information (if there is any); if
+ * function returns non-NULL, err will _not_be set. err can be NULL
  * 
  * @return the string representation of the xapian query, or NULL in case of
  * error; free the returned value with g_free
  */
-char* mu_query_as_string (MuQuery *self,
-			  const char* searchexpr) G_GNUC_WARN_UNUSED_RESULT;
-
+char* mu_query_as_string (MuQuery *self, const char* searchexpr, GError **err)
+    G_GNUC_MALLOC G_GNUC_WARN_UNUSED_RESULT;
+		
 /**
  * pre-process the query; this function is useful mainly for debugging mu
  * 
@@ -99,8 +110,8 @@ char* mu_query_as_string (MuQuery *self,
  * 
  * @return a pre-processed query, free it with g_free
  */
-char* mu_query_preprocess (const char *query) G_GNUC_WARN_UNUSED_RESULT;
-
+char* mu_query_preprocess (const char *query)
+        G_GNUC_MALLOC G_GNUC_WARN_UNUSED_RESULT;
 
 G_END_DECLS
 
