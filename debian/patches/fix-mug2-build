@@ -12,7 +12,7 @@ Index: maildir-utils.git/toys/mug2/Makefile.am
  
  INCLUDES=-I${top_srcdir} -I${top_srcdir}/src $(GTK_CFLAGS) $(WEBKIT_CFLAGS) -DICONDIR='"$(icondir)"' \
 -	 -DMUG2DIR='"$(abs_srcdir)"' -DGTK_DISABLE_DEPRECATED -DGSEAL_ENABLE
-+	 -DMUG2DIR='/usr/share/pixmaps' -DGTK_DISABLE_DEPRECATED -DGSEAL_ENABLE
++	 -DMUG2DIR='"/usr/share/pixmaps"' -DGTK_DISABLE_DEPRECATED -DGSEAL_ENABLE
  
  # don't use -Werror, as it might break on other compilers
  # use -Wno-unused-parameters, because some callbacks may not
@@ -25,7 +25,7 @@ Index: maildir-utils.git/toys/mug2/Makefile.in
  SUBDIRS = .
  INCLUDES = -I${top_srcdir} -I${top_srcdir}/src $(GTK_CFLAGS) $(WEBKIT_CFLAGS) -DICONDIR='"$(icondir)"' \
 -	 -DMUG2DIR='"$(abs_srcdir)"' -DGTK_DISABLE_DEPRECATED -DGSEAL_ENABLE
-+	 -DMUG2DIR='/usr/share/pixmaps' -DGTK_DISABLE_DEPRECATED -DGSEAL_ENABLE
++	 -DMUG2DIR='"/usr/share/pixmaps"' -DGTK_DISABLE_DEPRECATED -DGSEAL_ENABLE
  
  
  # don't use -Werror, as it might break on other compilers
