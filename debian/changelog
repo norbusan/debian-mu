@@ -1,3 +1,9 @@
+maildir-utils (0.9.3-1) unstable; urgency=low
+
+  * new upstream releases
+
+ -- Norbert Preining <preining@debian.org>  Thu, 17 Mar 2011 14:32:33 +0900
+
 maildir-utils (0.9.1-1) experimental; urgency=low
 
   * new upstream releases
