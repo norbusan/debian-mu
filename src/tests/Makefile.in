@@ -40,7 +40,10 @@ DIST_COMMON = $(srcdir)/Makefile.am $(srcdir)/Makefile.in \
 noinst_PROGRAMS = $(am__EXEEXT_1)
 subdir = src/tests
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
-am__aclocal_m4_deps = $(top_srcdir)/configure.ac
+am__aclocal_m4_deps = $(top_srcdir)/m4/libtool.m4 \
+	$(top_srcdir)/m4/ltoptions.m4 $(top_srcdir)/m4/ltsugar.m4 \
+	$(top_srcdir)/m4/ltversion.m4 $(top_srcdir)/m4/lt~obsolete.m4 \
+	$(top_srcdir)/configure.ac
 am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
 	$(ACLOCAL_M4)
 mkinstalldirs = $(install_sh) -d
@@ -58,33 +61,38 @@ am__EXEEXT_1 = test-mu-util$(EXEEXT) test-mu-str$(EXEEXT) \
 	test-mu-maildir$(EXEEXT) test-mu-msg-fields$(EXEEXT) \
 	test-mu-query$(EXEEXT) test-mu-cmd$(EXEEXT) \
 	test-mu-msg$(EXEEXT) test-mu-runtime$(EXEEXT) \
-	test-mu-store$(EXEEXT)
+	test-mu-store$(EXEEXT) test-mu-msg-file$(EXEEXT)
 PROGRAMS = $(noinst_PROGRAMS)
 am_test_mu_cmd_OBJECTS = test-mu-cmd.$(OBJEXT) dummy.$(OBJEXT)
 test_mu_cmd_OBJECTS = $(am_test_mu_cmd_OBJECTS)
 test_mu_cmd_DEPENDENCIES = libtestmucommon.la
-am_test_mu_maildir_OBJECTS = test-mu-maildir.$(OBJEXT)
+am_test_mu_maildir_OBJECTS = test-mu-maildir.$(OBJEXT) dummy.$(OBJEXT)
 test_mu_maildir_OBJECTS = $(am_test_mu_maildir_OBJECTS)
 test_mu_maildir_DEPENDENCIES = libtestmucommon.la
-am_test_mu_msg_OBJECTS = test-mu-msg.$(OBJEXT)
+am_test_mu_msg_OBJECTS = test-mu-msg.$(OBJEXT) dummy.$(OBJEXT)
 test_mu_msg_OBJECTS = $(am_test_mu_msg_OBJECTS)
 test_mu_msg_DEPENDENCIES = libtestmucommon.la
-am_test_mu_msg_fields_OBJECTS = test-mu-msg-fields.$(OBJEXT)
+am_test_mu_msg_fields_OBJECTS = test-mu-msg-fields.$(OBJEXT) \
+	dummy.$(OBJEXT)
 test_mu_msg_fields_OBJECTS = $(am_test_mu_msg_fields_OBJECTS)
 test_mu_msg_fields_DEPENDENCIES = libtestmucommon.la
+am_test_mu_msg_file_OBJECTS = test-mu-msg-file.$(OBJEXT) \
+	dummy.$(OBJEXT)
+test_mu_msg_file_OBJECTS = $(am_test_mu_msg_file_OBJECTS)
+test_mu_msg_file_DEPENDENCIES = libtestmucommon.la
 am_test_mu_query_OBJECTS = test-mu-query.$(OBJEXT) dummy.$(OBJEXT)
 test_mu_query_OBJECTS = $(am_test_mu_query_OBJECTS)
 test_mu_query_DEPENDENCIES = libtestmucommon.la
-am_test_mu_runtime_OBJECTS = test-mu-runtime.$(OBJEXT)
+am_test_mu_runtime_OBJECTS = test-mu-runtime.$(OBJEXT) dummy.$(OBJEXT)
 test_mu_runtime_OBJECTS = $(am_test_mu_runtime_OBJECTS)
 test_mu_runtime_DEPENDENCIES = libtestmucommon.la
 am_test_mu_store_OBJECTS = test-mu-store.$(OBJEXT) dummy.$(OBJEXT)
 test_mu_store_OBJECTS = $(am_test_mu_store_OBJECTS)
 test_mu_store_DEPENDENCIES = libtestmucommon.la
-am_test_mu_str_OBJECTS = test-mu-str.$(OBJEXT)
+am_test_mu_str_OBJECTS = test-mu-str.$(OBJEXT) dummy.$(OBJEXT)
 test_mu_str_OBJECTS = $(am_test_mu_str_OBJECTS)
 test_mu_str_DEPENDENCIES = libtestmucommon.la
-am_test_mu_util_OBJECTS = test-mu-util.$(OBJEXT)
+am_test_mu_util_OBJECTS = test-mu-util.$(OBJEXT) dummy.$(OBJEXT)
 test_mu_util_OBJECTS = $(am_test_mu_util_OBJECTS)
 test_mu_util_DEPENDENCIES = libtestmucommon.la
 DEFAULT_INCLUDES = -I.@am__isrc@ -I$(top_builddir)
@@ -131,14 +139,16 @@ am__v_GEN_ = $(am__v_GEN_$(AM_DEFAULT_VERBOSITY))
 am__v_GEN_0 = @echo "  GEN   " $@;
 SOURCES = $(libtestmucommon_la_SOURCES) $(test_mu_cmd_SOURCES) \
 	$(test_mu_maildir_SOURCES) $(test_mu_msg_SOURCES) \
-	$(test_mu_msg_fields_SOURCES) $(test_mu_query_SOURCES) \
-	$(test_mu_runtime_SOURCES) $(test_mu_store_SOURCES) \
-	$(test_mu_str_SOURCES) $(test_mu_util_SOURCES)
+	$(test_mu_msg_fields_SOURCES) $(test_mu_msg_file_SOURCES) \
+	$(test_mu_query_SOURCES) $(test_mu_runtime_SOURCES) \
+	$(test_mu_store_SOURCES) $(test_mu_str_SOURCES) \
+	$(test_mu_util_SOURCES)
 DIST_SOURCES = $(libtestmucommon_la_SOURCES) $(test_mu_cmd_SOURCES) \
 	$(test_mu_maildir_SOURCES) $(test_mu_msg_SOURCES) \
-	$(test_mu_msg_fields_SOURCES) $(test_mu_query_SOURCES) \
-	$(test_mu_runtime_SOURCES) $(test_mu_store_SOURCES) \
-	$(test_mu_str_SOURCES) $(test_mu_util_SOURCES)
+	$(test_mu_msg_fields_SOURCES) $(test_mu_msg_file_SOURCES) \
+	$(test_mu_query_SOURCES) $(test_mu_runtime_SOURCES) \
+	$(test_mu_store_SOURCES) $(test_mu_str_SOURCES) \
+	$(test_mu_util_SOURCES)
 ETAGS = etags
 CTAGS = ctags
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
@@ -170,6 +180,8 @@ ECHO_T = @ECHO_T@
 EGREP = @EGREP@
 EXEEXT = @EXEEXT@
 FGREP = @FGREP@
+GIO_CFLAGS = @GIO_CFLAGS@
+GIO_LIBS = @GIO_LIBS@
 GLIB_CFLAGS = @GLIB_CFLAGS@
 GLIB_LIBS = @GLIB_LIBS@
 GMIME_CFLAGS = @GMIME_CFLAGS@
@@ -216,9 +228,12 @@ SET_MAKE = @SET_MAKE@
 SHELL = @SHELL@
 STRIP = @STRIP@
 VERSION = @VERSION@
+WEBKIT_CFLAGS = @WEBKIT_CFLAGS@
+WEBKIT_LIBS = @WEBKIT_LIBS@
 XAPIAN = @XAPIAN@
 XAPIAN_CXXFLAGS = @XAPIAN_CXXFLAGS@
 XAPIAN_LIBS = @XAPIAN_LIBS@
+XDGOPEN = @XDGOPEN@
 abs_builddir = @abs_builddir@
 abs_srcdir = @abs_srcdir@
 abs_top_builddir = @abs_top_builddir@
@@ -276,7 +291,7 @@ top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 TEST_PROGS = test-mu-util test-mu-str test-mu-maildir \
 	test-mu-msg-fields test-mu-query test-mu-cmd test-mu-msg \
-	test-mu-runtime test-mu-store
+	test-mu-runtime test-mu-store test-mu-msg-file
 INCLUDES = $(XAPIAN_CXXFLAGS)					\
 	 $(GMIME_CFLAGS)					\
 	 $(GLIB_CFLAGS)						\
@@ -294,26 +309,28 @@ INCLUDES = $(XAPIAN_CXXFLAGS)					\
 AM_CFLAGS = -Wall -Wextra -Wno-unused-parameter -Wdeclaration-after-statement
 AM_CXXFLAGS = -Wall -Wextra -Wno-unused-parameter
 noinst_LTLIBRARIES = libtestmucommon.la
-test_mu_util_SOURCES = test-mu-util.c
+test_mu_util_SOURCES = test-mu-util.c dummy.cc
 test_mu_util_LDADD = libtestmucommon.la
-test_mu_str_SOURCES = test-mu-str.c
+test_mu_str_SOURCES = test-mu-str.c dummy.cc
 test_mu_str_LDADD = libtestmucommon.la
-test_mu_maildir_SOURCES = test-mu-maildir.c
+test_mu_maildir_SOURCES = test-mu-maildir.c dummy.cc
 test_mu_maildir_LDADD = libtestmucommon.la
-test_mu_msg_fields_SOURCES = test-mu-msg-fields.c
+test_mu_msg_fields_SOURCES = test-mu-msg-fields.c dummy.cc
 test_mu_msg_fields_LDADD = libtestmucommon.la
 test_mu_query_SOURCES = test-mu-query.c dummy.cc
 test_mu_query_LDADD = libtestmucommon.la
 test_mu_cmd_SOURCES = test-mu-cmd.c dummy.cc
 test_mu_cmd_LDADD = libtestmucommon.la
-test_mu_msg_SOURCES = test-mu-msg.c
+test_mu_msg_SOURCES = test-mu-msg.c dummy.cc
 test_mu_msg_LDADD = libtestmucommon.la
-test_mu_runtime_SOURCES = test-mu-runtime.c
+test_mu_runtime_SOURCES = test-mu-runtime.c dummy.cc
 test_mu_runtime_LDADD = libtestmucommon.la
 test_mu_store_SOURCES = test-mu-store.c dummy.cc
 test_mu_store_LDADD = libtestmucommon.la
+test_mu_msg_file_SOURCES = test-mu-msg-file.c dummy.cc
+test_mu_msg_file_LDADD = libtestmucommon.la
 libtestmucommon_la_SOURCES = \
-	test-mu-common.c		\
+	test-mu-common.c				\
 	test-mu-common.h
 
 libtestmucommon_la_LIBADD = ../libmu.la
@@ -340,7 +357,8 @@ EXTRA_DIST = \
 	testdir2/bar/cur/mail1					\
 	testdir2/bar/cur/mail2					\
 	testdir2/bar/cur/mail3					\
-	testdir2/Foo/cur/mail4
+	testdir2/bar/cur/mail4					\
+	testdir2/Foo/cur/mail5
 
 all: all-am
 
@@ -401,28 +419,31 @@ test-mu-cmd$(EXEEXT): $(test_mu_cmd_OBJECTS) $(test_mu_cmd_DEPENDENCIES)
 	$(AM_V_CXXLD)$(CXXLINK) $(test_mu_cmd_OBJECTS) $(test_mu_cmd_LDADD) $(LIBS)
 test-mu-maildir$(EXEEXT): $(test_mu_maildir_OBJECTS) $(test_mu_maildir_DEPENDENCIES) 
 	@rm -f test-mu-maildir$(EXEEXT)
-	$(AM_V_CCLD)$(LINK) $(test_mu_maildir_OBJECTS) $(test_mu_maildir_LDADD) $(LIBS)
+	$(AM_V_CXXLD)$(CXXLINK) $(test_mu_maildir_OBJECTS) $(test_mu_maildir_LDADD) $(LIBS)
 test-mu-msg$(EXEEXT): $(test_mu_msg_OBJECTS) $(test_mu_msg_DEPENDENCIES) 
 	@rm -f test-mu-msg$(EXEEXT)
-	$(AM_V_CCLD)$(LINK) $(test_mu_msg_OBJECTS) $(test_mu_msg_LDADD) $(LIBS)
+	$(AM_V_CXXLD)$(CXXLINK) $(test_mu_msg_OBJECTS) $(test_mu_msg_LDADD) $(LIBS)
 test-mu-msg-fields$(EXEEXT): $(test_mu_msg_fields_OBJECTS) $(test_mu_msg_fields_DEPENDENCIES) 
 	@rm -f test-mu-msg-fields$(EXEEXT)
-	$(AM_V_CCLD)$(LINK) $(test_mu_msg_fields_OBJECTS) $(test_mu_msg_fields_LDADD) $(LIBS)
+	$(AM_V_CXXLD)$(CXXLINK) $(test_mu_msg_fields_OBJECTS) $(test_mu_msg_fields_LDADD) $(LIBS)
+test-mu-msg-file$(EXEEXT): $(test_mu_msg_file_OBJECTS) $(test_mu_msg_file_DEPENDENCIES) 
+	@rm -f test-mu-msg-file$(EXEEXT)
+	$(AM_V_CXXLD)$(CXXLINK) $(test_mu_msg_file_OBJECTS) $(test_mu_msg_file_LDADD) $(LIBS)
 test-mu-query$(EXEEXT): $(test_mu_query_OBJECTS) $(test_mu_query_DEPENDENCIES) 
 	@rm -f test-mu-query$(EXEEXT)
 	$(AM_V_CXXLD)$(CXXLINK) $(test_mu_query_OBJECTS) $(test_mu_query_LDADD) $(LIBS)
 test-mu-runtime$(EXEEXT): $(test_mu_runtime_OBJECTS) $(test_mu_runtime_DEPENDENCIES) 
 	@rm -f test-mu-runtime$(EXEEXT)
-	$(AM_V_CCLD)$(LINK) $(test_mu_runtime_OBJECTS) $(test_mu_runtime_LDADD) $(LIBS)
+	$(AM_V_CXXLD)$(CXXLINK) $(test_mu_runtime_OBJECTS) $(test_mu_runtime_LDADD) $(LIBS)
 test-mu-store$(EXEEXT): $(test_mu_store_OBJECTS) $(test_mu_store_DEPENDENCIES) 
 	@rm -f test-mu-store$(EXEEXT)
 	$(AM_V_CXXLD)$(CXXLINK) $(test_mu_store_OBJECTS) $(test_mu_store_LDADD) $(LIBS)
 test-mu-str$(EXEEXT): $(test_mu_str_OBJECTS) $(test_mu_str_DEPENDENCIES) 
 	@rm -f test-mu-str$(EXEEXT)
-	$(AM_V_CCLD)$(LINK) $(test_mu_str_OBJECTS) $(test_mu_str_LDADD) $(LIBS)
+	$(AM_V_CXXLD)$(CXXLINK) $(test_mu_str_OBJECTS) $(test_mu_str_LDADD) $(LIBS)
 test-mu-util$(EXEEXT): $(test_mu_util_OBJECTS) $(test_mu_util_DEPENDENCIES) 
 	@rm -f test-mu-util$(EXEEXT)
-	$(AM_V_CCLD)$(LINK) $(test_mu_util_OBJECTS) $(test_mu_util_LDADD) $(LIBS)
+	$(AM_V_CXXLD)$(CXXLINK) $(test_mu_util_OBJECTS) $(test_mu_util_LDADD) $(LIBS)
 
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)
@@ -435,6 +456,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test-mu-common.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test-mu-maildir.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test-mu-msg-fields.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test-mu-msg-file.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test-mu-msg.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test-mu-query.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test-mu-runtime.Po@am__quote@

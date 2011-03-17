@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2008-2010 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+** Copyright (C) 2008-2011 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 **
 ** This program is free software; you can redistribute it and/or modify it
 ** under the terms of the GNU General Public License as published by the
@@ -32,8 +32,9 @@
 #include "mu-str.h"
 #include "mu-msg-flags.h"
 
-/* number of new messages after which we commit to the database */
-#define MU_STORE_TRX_SIZE 6666
+
+/* by default, use transactions of 30000 messages */
+#define MU_STORE_DEFAULT_TRX_SIZE 30000
 
 /* http://article.gmane.org/gmane.comp.search.xapian.general/3656 */
 #define MU_STORE_MAX_TERM_LENGTH 240
@@ -47,6 +48,7 @@ struct _MuStore {
 	bool   _in_transaction;
 	int    _processed;
 	size_t _trx_size;
+	guint  _batchsize;  /* batch size of a xapian transaction */ 
 };
 
 
@@ -92,12 +94,13 @@ check_version (MuStore *store)
 {
 	/* FIXME clear up versioning semantics */
 	const gchar *version;
-
+	
 	version = mu_store_version (store); 
 
 	/* no version yet? it must be a new db then; we'll set the version */
 	if (!version)  {
-		if (!mu_store_set_version (store, MU_XAPIAN_DB_VERSION)) {
+		if (!mu_store_set_metadata (store, MU_STORE_VERSION_KEY,
+					    MU_XAPIAN_DB_VERSION)) {
 			g_warning ("failed to set database version");
 			return FALSE;
 		}
@@ -107,7 +110,8 @@ check_version (MuStore *store)
 	/* we have a version, but is it the right one? */
 	if (std::strcmp (version, MU_XAPIAN_DB_VERSION) != 0) {
 		g_warning ("expected db version %s, but got %s",
-			   MU_XAPIAN_DB_VERSION, version);
+			   MU_XAPIAN_DB_VERSION,
+			   version ? version : "<none>" );
 		return FALSE;
 	}
 	
@@ -123,22 +127,25 @@ mu_store_new  (const char* xpath, GError **err)
 	
 	try {
 		store = g_new0(MuStore,1);
+
 		store->_db = new Xapian::WritableDatabase
 			(xpath,Xapian::DB_CREATE_OR_OPEN);
+		
 		if (!check_version (store)) {
 			mu_store_destroy (store);
 			return NULL;
 		}
 
 		/* keep count of processed docs */
-		store->_trx_size = MU_STORE_TRX_SIZE; 
 		store->_in_transaction = false;
-		store->_processed = 0;
+		store->_processed      = 0;
+		store->_trx_size       = MU_STORE_DEFAULT_TRX_SIZE;
 		
 		add_synonyms (store);
 		
-		MU_WRITE_LOG ("%s: opened %s", __FUNCTION__, xpath);
-
+		MU_WRITE_LOG ("%s: opened %s (batch size: %u)",
+			      __FUNCTION__, xpath, store->_trx_size);
+		
 		return store;
 
 	} MU_XAPIAN_CATCH_BLOCK_G_ERROR(err,MU_ERROR_XAPIAN);		
@@ -170,6 +177,18 @@ mu_store_destroy (MuStore *store)
 }
 
 
+void
+mu_store_set_batch_size (MuStore *store, guint batchsize)
+{
+	g_return_if_fail (store);
+	
+	if (batchsize == 0)
+		store->_trx_size = MU_STORE_DEFAULT_TRX_SIZE;
+	else
+		store->_trx_size = batchsize;
+}
+
+
 
 unsigned
 mu_store_count (MuStore *store)
@@ -189,34 +208,44 @@ const char*
 mu_store_version (MuStore *store)
 {
 	g_return_val_if_fail (store, NULL);
-
-	try {
-		std::string v;
-		v = store->_db->get_metadata (MU_XAPIAN_VERSION_KEY);
-
-		g_free (store->_version);
-		return store->_version =
-			v.empty() ? NULL : g_strdup (v.c_str());
 	
+	g_free (store->_version);
+	return store->_version =
+		mu_store_get_metadata (store, MU_STORE_VERSION_KEY);
+}
+
+gboolean
+mu_store_set_metadata (MuStore *store, const char *key, const char *val)
+{
+	g_return_val_if_fail (store, FALSE);
+	g_return_val_if_fail (key, FALSE);
+	g_return_val_if_fail (val, FALSE);
+		
+	try {
+		store->_db->set_metadata (key, val);
+		return TRUE;
+		
+	} MU_XAPIAN_CATCH_BLOCK;
+
+	return FALSE;
+}
+
+
+char*
+mu_store_get_metadata (MuStore *store, const char *key)
+{
+	g_return_val_if_fail (store, NULL);
+	g_return_val_if_fail (key, NULL);
+		
+	try {
+		const std::string val (store->_db->get_metadata (key));
+		return val.empty() ? NULL : g_strdup (val.c_str());
+
 	} MU_XAPIAN_CATCH_BLOCK;
 
 	return NULL;
 }
 
-gboolean
-mu_store_set_version (MuStore *store, const char* version)
-{
-	g_return_val_if_fail (store, FALSE);
-	g_return_val_if_fail (version, FALSE);
-	
-	try {
-		store->_db->set_metadata (MU_XAPIAN_VERSION_KEY, version);
-		return TRUE;
-		
-	} MU_XAPIAN_CATCH_BLOCK;
-
-		return FALSE;
-}
 
 
 static void
@@ -248,8 +277,6 @@ rollback_trx_if (MuStore *store, gboolean cond)
 		store->_db->cancel_transaction();
 	}
 }
-
-
 
 void
 mu_store_flush (MuStore *store)
@@ -333,7 +360,7 @@ add_terms_values_string (Xapian::Document& doc, MuMsg *msg,
 		mu_str_normalize_in_place (val, TRUE);
 	if (mu_msg_field_xapian_escape (mfid))
 		mu_str_ascii_xapian_escape_in_place (val);
-	
+
 	if (mu_msg_field_xapian_index (mfid)) {
 		Xapian::TermGenerator termgen;
 		termgen.set_document (doc);
@@ -400,8 +427,7 @@ add_terms_values (MuMsgFieldId mfid, MsgDoc* msgdoc)
 		if (mu_msg_field_is_numeric (mfid)) 
 			add_terms_values_number (*msgdoc->_doc, msgdoc->_msg,
 						 mfid);
-		else if (mu_msg_field_type (mfid) ==
-			 MU_MSG_FIELD_TYPE_STRING)
+		else if (mu_msg_field_type (mfid) == MU_MSG_FIELD_TYPE_STRING)
 			add_terms_values_string (*msgdoc->_doc,
 						 msgdoc->_msg,
 						 mfid);
@@ -441,15 +467,12 @@ each_contact_info (MuMsgContact *contact, MsgDoc *data)
 	}
 
 	/* don't normalize e-mail address, but do lowercase it */
-	if (contact->address && strlen (contact->address)) {
-		char *lower = g_utf8_strdown (contact->address, -1);
-
-		g_strdelimit (lower, "@.", '_'); /* FIXME */
-
+	if (contact->address && contact->address[0] != '\0') {
+		char *escaped =
+			mu_str_ascii_xapian_escape (contact->address);
 		data->_doc->add_term
-			(std::string (*pfxp + lower, 0,
-				      MU_STORE_MAX_TERM_LENGTH));
-		g_free (lower);
+			(std::string (*pfxp + escaped, 0, MU_STORE_MAX_TERM_LENGTH));
+		g_free (escaped);
 	}
 }
 
@@ -510,11 +533,11 @@ mu_store_store (MuStore *store, MuMsg *msg)
 }
 
 
-MuResult
-mu_store_remove (MuStore *store, const char* msgpath)
+gboolean
+mu_store_remove (MuStore *store, const char *msgpath)
 {
-	g_return_val_if_fail (store, MU_ERROR);
-	g_return_val_if_fail (msgpath, MU_ERROR);
+	g_return_val_if_fail (store, FALSE);
+	g_return_val_if_fail (msgpath, FALSE);
 
 	try {
 		const std::string uid (get_message_uid (msgpath));
@@ -522,18 +545,15 @@ mu_store_remove (MuStore *store, const char* msgpath)
 		begin_trx_if (store, !store->_in_transaction);
 		
 		store->_db->delete_document (uid);
-		g_debug ("deleting %s", msgpath);
-		
 		++store->_processed;
 
 		/* do we need to commit now? */
 		bool commit_now = store->_processed % store->_trx_size == 0;
 		commit_trx_if (store, commit_now);
 
-		return MU_OK; 
+		return TRUE; 
 		
-	} MU_XAPIAN_CATCH_BLOCK_RETURN (MU_ERROR);
-	
+	} MU_XAPIAN_CATCH_BLOCK_RETURN (FALSE);	
 }
 
 gboolean
@@ -554,35 +574,32 @@ mu_store_contains_message (MuStore *store, const char* path)
 time_t
 mu_store_get_timestamp (MuStore *store, const char* msgpath)
 {
+	char *stampstr;
+	time_t rv;
+	
 	g_return_val_if_fail (store, 0);
 	g_return_val_if_fail (msgpath, 0);
-	
-	try {
-		const std::string stamp (store->_db->get_metadata (msgpath));
-		if (stamp.empty())
-			return 0;
-	
-		return (time_t) g_ascii_strtoull (stamp.c_str(), NULL, 10);
-		
-	} MU_XAPIAN_CATCH_BLOCK_RETURN (0);
 
-	return 0;
+	stampstr = mu_store_get_metadata (store, msgpath);
+	if (!stampstr)
+		return (time_t)0;
+
+	rv = (time_t) g_ascii_strtoull (stampstr, NULL, 10);
+	g_free (stampstr);
+	return rv;
 }
 
-
-void
+gboolean
 mu_store_set_timestamp (MuStore *store, const char* msgpath, 
 			time_t stamp)
 {
-	g_return_if_fail (store);
-	g_return_if_fail (msgpath);
+	char buf[21];
+	
+	g_return_val_if_fail (store, FALSE);
+	g_return_val_if_fail (msgpath, FALSE);
 
-	try {
-		char buf[21];
-		sprintf (buf, "%" G_GUINT64_FORMAT, (guint64)stamp);
-		store->_db->set_metadata (msgpath, buf);
-				
-	} MU_XAPIAN_CATCH_BLOCK;
+	sprintf (buf, "%" G_GUINT64_FORMAT, (guint64)stamp);
+	return mu_store_set_metadata (store, msgpath, buf);
 }
 
 
@@ -618,5 +635,3 @@ mu_store_foreach (MuStore *self,
 
 	return MU_OK;
 }
-
-

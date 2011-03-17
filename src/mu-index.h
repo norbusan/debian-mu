@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2008-2010 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+** Copyright (C) 2008-2011 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 **
 ** This program is free software; you can redistribute it and/or modify
 ** it under the terms of the GNU General Public License as published by
@@ -22,8 +22,9 @@
 
 #include <stdlib.h>
 #include <glib.h>
+#include <mu-util.h> /* for MuResult */
 
-#include "mu-result.h" /* for MuResult */
+G_BEGIN_DECLS
 
 /* opaque structure */
 struct _MuIndex;
@@ -45,7 +46,6 @@ typedef struct _MuIndexStats MuIndexStats;
  *
  * @param xpath path to the 'homedir'; the xapian directory will be
  * this homedir/xapian
- *
  * @param err to receive error or NULL; there are only errors when this
  * function returns NULL. Possible errors: see mu-error.h
  * 
@@ -61,6 +61,39 @@ MuIndex* mu_index_new (const char* muhome, GError **err)
  * @param index a MuIndex instance, or NULL
  */
 void mu_index_destroy (MuIndex *index);
+
+
+/**
+ * change the maximum file size that mu-index considers from its
+ * default (MU_INDEX_MAX_FILE_SIZE). Note that the maximum size is a
+ * protection against mu (or the libraries it uses) allocating too
+ * much memory, which can lead to problems
+ * 
+ * @param index a mu index object
+ * @param max_size the maximum msg size, or 0 to reset to the default
+ */
+void mu_index_set_max_msg_size (MuIndex *index, guint max_size);
+
+
+/**
+ * change batch size for Xapian store transaction (see
+ * 'mu_store_set_batch_size')
+ * 
+ * @param index a mu index object
+ * @param max_size the batch size, or 0 to reset to the default
+ */
+void mu_index_set_xbatch_size (MuIndex *index, guint xbatchsize);
+
+
+/**
+ * get the maildir for the last run of indexing for the
+ * current database
+ * 
+ * @param index MuIndex object
+ * 
+ * @return the last used maildir, or NULL
+ */
+const char* mu_index_last_used_maildir (MuIndex *index);
 
 
 /**
@@ -177,5 +210,7 @@ MuResult mu_index_cleanup (MuIndex *index, MuIndexStats *stats,
  * @return TRUE if stats != NULL, FALSE otherwise
  */
 gboolean mu_index_stats_clear (MuIndexStats *stats);
+
+G_END_DECLS
 
 #endif /*__MU_INDEX_H__*/

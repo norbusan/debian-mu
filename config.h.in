@@ -10,6 +10,9 @@
 /* Define to 1 if you have the <inttypes.h> header file. */
 #undef HAVE_INTTYPES_H
 
+/* Define to 1 if you have the `memcpy' function. */
+#undef HAVE_MEMCPY
+
 /* Define to 1 if you have the <memory.h> header file. */
 #undef HAVE_MEMORY_H
 
@@ -67,7 +70,7 @@
    */
 #undef LT_OBJDIR
 
-/* Schema version of the database */
+/* 'Schema' version of the database */
 #undef MU_XAPIAN_DB_VERSION
 
 /* Name of package */
@@ -96,3 +99,6 @@
 
 /* Version number of package */
 #undef VERSION
+
+/* Path to xdg-open */
+#undef XDGOPEN

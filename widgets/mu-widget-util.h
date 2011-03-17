@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2010 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+** Copyright (C) 2011 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 **
 ** This program is free software; you can redistribute it and/or modify it
 ** under the terms of the GNU General Public License as published by the
@@ -17,29 +17,23 @@
 **
 */
 
+#ifndef __MU_WIDGET_UTIL_H__
+#define __MU_WIDGET_UTIL_H__
 
-#ifndef __MU_ERROR_H__
-#define __MU_ERROR_H__
+#include <gdk-pixbuf/gdk-pixbuf.h>
 
-enum _MuError {
-	/* general xapian related error */
-	MU_ERROR_XAPIAN,
-	/* xapian dir is not accessible */
-	MU_ERROR_XAPIAN_DIR,
-	/* database version is not uptodate (ie. not compatible with
-	 * the version that mu expects) */
-	MU_ERROR_XAPIAN_NOT_UPTODATE,
-	/* missing data for a document */
-	MU_ERROR_XAPIAN_MISSING_DATA,
-	/* (parsnng) error in the query */ 
-	MU_ERROR_QUERY,
-	/* file loading related error */
-	MU_ERROR_FILE,
-	/* gmime parsing related error */
-	MU_ERROR_GMIME,
-	/* some other, internal error */
-	MU_ERROR_INTERNAL
-};
-typedef enum _MuError MuError;
+/** 
+ * get a pixbuf (icon) for a certain content-type (ie., 'image/jpeg')
+ * 
+ * @param ctype the content-type (MIME-type)
+ * @param size the size of the icon
+ * 
+ * @return a new GdkPixbuf, or NULL in case of error. Use
+ * g_object_unref when the pixbuf is no longer needed.
+ */
+GdkPixbuf* mu_widget_util_get_icon_pixbuf_for_content_type (const char *ctype,
+							    size_t size)
+      G_GNUC_WARN_UNUSED_RESULT;
 
-#endif /*__MU_ERROR_H__*/
+
+#endif /*__MU_WIDGET_UTIL_H__*/

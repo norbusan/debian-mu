@@ -186,7 +186,7 @@ mu_msg_iter_get_field (MuMsgIter *iter, MuMsgFieldId mfid)
 	g_return_val_if_fail (mu_msg_field_id_is_valid(mfid), NULL);
 
 	try {
-		if (!iter->_str[mfid]) { 	/* cache the value */
+		if (!iter->_str[mfid]) { /* cache the value */
 			Xapian::Document doc (iter->_cursor.get_document());
 			iter->_str[mfid] =
 				g_strdup (doc.get_value(mfid).c_str());
@@ -212,20 +212,12 @@ mu_msg_iter_get_field_numeric (MuMsgIter *iter, MuMsgFieldId mfid)
 	} MU_XAPIAN_CATCH_BLOCK_RETURN(static_cast<gint64>(-1));
 }
 
-static long
-get_field_number (MuMsgIter *iter, MuMsgFieldId mfid)
-{
-	const char* str = mu_msg_iter_get_field(iter, mfid);
-	return str ? atol (str) : 0;
-}
-
-
-
 /* hmmm.... is it impossible to get a 0 docid, or just very improbable? */
 unsigned int
 mu_msg_iter_get_docid (MuMsgIter *iter)
 {
-	g_return_val_if_fail (!mu_msg_iter_is_done(iter), -1);	
+	g_return_val_if_fail (!mu_msg_iter_is_done(iter),
+			      (unsigned int)-1);	
 	try {
 		return iter->_cursor.get_document().get_docid();
 
@@ -245,6 +237,13 @@ mu_msg_iter_get_maildir (MuMsgIter *iter)
 {
 	g_return_val_if_fail (!mu_msg_iter_is_done(iter), NULL);
 	return mu_msg_iter_get_field (iter, MU_MSG_FIELD_ID_MAILDIR);
+}
+
+const char*
+mu_msg_iter_get_msgid (MuMsgIter *iter)
+{
+	g_return_val_if_fail (!mu_msg_iter_is_done(iter), NULL);
+	return mu_msg_iter_get_field (iter, MU_MSG_FIELD_ID_MSGID);
 }
 
 
@@ -284,8 +283,14 @@ size_t
 mu_msg_iter_get_size (MuMsgIter *iter)
 {
 	g_return_val_if_fail (!mu_msg_iter_is_done(iter), 0);
-	return static_cast<size_t>(get_field_number
-				   (iter, MU_MSG_FIELD_ID_SIZE));
+	
+	try {
+		return static_cast<size_t>(
+			Xapian::sortable_unserialise(
+				mu_msg_iter_get_field
+				(iter,MU_MSG_FIELD_ID_SIZE)));
+
+	} MU_XAPIAN_CATCH_BLOCK_RETURN(0);
 } 
 
 

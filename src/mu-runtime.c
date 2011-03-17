@@ -1,4 +1,5 @@
-/*
+/* -*- Mode: C; tab-width: 8; indent-tabs-mode: t; c-basic-offset: 8 -*-
+**
 ** Copyright (C) 2010 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 **
 ** This program is free software; you can redistribute it and/or modify it
@@ -27,7 +28,6 @@
 #include <unistd.h>
 #include <mu-msg.h>
 
-
 #include "mu-config.h"
 #include "mu-log.h"
 #include "mu-util.h"
@@ -36,45 +36,30 @@
 #define MU_BOOKMARKS_FILENAME "bookmarks"
 
 struct _MuRuntimeData {
-	gchar *_muhome;
-	gchar *_xapian_dir;
-	gchar *_bookmarks_file;
-	MuConfigOptions *_config;
+	gchar			*_muhome;
+	gchar			*_xapian_dir;
+	gchar			*_bookmarks_file;
+	MuConfig		*_config;
 };
-typedef struct _MuRuntimeData MuRuntimeData;
+typedef struct _MuRuntimeData	 MuRuntimeData;
 
 /* static, global data for this singleton */
-static gboolean _initialized	   = FALSE;
-static MuRuntimeData *_data = NULL;
+static gboolean		 _initialized = FALSE;
+static MuRuntimeData	*_data	      = NULL;
 
 static void runtime_free (void);
 
 static gboolean
-init_system (void)
+mu_dir_is_readable_and_writable (const char* muhome)
 {
-	/* without setlocale, non-ascii cmdline params (like search
-	 * terms) won't work */
-	setlocale (LC_ALL, "");
-
-	/* init the random number generator; this is not really *that*
-	 * random, but good enough for our humble needs... */
-	srandom ((unsigned)(getpid()*time(NULL)));
+	if (mu_util_create_dir_maybe (muhome, 0700))
+		return TRUE;
 	
-	/* on FreeBSD, it seems g_slice_new and friends lead to
-	 * segfaults. So we shut if off */
-#ifdef 	__FreeBSD__
-	if (!g_setenv ("G_SLICE", "always-malloc", TRUE)) {
-		g_critical ("cannot set G_SLICE");
-		return FALSE;
-	}
-#endif /*__FreeBSD__*/
-
-	g_type_init ();
-
-	return TRUE;
+	g_warning ("cannot use '%s' as a mu homedir", muhome);
+	g_warning ("use --muhome= to set a different one");
+	
+	return FALSE;
 }
-
-
 
 gboolean
 mu_runtime_init (const char* muhome_arg)
@@ -83,7 +68,7 @@ mu_runtime_init (const char* muhome_arg)
 
 	g_return_val_if_fail (!_initialized, FALSE);
 
-	if (!init_system())
+	if (!mu_util_init_system())
 		return FALSE;
 	
 	if (muhome_arg)
@@ -91,6 +76,11 @@ mu_runtime_init (const char* muhome_arg)
 	else
 		muhome = mu_util_guess_mu_homedir ();
 
+	if (!mu_dir_is_readable_and_writable (muhome)) {
+		runtime_free ();
+		return FALSE;
+	}
+	
 	if (!mu_log_init (muhome, TRUE, FALSE, FALSE)) {
 		g_free (muhome);
 		return FALSE;
@@ -106,7 +96,7 @@ mu_runtime_init (const char* muhome_arg)
 
 
 static gboolean
-init_log (MuConfigOptions *opts)
+init_log (MuConfig *opts)
 {
 	if (opts->log_stderr)
 		return mu_log_init_with_fd (fileno(stderr), FALSE,
@@ -121,13 +111,17 @@ mu_runtime_init_from_cmdline (int *pargc, char ***pargv)
 {
 	g_return_val_if_fail (!_initialized, FALSE);
 
-	if (!init_system())
+	if (!mu_util_init_system())
 		return FALSE;
 
 	_data	       = g_new0 (MuRuntimeData, 1);	
-	_data->_config = g_new0 (MuConfigOptions, 1);
+	_data->_config = mu_config_new (pargc, pargv);
+	if (!_data->_config) {
+		runtime_free ();
+		return FALSE;
+	 }
 	
-	if (!mu_config_init (_data->_config, pargc, pargv)) {
+	if (!mu_dir_is_readable_and_writable (_data->_config->muhome)) {
 		runtime_free ();
 		return FALSE;
 	}
@@ -150,11 +144,9 @@ runtime_free (void)
 {
 	g_free (_data->_xapian_dir);
 	g_free (_data->_muhome);
-
-	if (_data->_config) {
-		mu_config_uninit (_data->_config);
-		g_free (_data->_config);
-	}
+	g_free (_data->_bookmarks_file);
+	
+	mu_config_destroy (_data->_config);
 
 	mu_log_uninit();
 	
@@ -177,12 +169,10 @@ mu_runtime_uninit (void)
 const char*
 mu_runtime_mu_home_dir (void)
 {
-g_return_val_if_fail (_initialized, NULL);
-
+	g_return_val_if_fail (_initialized, NULL);
+  
 	return _data->_muhome;
 }
-
-
 
 const char*
 mu_runtime_xapian_dir (void)
@@ -213,8 +203,8 @@ mu_runtime_bookmarks_file  (void)
 }
 
 
-MuConfigOptions*
-mu_runtime_config_options (void)
+MuConfig*
+mu_runtime_config (void)
 {
 	g_return_val_if_fail (_initialized, NULL);
 	

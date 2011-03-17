@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2008-2010 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+** Copyright (C) 2010-2011 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 **
 ** This program is free software; you can redistribute it and/or modify it
 ** under the terms of the GNU General Public License as published by the
@@ -17,109 +17,114 @@
 **
 */
 
-#include <config.h>
+#if HAVE_CONFIG_H
+#include "config.h"
+#endif /*HAVE_CONFIG_H*/
 
-#include <unistd.h>
-#include <stdio.h>
-#include <string.h>
-#include <errno.h>
 #include <stdlib.h>
 
-#include "mu-maildir.h"
+#include "mu-msg.h"
+#include "mu-msg-part.h"
 #include "mu-cmd.h"
+#include "mu-util.h"
+#include "mu-str.h"
+#include "mu-maildir.h"
 
-gboolean
-mu_cmd_equals (MuConfigOptions *config, const gchar *cmd)
+
+/* we ignore fields for now */
+static gboolean
+view_msg (MuMsg *msg, const gchar *fields, size_t summary_len)
 {
-	g_return_val_if_fail (config, FALSE);
-	g_return_val_if_fail (cmd, FALSE);
-	
-	if (!config->params || !config->params[0])
-		return FALSE;
+	const char *field;
+	time_t date;
 
-	return (strcmp (config->params[0], cmd) == 0);
+	if ((field = mu_msg_get_from (msg)))
+		g_print ("From: %s\n", field);
+	
+	if ((field = mu_msg_get_to (msg)))
+		g_print ("To: %s\n", field);
+
+	if ((field = mu_msg_get_cc (msg)))
+		g_print ("Cc: %s\n", field);
+
+	if ((field = mu_msg_get_subject (msg)))
+		g_print ("Subject: %s\n", field);
+	
+	if ((date = mu_msg_get_date (msg)))
+		g_print ("Date: %s\n", mu_str_date_s ("%c", date));
+
+	if (summary_len > 0) {
+		field = mu_msg_get_summary (msg, summary_len);
+		g_print ("Summary: %s\n", field ? field : "<none>");
+	} else if ((field = mu_msg_get_body_text (msg))) 
+		g_print ("\n%s\n", field);
+
+	return TRUE;
+}
+
+MuExitCode
+mu_cmd_view (MuConfig *opts)
+{
+	int rv, i;
+	
+	g_return_val_if_fail (opts, MU_EXITCODE_ERROR);
+	g_return_val_if_fail (opts->cmd == MU_CONFIG_CMD_VIEW,
+			      MU_EXITCODE_ERROR);
+	
+	/* note: params[0] will be 'view' */
+	if (!opts->params[0] || !opts->params[1]) {
+		g_warning ("usage: mu view [options] <file> [<files>]");
+		return MU_EXITCODE_ERROR;
+	}
+	
+	;
+	for (i = 1, rv = MU_EXITCODE_OK;
+	     opts->params[i] && rv == MU_EXITCODE_OK; ++i) {
+		GError *err = NULL;
+		MuMsg  *msg = mu_msg_new (opts->params[i], NULL, &err);
+		if (!msg) {
+			g_warning ("error: %s", err->message);
+			g_error_free (err);
+			return MU_EXITCODE_ERROR;
+		}
+		if (!view_msg (msg, NULL, opts->summary_len))
+			rv = MU_EXITCODE_ERROR;
+		
+		mu_msg_unref (msg);
+	}
+	return rv;
 }
 
 
-static MuCmd 
-cmd_from_string (const char* cmd)
+MuExitCode
+mu_cmd_mkdir (MuConfig *opts)
 {
 	int i;
-	typedef struct {
-		const gchar* _name;
-		MuCmd        _cmd;
-	} Cmd;
-
-	Cmd cmd_map[] = {
-		{ "index",   MU_CMD_INDEX },
-		{ "find",    MU_CMD_FIND },
-		{ "cleanup", MU_CMD_CLEANUP },
-		{ "mkdir",   MU_CMD_MKDIR },
-		{ "view",    MU_CMD_VIEW },
-		{ "extract", MU_CMD_EXTRACT }
-	};
 	
-	for (i = 0; i != G_N_ELEMENTS(cmd_map); ++i) 
-		if (strcmp (cmd, cmd_map[i]._name) == 0)
-			return cmd_map[i]._cmd;
-
-	return MU_CMD_UNKNOWN;
-}
-
-static void
-show_usage (gboolean noerror)
-{
-	const char* usage=
-		"usage: mu [options] command [parameters]\n"
-		"where command is one of index, find, view, mkdir, cleanup "
-		"or extract\n\n"
-		"see the mu or mu-easy manpages for more information\n";
-
-	if (noerror)
-		g_print ("%s", usage);
-	else
-		g_printerr ("%s", usage);
-}
-
-static void
-show_version (void)
-{
-	g_print ("mu (mail indexer/searcher) " VERSION "\n"
-		 "Copyright (C) 2008-2010 Dirk-Jan C. Binnema (GPLv3+)\n");
-}
-
-gboolean
-mu_cmd_execute (MuConfigOptions *opts)
-{
-	MuCmd cmd;
+	g_return_val_if_fail (opts, MU_EXITCODE_ERROR);
+	g_return_val_if_fail (opts->cmd == MU_CONFIG_CMD_MKDIR,
+			      MU_EXITCODE_ERROR);
 	
-	if (opts->version) {
-		show_version ();
-		return TRUE;
+	if (!opts->params[1]) {
+		g_warning ("usage: mu mkdir [-u,--mode=<mode>] "
+			   "<dir> [more dirs]");
+		return MU_EXITCODE_ERROR;
 	}
 	
-	if (!opts->params||!opts->params[0]) {/* no command? */
-		show_version ();
-		g_print ("\n");
-		show_usage (TRUE);
-		return FALSE;
+	for (i = 1; opts->params[i]; ++i) {
+
+		GError *err;
+		err = NULL;
+
+		if (!mu_maildir_mkdir (opts->params[i], opts->dirmode,
+				       FALSE, &err)) {
+			if (err && err->message) {
+				g_warning ("%s", err->message);
+				g_error_free (err);
+			}
+			return MU_EXITCODE_ERROR;
+		}
 	}
-	
-	cmd = cmd_from_string (opts->params[0]);
 
-	switch (cmd) {
-
-	case MU_CMD_CLEANUP:    return mu_cmd_cleanup (opts);
-	case MU_CMD_EXTRACT:    return mu_cmd_extract (opts);
-	case MU_CMD_FIND:       return mu_cmd_find (opts);
-	case MU_CMD_INDEX:      return mu_cmd_index (opts);
-	case MU_CMD_MKDIR:      return mu_cmd_mkdir (opts);
-	case MU_CMD_VIEW:       return mu_cmd_view (opts);
-		
-	case MU_CMD_UNKNOWN:
-		show_usage (FALSE);
-		return FALSE;
-	default:
-		g_return_val_if_reached (FALSE);
-	}	
+	return MU_EXITCODE_OK;
 }

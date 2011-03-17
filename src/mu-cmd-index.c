@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2008-2010 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+** Copyright (C) 2008-2011 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 **
 ** This program is free software; you can redistribute it and/or modify it
 ** under the terms of the GNU General Public License as published by the
@@ -17,7 +17,7 @@
 **
 */
 
-#ifdef HAVE_CONFIG_H
+#if HAVE_CONFIG_H
 #include "config.h"
 #endif /*HAVE_CONFIG_H*/
 
@@ -30,8 +30,6 @@
 #include <unistd.h>
 
 #include "mu-util.h"
-#include "mu-util-db.h"
-
 #include "mu-msg.h"
 #include "mu-index.h"
 #include "mu-runtime.h"
@@ -78,7 +76,7 @@ install_sig_handler (void)
 
 
 static gboolean
-check_index_or_cleanup_params (MuConfigOptions *opts)
+check_index_or_cleanup_params (MuConfig *opts)
 {
 	/* param[0] == 'index' or 'cleanup', there should be no
 	 * param[1] */
@@ -92,18 +90,37 @@ check_index_or_cleanup_params (MuConfigOptions *opts)
 		return FALSE;
 	}
 	
-	if (!opts->maildir || !g_path_is_absolute (opts->maildir)) {
-		g_warning ("maildir path '%s' is not valid",
-			   opts->maildir ? opts->maildir : "<none>");
+	if (opts->xbatchsize < 0) {
+		g_warning ("the Xapian batch size must be non-negative");
+		return FALSE;
+	}
+
+	if (opts->max_msg_size < 0) {
+		g_warning ("the maximum message size must be non-negative");
 		return FALSE;
 	}
 	
-	if (!mu_util_check_dir (opts->maildir, TRUE, FALSE)) {
-		g_warning ("not a valid Maildir: %s",
-			   opts->maildir ? opts->maildir : "<none>");
+	return TRUE;
+}
+
+static gboolean
+check_maildir (const char *maildir)
+{
+	if (!maildir) {
+		g_warning ("no maildir to work on");
 		return FALSE;
 	}
 	
+	if (!g_path_is_absolute (maildir)) {
+		g_warning ("maildir path '%s' is not absolute", maildir);
+		return FALSE;
+	}
+	
+	if (!mu_util_check_dir (maildir, TRUE, FALSE)) {
+		g_warning ("not a valid Maildir: %s", maildir);
+		return FALSE;
+	}
+
 	return TRUE;
 }
 
@@ -152,13 +169,13 @@ index_msg_cb  (MuIndexStats* stats, void *user_data)
 
 
 static gboolean
-database_version_check_and_update (MuConfigOptions *opts)
+database_version_check_and_update (MuConfig *opts)
 {
 	const gchar *xpath;
 
 	xpath = mu_runtime_xapian_dir ();
 	
-	if (mu_util_db_is_empty (xpath))
+	if (mu_util_xapian_is_empty (xpath))
 		return TRUE;
 	
 	/* when rebuilding, we empty the database before doing
@@ -166,17 +183,17 @@ database_version_check_and_update (MuConfigOptions *opts)
 	if (opts->rebuild) {
 		opts->reindex = TRUE;
 		g_message ("clearing database %s", xpath);
-		return mu_util_clear_database (xpath);
+		return mu_util_xapian_clear (xpath);
 	}
 
-	if (mu_util_db_version_up_to_date (xpath))
+	if (!mu_util_xapian_needs_upgrade (xpath))
 		return TRUE; /* ok, nothing to do */
 	
 	/* ok, database is not up to date */
 	if (opts->autoupgrade) {
 		opts->reindex = TRUE;
 		g_message ("auto-upgrade: clearing old database first");
-		return mu_util_clear_database (xpath);
+		return mu_util_xapian_clear (xpath);
 	}
 
 	update_warning ();
@@ -195,9 +212,38 @@ show_time (unsigned t, unsigned processed)
 }
 
 
-
 static gboolean
-cmd_cleanup (MuIndex *midx, MuConfigOptions *opts, MuIndexStats *stats,
+update_maildir_path_maybe (MuIndex *idx, MuConfig *opts)
+{
+	gchar *exp;
+	
+	/* if 'maildir_guessed' is TRUE, we can override it later
+	 * with mu_index_last_used_maildir (in mu-cmd-index.c)
+	 */
+	while (!opts->maildir) {
+
+		const char *tmp;
+
+		/* try the last used one */
+		tmp = mu_index_last_used_maildir (idx);
+		if (tmp) 
+			opts->maildir = g_strdup (tmp);
+		else
+			opts->maildir = mu_util_guess_maildir ();
+	}		
+	
+	exp = mu_util_dir_expand(opts->maildir);
+	if (exp) {
+		g_free(opts->maildir);
+		opts->maildir = exp;
+	}
+
+	return check_maildir (opts->maildir);	
+}
+
+
+static MuExitCode
+cmd_cleanup (MuIndex *midx, MuConfig *opts, MuIndexStats *stats,
 	     gboolean show_progress)
 {
 	MuResult rv;
@@ -216,13 +262,14 @@ cmd_cleanup (MuIndex *midx, MuConfigOptions *opts, MuIndexStats *stats,
 		show_time ((unsigned)(time(NULL)-t),stats->_processed);
 	}
 	
-	return (rv == MU_OK || rv == MU_STOP) ? TRUE: FALSE;
+	return (rv == MU_OK || rv == MU_STOP) ?
+		MU_EXITCODE_OK: MU_EXITCODE_ERROR;
 }
 
 
 
-static gboolean
-cmd_index (MuIndex *midx, MuConfigOptions *opts, MuIndexStats *stats,
+static MuExitCode
+cmd_index (MuIndex *midx, MuConfig *opts, MuIndexStats *stats,
 	   gboolean show_progress)
 {
 	MuResult rv;
@@ -252,16 +299,46 @@ cmd_index (MuIndex *midx, MuConfigOptions *opts, MuIndexStats *stats,
 			      "cleaned-up: %u",
 			      stats->_processed, stats->_updated,
 			      stats->_cleaned_up);
-		return TRUE;
+		return MU_EXITCODE_OK;
 	}
 	
-	return FALSE;
+	return MU_EXITCODE_ERROR;
+}
+
+static MuExitCode
+handle_index_error_and_free (GError *err)
+{
+	MuExitCode code;
+	
+	if (!err)
+		return MU_EXITCODE_ERROR;
+
+	switch (err->code) {
+
+	case MU_ERROR_XAPIAN_CANNOT_GET_WRITELOCK:
+		g_warning ("cannot get Xapian writelock");
+		g_warning ("maybe mu index is already running?");
+		code = MU_EXITCODE_DB_LOCKED;
+		break;
+
+	case MU_ERROR_XAPIAN_CORRUPTION:
+		g_warning ("xapian database seems to be corrupted");
+		g_warning ("try 'mu index --rebuild");
+		code = MU_EXITCODE_DB_CORRUPTED;
+		break;
+	default:
+		g_warning ("indexing error: %s",
+			   err->message ? err->message : "");
+		code = MU_EXITCODE_ERROR;
+	}
+
+	g_error_free (err);
+	return code;
 }
 
 
-
-static gboolean
-cmd_index_or_cleanup (MuConfigOptions *opts)
+static MuExitCode
+cmd_index_or_cleanup (MuConfig *opts)
 {
 	gboolean rv;
 	MuIndex *midx;
@@ -269,22 +346,23 @@ cmd_index_or_cleanup (MuConfigOptions *opts)
 	gboolean show_progress;
 	GError *err;
 	
-	g_return_val_if_fail (opts, FALSE);
-	g_return_val_if_fail (mu_cmd_equals (opts, "index") ||
-			      mu_cmd_equals (opts, "cleanup"), FALSE);
-			  
 	if (!check_index_or_cleanup_params (opts) ||
 	    !database_version_check_and_update(opts))
-		return FALSE;
-
+		return MU_EXITCODE_ERROR;		
+	
 	err = NULL;
-	if (!(midx = mu_index_new (mu_runtime_xapian_dir(), &err))) {
-		g_warning ("index/cleanup failed: %s",
-			   err->message);
-		g_error_free (err);
-		return FALSE;
-	} 
-
+	if (!(midx = mu_index_new (mu_runtime_xapian_dir(), &err)))
+		return handle_index_error_and_free (err);
+	
+	mu_index_set_max_msg_size (midx, opts->max_msg_size); 
+	mu_index_set_xbatch_size (midx, opts->xbatchsize);
+	
+	/* we determine the maildir path only here, as it may depend on
+         * mu_index_last_used_maildir
+         */
+	if (!update_maildir_path_maybe (midx, opts))
+		return MU_EXITCODE_ERROR;		
+	
 	/* note, 'opts->quiet' already cause g_message output not to
 	 * be shown; here, we make sure we only print progress info if
 	 * opts->quiet is false case and when stdout is a tty */
@@ -292,34 +370,38 @@ cmd_index_or_cleanup (MuConfigOptions *opts)
 
 	mu_index_stats_clear (&stats);
 	install_sig_handler ();
-	
-	if (mu_cmd_equals (opts, "index"))
-		rv = cmd_index (midx, opts, &stats, show_progress);
-	else if (mu_cmd_equals (opts, "cleanup"))
-		rv = cmd_cleanup (midx, opts, &stats, show_progress);
-	else
+
+	switch (opts->cmd) {
+	case MU_CONFIG_CMD_INDEX:
+		rv = cmd_index (midx, opts, &stats, show_progress); break;
+	case MU_CONFIG_CMD_CLEANUP:
+	 	rv = cmd_cleanup (midx, opts, &stats, show_progress);  break;
+	default:
+		rv = MU_EXITCODE_ERROR;
 		g_assert_not_reached ();
+	}
 	
-	mu_index_destroy (midx);
-		
+	mu_index_destroy (midx);		
 	return rv;
 }
 
 
-gboolean
-mu_cmd_index (MuConfigOptions *opts)
+MuExitCode
+mu_cmd_index (MuConfig *opts)
 {
-	g_return_val_if_fail (opts && mu_cmd_equals (opts, "index"),
+	g_return_val_if_fail (opts, FALSE);
+	g_return_val_if_fail (opts->cmd == MU_CONFIG_CMD_INDEX,
 			      FALSE);
 	
 	return cmd_index_or_cleanup (opts);
 }
 
-gboolean
-mu_cmd_cleanup (MuConfigOptions *opts)
+MuExitCode
+mu_cmd_cleanup (MuConfig *opts)
 {
-	g_return_val_if_fail (opts && mu_cmd_equals (opts, "cleanup"),
-			      FALSE);
+	g_return_val_if_fail (opts, MU_EXITCODE_ERROR);
+	g_return_val_if_fail (opts->cmd != MU_CONFIG_CMD_CLEANUP,
+			      MU_EXITCODE_ERROR);
 	
 	return cmd_index_or_cleanup (opts);
 }

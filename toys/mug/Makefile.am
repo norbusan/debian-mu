@@ -19,9 +19,6 @@ include $(top_srcdir)/gtest.mk
 # enforce compiling this dir first before decending into tests/
 SUBDIRS= .
 
-#if HAVE_GTEST
-#SUBDIRS += tests
-#endif
 
 INCLUDES=-I${top_srcdir}/src $(GTK_CFLAGS) -DICONDIR='"$(icondir)"'
 
@@ -32,7 +29,7 @@ AM_CFLAGS=-Wall -Wextra -Wno-unused-parameter -Wdeclaration-after-statement
 AM_CXXFLAGS=-Wall -Wextra -Wno-unused-parameter
 
 
-bin_PROGRAMS=				\
+noinst_PROGRAMS=			\
 	mug
 
 # note, mug.cc is '.cc' only because libmu must explicitly
@@ -52,20 +49,5 @@ mug_LDADD=				\
 	${top_builddir}/src/libmu.la	\
 	${GTK_LIBS}
 
-icondir=				\
-	$(datarootdir)/icons
-
-icon_DATA=				\
-	mug.svg
-
-desktopdir=				\
-	$(datarootdir)/applications
-
-desktop_DATA=				\
-	mug.desktop
-
-EXTRA_DIST=				\
-	$(desktop_DATA)			\
-	$(icon_DATA)
 
 
