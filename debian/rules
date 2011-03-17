@@ -41,6 +41,8 @@ install-stamp: build-stamp
 	dh_installdirs
 	$(MAKE) install prefix=$(mu)/usr
 	cp toys/mug2/mug2 $(mu)/usr/bin/mug
+	mkdir -p $(mu)/usr/share/pixmaps
+	cp toys/mug2/mug.svg $(mu)/usr/share/pixmaps/
 	touch install-stamp
 
 binary-indep:

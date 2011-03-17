@@ -3,9 +3,10 @@ maildir-utils (0.9.3-1) unstable; urgency=low
   * new upstream releases
   * fix build dependencies (add libgtk2.0-dev, webkit-dev, remove old
     libgmime, add xdg-utils for xdg-open test)
-  * install mug2 as /usr/bin/mug
+  * install mug2 as /usr/bin/mug, adapt the path of the svg in the Makefile.*
+    install mug.svg into /usr/share/pixmaps
 
- -- Norbert Preining <preining@debian.org>  Thu, 17 Mar 2011 15:04:30 +0900
+ -- Norbert Preining <preining@debian.org>  Thu, 17 Mar 2011 15:15:45 +0900
 
 maildir-utils (0.9.1-1) experimental; urgency=low
 
