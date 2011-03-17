@@ -22,15 +22,18 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <errno.h>
-#include <gmime/gmime.h>
 #include <stdlib.h>
 #include <ctype.h>
 
-#include "mu-util.h"
-#include "mu-str.h"
+#include <gmime/gmime.h>
 
 #include "mu-msg-priv.h" /* include before mu-msg.h */
 #include "mu-msg.h"
+
+#include "mu-util.h"
+#include "mu-str.h"
+#include "mu-msg-file.h"
+
 
 /* note, we do the gmime initialization here rather than in
  * mu-runtime, because this way we don't need mu-runtime for simple
@@ -62,7 +65,7 @@ mu_msg_gmime_uninit (void)
 }
 
 
-void 
+static void 
 mu_msg_destroy (MuMsg *msg)
 {
 	int i;
@@ -179,6 +182,25 @@ init_mime_msg (MuMsg *msg, GError **err)
 	return TRUE;
 }
 
+MuMsg*
+mu_msg_ref (MuMsg *msg)
+{
+	g_return_val_if_fail (msg, NULL);
+	++msg->_refcount;
+
+	return msg;
+}
+
+void
+mu_msg_unref (MuMsg *msg)
+{
+	g_return_if_fail (msg);
+	g_return_if_fail (msg->_refcount >= 1);
+	
+	if (--msg->_refcount == 0) 
+		mu_msg_destroy (msg);
+}
+
 
 MuMsg*   
 mu_msg_new (const char* filepath, const gchar* mdir, GError **err)
@@ -200,7 +222,8 @@ mu_msg_new (const char* filepath, const gchar* mdir, GError **err)
 		mu_msg_destroy (msg);
 		return NULL;
 	}
-	
+
+	msg->_refcount = 1;
 	return msg;
 }
 
@@ -395,7 +418,7 @@ mu_msg_get_flags (MuMsg *msg)
 	g_return_val_if_fail (msg, MU_MSG_FLAG_NONE);
 	
 	if (msg->_flags == MU_MSG_FLAG_NONE) {
-		msg->_flags = mu_msg_flags_from_file (mu_msg_get_path(msg));
+		msg->_flags = mu_msg_file_get_flags_from_path (mu_msg_get_path(msg));
 		msg->_flags |= get_content_flags (msg);
 	}
 	
@@ -641,7 +664,7 @@ convert_to_utf8 (GMimePart *part, char *buffer)
 
 
 static gchar*
-stream_to_string (GMimeStream *stream, size_t buflen, gboolean convert_utf8)
+stream_to_string (GMimeStream *stream, size_t buflen)
 {
 	char *buffer;
 	ssize_t bytes;
@@ -664,7 +687,7 @@ stream_to_string (GMimeStream *stream, size_t buflen, gboolean convert_utf8)
 
 
 static gchar*
-part_to_string (GMimePart *part, gboolean convert_utf8, gboolean *err)
+part_to_string (GMimePart *part, gboolean *err)
 {
 	GMimeDataWrapper *wrapper;
 	GMimeStream *stream = NULL;
@@ -693,12 +716,11 @@ part_to_string (GMimePart *part, gboolean convert_utf8, gboolean *err)
 		goto cleanup;
 	}
 	
-	buffer = stream_to_string (stream, (size_t)buflen, convert_utf8);
+	buffer = stream_to_string (stream, (size_t)buflen);
 	
 	/* convert_to_utf8 will free the old 'buffer' if needed */
-	if (convert_utf8) 
-		buffer = convert_to_utf8 (part, buffer);
-
+	buffer = convert_to_utf8 (part, buffer);
+	
 	*err = FALSE;
 	
 cleanup:				
@@ -728,13 +750,11 @@ get_body (MuMsg *msg, gboolean want_html)
 				&data);
 	if (want_html)
 		str = data._html_part ?
-			part_to_string (GMIME_PART(data._html_part),
-					FALSE, &err) :
+			part_to_string (GMIME_PART(data._html_part), &err) :
 			NULL; 
 	else
 		str = data._txt_part ?
-			part_to_string (GMIME_PART(data._txt_part),
-					TRUE, &err) :
+			part_to_string (GMIME_PART(data._txt_part), &err) :
 			NULL;
 
 	/* note, str may be NULL (no body), but that's not necessarily
@@ -744,8 +764,8 @@ get_body (MuMsg *msg, gboolean want_html)
 			   "for message %s",
 			   want_html ? "html" : "text",
 			   mu_msg_get_path(msg));
-
-	return str;	
+		
+	return str;
 }
 
 const char*
@@ -826,3 +846,4 @@ mu_msg_get_field_numeric (MuMsg *msg, const MuMsgFieldId mfid)
 	default: g_return_val_if_reached (-1);
 	}
 }
+

@@ -19,7 +19,7 @@ include $(top_srcdir)/gtest.mk
 # enforce compiling this dir first before decending into tests/
 SUBDIRS= .
 
-if HAVE_GTEST
+if BUILD_TESTS
 SUBDIRS += tests
 endif
 
@@ -28,7 +28,7 @@ INCLUDES=$(XAPIAN_CXXFLAGS) $(GMIME_CFLAGS) $(GLIB_CFLAGS)
 # don't use -Werror, as it might break on other compilers
 # use -Wno-unused-parameters, because some callbacks may not
 # really need all the params they get
-AM_CFLAGS=-Wall -Wextra -Wno-unused-parameter -Wdeclaration-after-statement
+AM_CFLAGS=-Wall -Wextra -Wno-unused-parameter -Wdeclaration-after-statement -pedantic
 AM_CXXFLAGS=-Wall -Wextra -Wno-unused-parameter
 
 bin_PROGRAMS=				\
@@ -51,13 +51,10 @@ libmu_la_SOURCES=			\
 	mu-cmd-extract.c		\
 	mu-cmd-find.c			\
 	mu-cmd-index.c			\
-	mu-cmd-mkdir.c			\
-	mu-cmd-view.c			\
 	mu-cmd.c			\
 	mu-cmd.h			\
 	mu-config.c			\
 	mu-config.h			\
-	mu-error.h			\
 	mu-index.c			\
 	mu-index.h			\
 	mu-log.c			\
@@ -70,6 +67,8 @@ libmu_la_SOURCES=			\
 	mu-msg-fields.h			\
 	mu-msg-flags.c			\
 	mu-msg-flags.h			\
+	mu-msg-file.h			\
+	mu-msg-file.c			\
 	mu-msg-iter-priv.hh		\
 	mu-msg-iter.cc			\
 	mu-msg-iter.h			\
@@ -78,17 +77,15 @@ libmu_la_SOURCES=			\
 	mu-msg-prio.c			\
 	mu-msg-prio.h			\
 	mu-msg-priv.h			\
-	mu-msg-status.h			\
 	mu-msg.c			\
 	mu-msg.h			\
 	mu-msg.h			\
-	mu-output-link.c		\
-	mu-output-link.h		\
-	mu-output-plain.c		\
-	mu-output-plain.h		\
+	mu-msg-file.c			\
+	mu-msg-file.h			\
+	mu-output.c			\
+	mu-output.h			\
 	mu-query.cc			\
 	mu-query.h			\
-	mu-result.h			\
 	mu-runtime.c			\
 	mu-runtime.h			\
 	mu-store.cc			\
@@ -97,7 +94,6 @@ libmu_la_SOURCES=			\
 	mu-str.c			\
 	mu-str.h			\
 	mu-util-db.cc			\
-	mu-util-db.h			\
 	mu-util.c			\
 	mu-util.h
 

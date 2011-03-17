@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2008-2010 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+** Copyright (C) 2008-2011 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 **
 ** This program is free software; you can redistribute it and/or modify it
 ** under the terms of the GNU General Public License as published by the
@@ -17,7 +17,7 @@
 **
 */
 
-#ifdef HAVE_CONFIG_H
+#if HAVE_CONFIG_H
 #include "config.h"
 #endif /*HAVE_CONFIG_H*/
 
@@ -37,20 +37,53 @@
 #include "mu-runtime.h"
 
 #include "mu-util.h"
-#include "mu-util-db.h"
 #include "mu-cmd.h"
-#include "mu-output-plain.h"
-#include "mu-output-link.h"
+#include "mu-output.h"
+
+
+enum _OutputFormat {
+	FORMAT_JSON,
+	FORMAT_LINKS,
+	FORMAT_PLAIN,
+	FORMAT_SEXP,
+	FORMAT_XML,
+	FORMAT_XQUERY,
+
+	FORMAT_NONE
+};
+typedef enum _OutputFormat OutputFormat;
+
+static OutputFormat
+get_output_format (const char *formatstr)
+{
+	int i;
+	struct {
+		const char*	name;
+		OutputFormat	format;
+	} formats [] = {
+		{MU_CONFIG_FORMAT_JSON,		 FORMAT_JSON},
+		{MU_CONFIG_FORMAT_LINKS,	 FORMAT_LINKS},
+		{MU_CONFIG_FORMAT_PLAIN,	 FORMAT_PLAIN},
+		{MU_CONFIG_FORMAT_SEXP,		 FORMAT_SEXP},
+		{MU_CONFIG_FORMAT_XML,		 FORMAT_XML},
+		{MU_CONFIG_FORMAT_XQUERY,	 FORMAT_XQUERY}
+	};
+
+	for (i = 0; i != G_N_ELEMENTS(formats); i++)
+		if (strcmp (formats[i].name, formatstr) == 0)
+			return formats[i].format;
+
+	return FORMAT_NONE;
+}
 
 
 static void
-update_warning (void)
+upgrade_warning (void)
 {
 	g_warning ("the database needs to be updated to version %s\n",
 		   MU_XAPIAN_DB_VERSION);
 	g_message ("please run 'mu index --rebuild' (see the man page)");
 }
-
 
 
 static gboolean
@@ -59,8 +92,6 @@ print_xapian_query (MuQuery *xapian, const gchar *query)
 	char *querystr;
 	GError *err;
 	
-	MU_WRITE_LOG ("query: '%s' (xquery)", query); 
-
 	err = NULL;
 	querystr = mu_query_as_string (xapian, query, &err);
 	if (!querystr) {
@@ -95,55 +126,39 @@ sort_field_from_string (const char* fieldstr)
 }
 
 
-static size_t
-print_rows (MuMsgIter *iter, const char *fields, size_t summary_len)
+static gboolean
+run_query_format (MuMsgIter *iter, MuConfig *opts,
+		  OutputFormat format, size_t *count)
 {
-	size_t count = 0;
+	switch (format) {
 
-	if (mu_msg_iter_is_done (iter))
-		return 0;
-	
-	do {
-		if (mu_output_plain_row (iter, fields, summary_len))
-			++count;
-		
-	} while (mu_msg_iter_next (iter));
-	
-	return count;
+	case FORMAT_LINKS:
+		return mu_output_links (iter, opts->linksdir, opts->clearlinks,
+					count);
+	case FORMAT_PLAIN: 
+		return mu_output_plain (iter, opts->fields, opts->summary_len,
+					count);
+	case FORMAT_XML:
+		return mu_output_xml (iter, count);
+	case FORMAT_JSON:
+		return mu_output_json (iter, count);
+	case FORMAT_SEXP:
+		return mu_output_sexp (iter, count);	
+	default:
+		g_assert_not_reached ();
+		return FALSE;
+	}
 }
-
-
-static size_t
-make_links (MuMsgIter *iter, const char* linksdir, gboolean clearlinks)
-{
-	size_t count = 0;
-
-	if (!mu_output_link_create_dir (linksdir, clearlinks))
-		return 0;
-
-	if (mu_msg_iter_is_done (iter))
-		return 0;
-	
-	/* iterate over the found iters */
-	do {
-		/* ignore errors...*/
-		if (mu_output_link_row (iter, linksdir))
-			++count;
-
-	} while (mu_msg_iter_next (iter));
-		 
-	return count;
-}
-
 
 
 static gboolean
-run_query (MuQuery *xapian, const gchar *query, MuConfigOptions *opts)
+run_query (MuQuery *xapian, const gchar *query, MuConfig *opts,
+	   OutputFormat format, size_t *count)
 {
 	GError *err;
 	MuMsgIter *iter;
 	MuMsgFieldId sortid;
-	size_t matches;
+	gboolean rv;
 	
 	sortid = MU_MSG_FIELD_ID_NONE;
 	if (opts->sortfield) {
@@ -161,24 +176,45 @@ run_query (MuQuery *xapian, const gchar *query, MuConfigOptions *opts)
 		return FALSE;
 	}
 
-	if (opts->linksdir)
-		matches = make_links (iter, opts->linksdir,
-				      opts->clearlinks);
-	else
-		matches = print_rows (iter, opts->fields,
-				      opts->summary_len);
-	
-	if (matches == 0) 
+	rv = run_query_format (iter, opts, format, count);
+		
+	if (rv && count && *count == 0) 
 		g_warning ("no matches found");
-
+	
 	mu_msg_iter_destroy (iter);
 
-	return matches > 0;
+	return rv;
 }
 
 
+
 static gboolean
-query_params_valid (MuConfigOptions *opts)
+format_params_valid (MuConfig *opts)
+{
+	OutputFormat format;
+		
+	format = get_output_format (opts->formatstr);
+	if (format == FORMAT_NONE) {
+		g_warning ("invalid output format %s",
+			   opts->formatstr ? opts->formatstr : "<none>");
+		return FALSE;
+	}
+	
+	if (format == FORMAT_LINKS && !opts->linksdir) {
+		g_warning ("missing --linksdir argument");
+		return FALSE;
+	}
+
+	if (opts->linksdir && format != FORMAT_LINKS) {
+		g_warning ("--linksdir is only valid with --format=links");
+		return FALSE;
+	}
+
+	return TRUE;
+}
+
+static gboolean
+query_params_valid (MuConfig *opts)
 {
 	const gchar *xpath;
 	
@@ -188,6 +224,11 @@ query_params_valid (MuConfigOptions *opts)
 			return FALSE;
 		}
 
+	if (opts->xquery) {
+		g_warning ("--xquery is obsolete; use --format=xquery instead");
+		return FALSE;
+	}
+	
 	xpath = mu_runtime_xapian_dir();
 	
 	if (mu_util_check_dir (xpath, TRUE, FALSE))
@@ -200,7 +241,7 @@ query_params_valid (MuConfigOptions *opts)
 }
 
 static gchar*
-resolve_bookmark (MuConfigOptions *opts)
+resolve_bookmark (MuConfig *opts)
 {
 	MuBookmarks *bm;
 	char* val;
@@ -226,7 +267,7 @@ resolve_bookmark (MuConfigOptions *opts)
 
 
 static gchar*
-get_query (MuConfigOptions *opts)
+get_query (MuConfig *opts)
 {
 	gchar *query, *bookmarkval;
 
@@ -259,61 +300,82 @@ get_query (MuConfigOptions *opts)
 static gboolean
 db_is_ready (const char *xpath)
 {	
-	if (mu_util_db_is_empty (xpath)) {
+	if (mu_util_xapian_is_empty (xpath)) {
 		g_warning ("database is empty; use 'mu index' to "
 			   "add messages");
 		return FALSE;
 	}
 		
-	if (!mu_util_db_version_up_to_date (xpath)) {
-		update_warning ();
+	if (mu_util_xapian_needs_upgrade (xpath)) {
+		upgrade_warning ();
 		return FALSE;
 	}
 
 	return TRUE;
 }
 
-
-gboolean
-mu_cmd_find (MuConfigOptions *opts)
+static MuQuery*
+get_query_obj (void)
 {
 	GError *err;
+	const char* xpath;
+	MuQuery *mquery;
+	
+	xpath = mu_runtime_xapian_dir ();
+	if (!db_is_ready(xpath)) {
+		g_warning ("database '%s' is not ready", xpath);
+		return NULL;
+	}
+		
+	err = NULL;
+	mquery = mu_query_new (xpath, &err);
+	if (!mquery) {
+		g_warning ("error: %s", err->message);
+		g_error_free (err);
+		return NULL;
+	}
+
+	return mquery;
+}
+	
+
+MuExitCode
+mu_cmd_find (MuConfig *opts)
+{
 	MuQuery *xapian;
 	gboolean rv;
 	gchar *query;
-	const gchar *xpath;
+	size_t count;
+	OutputFormat format;
 	
 	g_return_val_if_fail (opts, FALSE);
-	g_return_val_if_fail (mu_cmd_equals (opts, "find"), FALSE);
+	g_return_val_if_fail (opts->cmd == MU_CONFIG_CMD_FIND, FALSE);
 	
-	if (!query_params_valid (opts))
-		return FALSE;
+	if (!query_params_valid (opts) || !format_params_valid(opts))
+		return MU_EXITCODE_ERROR;
 
-	xpath = mu_runtime_xapian_dir ();
-	if (!db_is_ready(xpath))
-		return FALSE;
+	format = get_output_format (opts->formatstr);
+	
+	xapian = get_query_obj ();
+	if (!xapian)
+		return MU_EXITCODE_ERROR;
 	
 	/* first param is 'query', search params are after that */
 	query = get_query (opts);
 	if (!query) 
-		return FALSE;
-
-	err = NULL;
-	xapian = mu_query_new (xpath, &err);
-	if (!xapian) {
-		g_warning ("error: %s", err->message);
-		g_error_free (err);
-		return FALSE;
-	}
-
-	if (opts->xquery) 
+		return MU_EXITCODE_ERROR;
+	
+	if (format == FORMAT_XQUERY) 
 		rv = print_xapian_query (xapian, query);
 	else
-		rv = run_query (xapian, query, opts);
+		rv = run_query (xapian, query, opts, format, &count);
 
 	mu_query_destroy (xapian);
 	g_free (query);
-	
-	return rv;
-}
 
+	if (!rv)
+		return MU_EXITCODE_ERROR;
+	else
+		return (count == 0) ?
+			MU_EXITCODE_NO_MATCHES : MU_EXITCODE_OK;
+}

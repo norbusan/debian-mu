@@ -165,7 +165,7 @@ char* mu_str_normalize_in_place (char *str, gboolean downcase);
  * replace ':' with '_', if it's not following a xapian-prefix (such
  * as 'subject:', 't:' etc, as defined in mu-msg-fields.[ch]).
  * changing is done in-place (by changing the argument string). in
- * any, case, the string will be downcased.
+ * any case, the string will be downcased.
  *
  * works for ascii strings, like e-mail addresses and message-id.
  * 
@@ -174,6 +174,21 @@ char* mu_str_normalize_in_place (char *str, gboolean downcase);
  * @return the escaped string or NULL in case of error
  */
 char* mu_str_ascii_xapian_escape_in_place (char *query);
+
+/**
+ * escape the string for use with xapian matching. in practice, if the
+ * string contains an '@', replace '@', single-'.' with '_'. Also,
+ * replace ':' with '_', if it's not following a xapian-prefix (such
+ * as 'subject:', 't:' etc, as defined in mu-msg-fields.[ch]).
+ *
+ * works for ascii strings, like e-mail addresses and message-id.
+ * 
+ * @param query a query string
+ * 
+ * @return the escaped string (free with g_free) or NULL in case of error
+ */
+char* mu_str_ascii_xapian_escape (const char *query)
+        G_GNUC_WARN_UNUSED_RESULT;
 
 /**
  * 
@@ -193,6 +208,47 @@ char* mu_str_ascii_xapian_escape_in_place (char *query);
  */
 time_t mu_str_date_parse_hdwmy (const char* str);
 
+
+
+/** 
+ * parse a byte size; a size is a number, with optionally a
+ * unit. Units recognized are K (1000) and M (1000*1000). Only the
+ * first letter is checked and the function is not case-sensitive, so
+ * 1000Kb, 3M will work equally well.  Note, for kB, MB etc., we then
+ * follow the SI standards, not 2^10 etc.
+ *
+ * practical sizes for email messages are in terms of Mb; even in
+ * extreme cases it should be under 100 Mb. Function return
+ * GUINT64_MAX if there a parsing error
+ * 
+ * @param str a string with a size, such a "100", "100Kb", "1Mb"
+ * 
+ * @return 
+ */
+guint64 mu_str_size_parse_kmg (const char* str);
+
+/**
+ * create a full path from a path + a filename. function is _not_
+ * reentrant.
+ * 
+ * @param path a path (!= NULL)
+ * @param name a name (may be NULL)
+ * 
+ * @return the path as a statically allocated buffer. don't free.
+ */
+const char* mu_str_fullpath_s (const char* path, const char* name);
+
+
+/** 
+ * escape a string like a string literal in C; ie. replace \ with \\,
+ * and " with \"
+ * 
+ * @param str a non-NULL str
+ * 
+ * @return the escaped string, newly allocated (free with g_free)
+ */
+char* mu_str_escape_c_literal (const gchar* str)
+        G_GNUC_WARN_UNUSED_RESULT;
 
 G_END_DECLS
 

@@ -1,4 +1,4 @@
-## Copyright (C) 2008-2010 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+## Copyright (C) 2008-2011 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 ##
 ## This program is free software; you can redistribute it and/or modify
 ## it under the terms of the GNU General Public License as published by
@@ -14,52 +14,59 @@
 ## along with this program; if not, write to the Free Software Foundation,
 ## Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.  
 
-AC_INIT([mu],[0.9.1],[http://code.google.com/p/mu0/issues/list])
+AC_INIT([mu],[0.9.3],[http://code.google.com/p/mu0/issues/list])
 AC_CONFIG_HEADERS([config.h])
 AC_CONFIG_SRCDIR([src/mu.cc])
 AM_INIT_AUTOMAKE([dist-bzip2])
 
-# silent build
-AM_SILENT_RULES([yes])
+# libtoolize wants to put some stuff in here; if you have an old
+# autotools/libtool setup. you can try to comment this out
+AC_CONFIG_MACRO_DIR([m4])
 
-# we set the set the version of the Xapian database layout here; it
-# will become part of the db name, so we can automatically recreate the
-# database when we incompatible have changes.
-#
-# note that MU_XAPIAN_DB_VERSION does not necessarily follow MU
-# versioning, as we hopefully don't have updates for each version;
-# also, this has nothing to do with Xapian's software version
-AC_DEFINE(MU_XAPIAN_DB_VERSION,["9.0"], [Schema version of the database])
+# silent build if we have a new enough automake
+m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES([yes])])
 
-LT_INIT # don't use AC_PROG_LIBTOOL anymore
+# for now, use AM_PROG_LIBTOOL, as we don't want to require
+# a too new setup for autotools/libtool
+AM_PROG_LIBTOOL
+#LT_INIT([disable-shared])
 
 AS_IF([test x$prefix = xNONE],[
    prefix=/usr/local])
 AC_SUBST(prefix)
 
 AC_PROG_CC
+AC_PROG_CC_STDC
 AC_PROG_CXX
 AC_HEADER_STDC
 
+# we need some special tricks for filesystems that don't have d_type;
+# e.g. Solaris. See mu-maildir.c. Explicitly disabling it is for
+# testing purposes only
+AC_ARG_ENABLE([dirent-d-type],
+	AC_HELP_STRING([--disable-dirent-d-type],
+			[Don't use dirent->d_type, even if you have it]),
+	[], [AC_STRUCT_DIRENT_D_TYPE]
+)
+AS_IF([test "x$ac_cv_member_struct_dirent_d_type" != "xyes"],
+	    [use_dirent_d_type="no"], [use_dirent_d_type="yes"])
 
-# currently, we don't support systems without d_type in their struct
-# dirent (Solaris 10); but we do support FSs for which d_type is always
-# DT_UNKNOWN (Like ReiserFS, XFS on Linux)
-#
-# note, we could work around this if there are many people for which
-# this breaks
-AC_STRUCT_DIRENT_D_TYPE
-AS_IF([test "x$ac_cv_member_struct_dirent_d_type" != "xyes"],[
-   AC_MSG_ERROR([
-   *** We need the d_type member in struct dirent, but it seems
-   *** your system does not have it])
-   ])
-# support for d_ino in struct dirent is optional     
-AC_STRUCT_DIRENT_D_INO
+
+# support for d_ino (inode) in struct dirent is optional; if it's
+# available we can sort direntries by inode and access them in that
+# order; this is much faster on some file systems (such as extfs3).
+# Explicity disabling it is for testing purposes only.
+AC_ARG_ENABLE([dirent-d-ino],
+	AC_HELP_STRING([--disable-dirent-d-ino],
+			[Don't use dirent->d_ino, even if you have it]),
+	[], [AC_STRUCT_DIRENT_D_INO]
+)
+AS_IF([test "x$ac_cv_member_struct_dirent_d_ino" != "xyes"],
+	    [use_dirent_d_ino="no"], [use_dirent_d_ino="yes"])
+
 
 # we need these
-AC_CHECK_FUNCS([memset realpath setlocale strerror])
-
+AC_CHECK_FUNCS([memset memcpy realpath setlocale strerror])
 
 # require pkg-config
 AC_PATH_PROG([PKG_CONFIG], [pkg-config], [no])
@@ -70,19 +77,18 @@ AS_IF([test "x$PKG_CONFIG" = "xno"],[
    *** to the full path to pkg-config.])
 ])
 
-
 # glib2?
 PKG_CHECK_MODULES(GLIB, glib-2.0)
 AC_SUBST(GLIB_CFLAGS)
 AC_SUBST(GLIB_LIBS)
-
-
-# gtest was introduced in glib 2.16
-PKG_CHECK_MODULES(g_test,glib-2.0 >= 2.16, [have_gtest=yes],[have_gtest=no])
-AM_CONDITIONAL(HAVE_GTEST, test "x$have_gtest" = "xyes")
-AM_CONDITIONAL(HAVE_GLIB216, test "x$have_gtest" = "xyes")
+glib_version="`pkg-config --modversion glib-2.0`"
+			  	       
+# gtest was introduced in glib 2.16; but we're also using
+# g_test_log_set_fatal_handler, which was introduced in 2.22
+PKG_CHECK_MODULES(g_test,glib-2.0 >= 2.22, [have_gtest=yes],[have_gtest=no])
+AM_CONDITIONAL(BUILD_TESTS, test "x$have_gtest" = "xyes")
 AS_IF([test "x$have_gtest" = "xno"],[
-     AC_MSG_WARN([You need GLIB version >= 2.16 to build the tests])
+     AC_MSG_WARN([You need GLIB version >= 2.22 to build the tests])
 ])
 
 
@@ -100,13 +106,14 @@ AS_IF([test "x$have_gmime_24" = "xno"],[
       *** If you compiled it yourself, you should ensure that the pkgconfig
       *** installation dir (e.g., /usr/local/lib/pkgconfig) is in your
       *** PKG_CONFIG_PATH.
-      ])
-    ])
- ])
+      ])],[
+         gmime_version="`pkg-config --modversion gmime-2.6`"
+    ])],[
+      gmime_version="`pkg-config --modversion gmime-2.4`"
+   ])
 AC_SUBST(GMIME_CFLAGS)
 AC_SUBST(GMIME_LIBS)
  
-
 
 # xapian?
 AC_CHECK_PROG(XAPIAN,xapian-config,xapian-config,no)
@@ -127,53 +134,99 @@ AS_IF([test "x$XAPIAN" = "xno"],[
 AC_SUBST(XAPIAN_CXXFLAGS)
 AC_SUBST(XAPIAN_LIBS)
 
-
-
-# we test for gtk, which we need if we want to build 'mug'; for
-# experiments it can try to build with gtk3, but since that is still
-# under development, you need to explicitly enable this with '--with-gtk3'
+# we set the set the version of the Xapian database layout here; it
+# will become part of the db name, so we can automatically recreate the
+# database when we incompatible have changes.
 #
-have_gtk=no
-AC_ARG_WITH([gtk3],
-   [AS_HELP_STRING([--with-gtk3],
-   [enable support for gtk3])],
-   [],
-   [with_gtk3=no])
-   
-AS_IF([test "x$with_gtk3" != "xno"],[
+# note that MU_XAPIAN_DB_VERSION does not necessarily follow MU
+# versioning, as we hopefully don't have updates for each version;
+# also, this has nothing to do with Xapian's software version
+AC_DEFINE(MU_XAPIAN_DB_VERSION,["9.2"], ['Schema' version of the database])
+
+AC_ARG_WITH([gui],
+   [AS_HELP_STRING([--with-gui=gtk2|gtk3|none])],
+   [gui=$withval],[gui=auto])
+
+AS_IF([test "x$gui" != "xgtk2" -a "x$gui" != "xgtk3" -a "x$gui" != "xnone" -a "x$gui" != "xauto"],
+      AC_MSG_ERROR([the argument for --with-gui= must be either gtk2|gtk3|auto|none ($gui)]))
+      
+# check for gtk3
+AS_IF([test "x$gui" = "xgtk3"],[
   PKG_CHECK_MODULES(GTK,gtk+-3.0,[have_gtk3=yes],[have_gtk3=no])
   AC_SUBST(GTK_CFLAGS)
   AC_SUBST(GTK_LIBS)
-  have_gtk=gtk3
+  gtk_version="`pkg-config --modversion gtk+-3.0`"
 ])
+AS_IF([test "x$gui"="gtk3" -a "x$have_gtk3" = "xno"],
+   AC_MSG_ERROR([GTK+ 3.x not found]))
 
-AS_IF([test "x$have_gtk3" != "xyes"],[
+# check for gtk2 if we did not find gtk3 already
+# (gtk3 is only sought if asked for it explicitly)
+AS_IF([test "x$gui" != "xnone" -a "x$have_gtk3" != "xyes"],[
   PKG_CHECK_MODULES(GTK,gtk+-2.0,[have_gtk2=yes],[have_gtk2=no])
   AC_SUBST(GTK_CFLAGS)
   AC_SUBST(GTK_LIBS)
-  have_gtk=gtk2
+  gtk_version="`pkg-config --modversion gtk+-2.0`"	
 ])
-AM_CONDITIONAL(HAVE_GTK, [test "x$have_gtk2" = "xyes" -o "x$have_gtk3" = "xyes"])
+# only an error if we explicitly asked for it
+AS_IF([test "x$have_gtk2" = "xno" -a "x$gui" != "auto"],
+   AC_MSG_ERROR([GTK+ 2.x not found]))
 
+AM_CONDITIONAL(HAVE_GTK,[test "x$have_gtk2" = "xyes" -o "x$have_gtk3" = "xyes" ])
+AS_IF([test "x$have_gtk2" = "xyes" -o "x$have_gtk3" = "xyes"],[gui=yes],[gui=no])
 
-# check for pmccabe		
-AC_PATH_PROG([PMCCABE],[pmccabe],[yes],[no])
-AS_IF([test "x$PMCCABE" != "xyes"],[
+# webkit? needed for the fancy web widget
+AS_IF([test "x$gui" = "xyes"],[
+  PKG_CHECK_MODULES(WEBKIT,webkit-1.0 >= 1.0.3,[have_webkit=yes],[have_webkit=no])
+  AS_IF([test "x$have_webkit" = "xyes"],[
+	    webkit_version="`pkg-config --modversion webkit-1.0`"])
+  AC_SUBST(WEBKIT_CFLAGS)
+  AC_SUBST(WEBKIT_LIBS)
+])
+AM_CONDITIONAL(HAVE_WEBKIT, [test "x$have_webkit" = "xyes"])
+
+# gio is needed for some widget/ things
+AS_IF([test "x$gui"="xyes"],[
+PKG_CHECK_MODULES(GIO,gio-2.0,[have_gio=yes],[have_gio=no])
+AS_IF([test "x$have_gio" = "xyes"],[
+	    gio_version="`pkg-config --modversion gio-2.0`"])
+AC_SUBST(GIO_CFLAGS)
+AC_SUBST(GIO_LIBS)
+])
+AM_CONDITIONAL(HAVE_GIO, [test "x$have_gio" = "xyes"])
+
+# should we build the widgets/ dir?
+AM_CONDITIONAL(BUILD_WIDGETS, [test "x$have_webkit" = "xyes" -a "x$have_gio" = "xyes"])
+
+# check for xdg-open
+AS_IF([test "x$gui"="xyes"],[
+  AC_PATH_PROG(XDGOPEN, [xdg-open], [], [$PATH])
+  AS_IF([test "x$XDGOPEN" != "x"],[
+    AC_DEFINE_UNQUOTED([XDGOPEN], ["$XDGOPEN"],[Path to xdg-open])],[
+    AC_MSG_WARN([xdg-open not found, mu cannot open attachments])])
+])
+   
+# check for pmccabe
+AC_PATH_PROG([PMCCABE],[pmccabe],[pmccabe],[no])
+AS_IF([test "x$PMCCABE" = "xno"],[
+   have_pmccabe="no"	    
    AC_MSG_WARN([
    *** Developers: you don't seem to have the 'pmccabe' tool installed.
    *** Please install it if you want to run the automated code checks])
+],[
+   have_pmccabe="yes"
 ])
-
-
 
 AC_CONFIG_FILES([
 Makefile
 src/Makefile
 src/tests/Makefile
+widgets/Makefile
 toys/Makefile
 toys/mug/Makefile
-toys/mug/mug.desktop
+toys/mug2/Makefile
 man/Makefile
+m4/Makefile
 contrib/Makefile
 ])
 AC_OUTPUT
@@ -188,10 +241,32 @@ if test -e ~/.mu/xapian-0.6; then
    echo "remove the old <muhome>/xapian-0.6 directory to save some disk space"
 fi
 
+
 echo "Xapian version                       : $xapian_version"
-echo "Build unit tests (glib >= 2.16)      : $have_gtest"
-echo "Build UI (requires GTK+)             : $have_gtk"
-echo "McCabe's Cyclomatic Complexity tool  : $PMCCABE"
+echo "GLib version                         : $glib_version" 
+echo "GMime version                        : $gmime_version"
+
+if test "x$gui" = "xyes"; then
+echo "GTK+ version                         : $gtk_version"
+fi
+
+if test "x$have_gio" = "xyes"; then
+echo "GIO version                          : $gio_version"
+fi
+
+if test "x$have_webkit" = "xyes"; then
+echo "Webkit version                       : $webkit_version"
+fi
+
+echo
+echo "Build unit tests (glib >= 2.22)      : $have_gtest"
+echo "Build 'mug' (requires GTK+)          : $have_gtk"
+echo "McCabe's Cyclomatic Complexity tool  : $have_pmccabe"
+echo "xdg-open                             : $XDGOPEN"
+echo
+
+echo "Have direntry->d_ino                 : $use_dirent_d_ino" 
+echo "Have direntry->d_type                : $use_dirent_d_type" 
 
 echo
 echo "type 'make' to build mu, or 'make check' to run the unit tests."

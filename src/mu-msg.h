@@ -20,17 +20,15 @@
 #ifndef __MU_MSG_H__
 #define __MU_MSG_H__
 
-#include "mu-msg-flags.h"
-#include "mu-msg-fields.h"
-#include "mu-msg-status.h"
-#include "mu-msg-prio.h"
-#include "mu-error.h"
+#include <mu-msg-flags.h>
+#include <mu-msg-fields.h>
+#include <mu-msg-prio.h>
+#include <mu-util.h> /* for MuResult, MuError */
 
 G_BEGIN_DECLS
 
 struct _MuMsg;
 typedef struct _MuMsg MuMsg;
-
 
 
 /**
@@ -61,18 +59,31 @@ void mu_msg_gmime_uninit (void);
  * @param err receive error information (MU_ERROR_FILE or MU_ERROR_GMIME), or NULL. There
  * will only be err info if the function returns NULL
  * 
- * @return a new MuMsg instance or NULL in case of error
+ * @return a new MuMsg instance or NULL in case of error; call
+ * mu_msg_unref when done with this message
  */
 MuMsg *mu_msg_new (const char* filepath, const char *maildir,
 		   GError **err) G_GNUC_MALLOC G_GNUC_WARN_UNUSED_RESULT;
 
+
 /**
- * destroy a MuMsg* instance; call this function when done with
- * a MuMsg
+ * increase the reference count for this message
  * 
- * @param msg a MuMsg* instance or NULL
+ * @param msg a message
+ *
+ * @return the message with its reference count increased, or NULL in
+ * case of error.
  */
-void     mu_msg_destroy         (MuMsg *msg);
+MuMsg * mu_msg_ref (MuMsg *msg);
+
+/**
+ * decrease the reference count for this message. if the reference
+ * count reaches 0, the message will be destroyed.
+ * 
+ * @param msg a message
+ */
+void mu_msg_unref (MuMsg *msg);
+
 
 
 /**
@@ -114,18 +125,7 @@ const char*     mu_msg_get_body_html       (MuMsg *msg);
  */
 const char*     mu_msg_get_summary (MuMsg *msg, size_t max_lines);
 
-/**
- * save a specific attachment to some targetdir 
- * 
- * @param msg a valid MuMsg instance
- * @param wanted_idx index of the attachment you want to save
- * @param targetdir filesystem directory to save the attachment
- * @param overwrite existing files?
- * 
- * @return TRUE if saving succeeded, FALSE otherwise
- */
-gboolean mu_msg_mime_part_save (MuMsg *msg, unsigned wanted_idx,
-				const char *targetdir, gboolean overwrite);
+
 
 /**
  * get the sender (From:) of this message
@@ -290,6 +290,7 @@ MuMsgPrio   mu_msg_get_prio        (MuMsg *msg);
  * @return the timestamp or 0 in case of error
  */
 time_t          mu_msg_get_timestamp       (MuMsg *msg);
+
 
 G_END_DECLS
 

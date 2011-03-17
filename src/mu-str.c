@@ -27,6 +27,17 @@
 #include <string.h>
 #include <ctype.h>
 #include <stdlib.h>
+#include <stdio.h>
+
+/* hopefully, this should get us a sane PATH_MAX */
+#include <limits.h>
+/* not all systems provide PATH_MAX in limits.h */
+#ifndef PATH_MAX
+#include <sys/param.h>
+#ifndef PATH_MAX
+#define PATH_MAX MAXPATHLEN
+#endif /*!PATH_MAX*/
+#endif /*PATH_MAX*/
 
 #include "mu-str.h"
 #include "mu-msg-flags.h"
@@ -153,6 +164,27 @@ mu_str_summarize (const char* str, size_t max_lines)
 	return summary;
 }
 
+
+static void
+cleanup_contact (char *contact)
+{
+	char *c, *c2;
+	
+	/* replace "'<> with space */
+	for (c2 = contact; *c2; ++c2)
+		if (*c2 == '"' || *c2 == '\'' || *c2 == '<' || *c2 == '>')
+			*c2 = ' ';
+
+	/* remove everything between '()' if it's after the 5th pos;
+	 * good to cleanup corporate contact address spam... */
+	c = g_strstr_len (contact, -1, "(");
+	if (c && c - contact > 5)
+	*c = '\0';
+			
+	g_strstrip (contact);
+}
+
+
 /* this is still somewhat simplistic... */
 const char*
 mu_str_display_contact_s (const char *str)
@@ -160,9 +192,7 @@ mu_str_display_contact_s (const char *str)
 	static gchar contact[255];
 	gchar *c, *c2;
 	
-	if (!str)
-		str = "";
-	
+	str = str ? str : "";
 	g_strlcpy (contact, str, sizeof(contact));
 
 	/* we check for '<', so we can strip out the address stuff in
@@ -171,20 +201,14 @@ mu_str_display_contact_s (const char *str)
 	 */
 	c = g_strstr_len (contact, -1, "<");
 	if (c != NULL) {
-		
 		for (c2 = contact; c2 < c && !(isalnum(*c2)); ++c2);
 		if (c2 != c) /* apparently, there was something,
 			      * so we can remove the <... part*/
 			*c = '\0';
 	}
+
+	cleanup_contact (contact);
 	
-	/* replace " with space */
-	for (c2 = contact; *c2; ++c2)
-		if (*c2 == '"' || *c2 == '<' || *c2 == '>')
-			*c2 = ' ';
-
-	g_strstrip (contact);
-
 	return contact;
 }
 
@@ -298,6 +322,30 @@ mu_str_date_parse_hdwmy (const char* str)
        return delta <= now ? now - delta : never;  
 }
 
+guint64
+mu_str_size_parse_kmg (const char* str)
+{
+	guint64 num;
+	char *end;
+	
+	g_return_val_if_fail (str, G_MAXUINT64);
+	
+	num = strtol (str, &end, 10);
+	if (num <= 0)  
+		return G_MAXUINT64;
+	
+	if (!end || end[1] != '\0')
+		return G_MAXUINT64;
+	
+	switch (tolower(end[0])) {
+	case 'k': return num * 1000;               /* kilobyte */
+	case 'm': return num * 1000 * 1000;        /* megabyte */
+	/* case 'g': return num * 1000 * 1000 * 1000; /\* gigabyte *\/ */
+	default:
+		return G_MAXUINT64;
+	}
+
+}
 
 char*
 mu_str_ascii_xapian_escape_in_place (char *query)
@@ -332,5 +380,48 @@ mu_str_ascii_xapian_escape_in_place (char *query)
 	}
 	
 	return query;
+}
+
+char*
+mu_str_ascii_xapian_escape (const char *query)
+{
+	g_return_val_if_fail (query, NULL);
+
+	return mu_str_ascii_xapian_escape_in_place (g_strdup(query));
+}
+
+
+/* note: this function is *not* re-entrant, it returns a static buffer */
+const char*
+mu_str_fullpath_s (const char* path, const char* name)
+{
+	static char buf[PATH_MAX + 1];
+	
+	g_return_val_if_fail (path, NULL);
+	
+	snprintf (buf, sizeof(buf), "%s%c%s", path, G_DIR_SEPARATOR,
+		  name ? name : "");
+	
+	return buf;
+}
+
+
+char*
+mu_str_escape_c_literal (const gchar* str)
+{
+	const char* cur;
+	GString *tmp;
+	
+	g_return_val_if_fail (str, NULL);
+	
+	tmp = g_string_sized_new (2 * strlen(str));
+	for (cur = str; *cur; ++cur)
+		switch (*cur) {
+		case '\\': tmp = g_string_append   (tmp, "\\\\"); break;
+		case '"':  tmp = g_string_append   (tmp, "\\\""); break;
+		default:   tmp = g_string_append_c (tmp, *cur);
+		}
+
+	return g_string_free (tmp, FALSE);
 }
 

@@ -34,53 +34,49 @@
 static void
 test_mu_store_new_destroy (void)
 {
-	MuStore *store;
-	gchar* tmpdir;
-	GError *err;
+		MuStore *store;
+		gchar* tmpdir;
+		GError *err;
 
-	tmpdir = test_mu_common_get_random_tmpdir();
-	g_assert (tmpdir);
+		tmpdir = test_mu_common_get_random_tmpdir();
+		g_assert (tmpdir);
 
-	err = NULL;
-	store = mu_store_new (tmpdir, &err);	
-	g_assert (store);
-	g_assert (err == NULL);
+		err = NULL;
+		store = mu_store_new (tmpdir, &err);	
+		g_assert (store);
+		g_assert (err == NULL);
 
-	g_assert_cmpuint (0,==,mu_store_count (store));
+		g_assert_cmpuint (0,==,mu_store_count (store));
 
-	mu_store_flush (store);
+		mu_store_flush (store);
 
-	mu_store_destroy (store);
+		mu_store_destroy (store);
 
-	g_free (tmpdir);	
+		g_free (tmpdir);	
 }
 
 
 static void
 test_mu_store_version (void)
 {
-	MuStore *store;
-	gchar* tmpdir;
-	GError *err;
-	const char* my_version;
+		MuStore *store;
+		gchar* tmpdir;
+		GError *err;
+	
+		tmpdir = test_mu_common_get_random_tmpdir();
+		g_assert (tmpdir);
 
-	tmpdir = test_mu_common_get_random_tmpdir();
-	g_assert (tmpdir);
+		err = NULL;
+		store = mu_store_new (tmpdir, &err);	
+		g_assert (store);
+		g_assert (err == NULL);
 
-	err = NULL;
-	store = mu_store_new (tmpdir, &err);	
-	g_assert (store);
-	g_assert (err == NULL);
-
-	g_assert_cmpuint (0,==,mu_store_count (store));
-	g_assert_cmpstr (MU_XAPIAN_DB_VERSION,==,mu_store_version(store));
-
-	my_version = "test123";
-	g_assert (mu_store_set_version (store, my_version));
-	g_assert_cmpstr (mu_store_version(store), ==, my_version);
-
-	mu_store_destroy (store);
-	g_free (tmpdir);	
+		g_assert_cmpuint (0,==,mu_store_count (store));
+		g_assert_cmpstr (MU_XAPIAN_DB_VERSION,==,
+						 mu_store_version(store));
+	
+		mu_store_destroy (store);
+		g_free (tmpdir);	
 }
 
 
@@ -108,7 +104,7 @@ test_mu_store_store_and_count (void)
 		g_assert_cmpuint (1,==,mu_store_count (store));
 		g_assert_cmpuint (TRUE,==,mu_store_contains_message
 						  (store, MU_TESTMAILDIR "cur/1283599333.1840_11.cthulhu!2,"));
-		mu_msg_destroy (msg);
+		mu_msg_unref (msg);
 
 		/* add another one */
 		msg = mu_msg_new (MU_TESTMAILDIR2 "bar/cur/mail3", NULL, NULL);
@@ -116,7 +112,7 @@ test_mu_store_store_and_count (void)
 		g_assert_cmpuint (mu_store_store (store, msg), ==, MU_OK);
 		g_assert_cmpuint (2,==,mu_store_count (store));
 		g_assert_cmpuint (TRUE,==,mu_store_contains_message (store, MU_TESTMAILDIR2 "bar/cur/mail3"));	
-		mu_msg_destroy (msg);
+		mu_msg_unref (msg);
 
 		/* try to add the first one again. count should be 2 still */
 		msg = mu_msg_new (MU_TESTMAILDIR "cur/1283599333.1840_11.cthulhu!2,", NULL, NULL);
@@ -124,7 +120,7 @@ test_mu_store_store_and_count (void)
 		g_assert_cmpuint (mu_store_store (store, msg), ==, MU_OK);
 		g_assert_cmpuint (2,==,mu_store_count (store));
 		
-		mu_msg_destroy (msg);
+		mu_msg_unref (msg);
 		mu_msg_gmime_uninit ();
 
 		mu_store_destroy (store);
@@ -156,7 +152,7 @@ test_mu_store_store_remove_and_count (void)
 		g_assert (msg);
 		g_assert_cmpuint (mu_store_store (store, msg), ==, MU_OK);
 		g_assert_cmpuint (1,==,mu_store_count (store));
-		mu_msg_destroy (msg);
+		mu_msg_unref (msg);
 
 		/* remove one */
 		mu_store_remove (store, MU_TESTMAILDIR "cur/1283599333.1840_11.cthulhu!2,");
@@ -172,20 +168,20 @@ test_mu_store_store_remove_and_count (void)
 int
 main (int argc, char *argv[])
 {
-	g_test_init (&argc, &argv, NULL);
+		g_test_init (&argc, &argv, NULL);
 	
-	/* mu_runtime_init/uninit */
-	g_test_add_func ("/mu-store/mu-store-new-destroy",
-					 test_mu_store_new_destroy);
-	g_test_add_func ("/mu-store/mu-store-version",
-					 test_mu_store_version);
-	g_test_add_func ("/mu-store/mu-store-store-and-count",
-					 test_mu_store_store_and_count);
-	g_test_add_func ("/mu-store/mu-store-store-remove-and-count",
-					 test_mu_store_store_remove_and_count);	
-	g_log_set_handler (NULL,
-			   G_LOG_LEVEL_MASK | G_LOG_FLAG_FATAL| G_LOG_FLAG_RECURSION,
-			   (GLogFunc)black_hole, NULL);
+		/* mu_runtime_init/uninit */
+		g_test_add_func ("/mu-store/mu-store-new-destroy",
+						 test_mu_store_new_destroy);
+		g_test_add_func ("/mu-store/mu-store-version",
+						 test_mu_store_version);
+		g_test_add_func ("/mu-store/mu-store-store-and-count",
+						 test_mu_store_store_and_count);
+		g_test_add_func ("/mu-store/mu-store-store-remove-and-count",
+						 test_mu_store_store_remove_and_count);	
+		g_log_set_handler (NULL,
+						   G_LOG_LEVEL_MASK | G_LOG_FLAG_FATAL| G_LOG_FLAG_RECURSION,
+						   (GLogFunc)black_hole, NULL);
 	
-	return g_test_run ();
+		return g_test_run ();
 }

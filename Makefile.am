@@ -1,4 +1,4 @@
-## Copyright (C) 2008-2010 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+## Copyright (C) 2008-2011 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 ##
 ## This program is free software; you can redistribute it and/or modify
 ## it under the terms of the GNU General Public License as published by
@@ -16,7 +16,16 @@
 
 include $(top_srcdir)/gtest.mk
 
-SUBDIRS=man src contrib toys
+# only build widgets if we have webkit
+if BUILD_WIDGETS
+widgets=widgets
+else
+widgets=
+endif
+
+SUBDIRS=m4 man src $(widgets) contrib toys
+
+ACLOCAL_AMFLAGS=-I m4
 
 # so we can say 'make test'
 check: test cleanupnote
@@ -58,9 +67,9 @@ gitcheck:
 	./configure ; \
 	make distcheck
 
-
 EXTRA_DIST=		\
 	TODO		\
 	HACKING		\
 	gtest.mk	\
-	NEWS
+	NEWS		\
+	autogen.sh

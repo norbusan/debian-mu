@@ -1,5 +1,6 @@
-/* 
-** Copyright (C) 2008-2010 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+/*
+**   
+** Copyright (C) 2008-2011 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 **
 ** This program is free software; you can redistribute it and/or modify
 ** it under the terms of the GNU General Public License as published by
@@ -17,7 +18,7 @@
 **
 */
 
-#ifdef HAVE_CONFIG_H
+#if HAVE_CONFIG_H
 #include <config.h>
 #endif /*HAVE_CONFIG_H*/
 
@@ -27,7 +28,7 @@
 #include <wordexp.h> /* for shell-style globbing */
 #include <stdlib.h>
 
-/* hopefully, the should get us a sane PATH_MAX */
+/* hopefully, this should get us a sane PATH_MAX */
 #include <limits.h>
 /* not all systems provide PATH_MAX in limits.h */
 #ifndef PATH_MAX
@@ -110,6 +111,39 @@ mu_util_dir_expand (const char *path)
 	return g_strdup (resolved);
 }
 
+
+char*
+mu_util_create_tmpdir (void)
+{
+	gchar *dirname;
+        dirname =  g_strdup_printf ("%s%cmu-%d%c%x", g_get_tmp_dir(),
+				    G_DIR_SEPARATOR,
+				    getuid(),
+				    G_DIR_SEPARATOR,
+				    (int)random()*getpid()*(int)time(NULL));
+
+	if (!mu_util_create_dir_maybe (dirname, 0700)) {
+		g_free (dirname);
+		return NULL;
+	}
+
+	return dirname;
+}
+
+
+const char*
+mu_util_cache_dir (void)
+{
+	static char cachedir [PATH_MAX];
+	
+	snprintf (cachedir, sizeof(cachedir), "%s%cmu-%u",
+		  g_get_tmp_dir(), G_DIR_SEPARATOR,
+		  getuid());
+
+	return cachedir;
+}
+
+
 gboolean
 mu_util_init_system (void)
 {
@@ -185,9 +219,9 @@ mu_util_guess_mu_homedir (void)
 {
 	const char* home;
 
-	home = g_getenv ("HOME");
-	if (!home)
-		home = g_get_home_dir ();
+	/* g_get_home_dir use /etc/passwd, not $HOME; this is better,
+	 * as HOME may be wrong when using 'sudo' etc.*/
+	home = g_get_home_dir ();
 
 	if (!home)
 		MU_WRITE_LOG ("failed to determine homedir");
@@ -197,7 +231,7 @@ mu_util_guess_mu_homedir (void)
 }
 
 gboolean
-mu_util_create_dir_maybe (const gchar *path)
+mu_util_create_dir_maybe (const gchar *path, mode_t mode)
 {
 	struct stat statbuf;
 	
@@ -207,12 +241,12 @@ mu_util_create_dir_maybe (const gchar *path)
 	if (stat (path, &statbuf) == 0) {
 		if ((!S_ISDIR(statbuf.st_mode)) ||
 		    (access (path, W_OK|R_OK) != 0)) {
-			g_warning ("not a rw-directory: %s", path);
+			g_warning ("not a read-writable directory: %s", path);
 			return FALSE;
 		}
-	}		
+	}	
 		
-	if (g_mkdir_with_parents (path, 0700) != 0) {
+	if (g_mkdir_with_parents (path, mode) != 0) {
 		g_warning ("failed to create %s: %s",
 			   path, strerror(errno));
 		return FALSE;
@@ -247,31 +281,99 @@ mu_util_str_from_strv (const gchar **params)
 }
 
 int
-mu_util_create_writeable_fd (const char* filename, const char* dir,
+mu_util_create_writeable_fd (const char* path, mode_t mode,
 			     gboolean overwrite)
 {
 	int fd;
-	char *fullpath;
 	
 	errno = 0; /* clear! */
-	g_return_val_if_fail (filename, -1);
-
-	fullpath = g_strdup_printf ("%s%s%s",
-				    dir ? dir : "",
-				    dir ? G_DIR_SEPARATOR_S : "",
-				    filename);
-
+	g_return_val_if_fail (path, -1);
+	
 	if (overwrite)
-		fd = open (fullpath, O_WRONLY|O_CREAT|O_TRUNC, 0644);
+		fd = open (path, O_WRONLY|O_CREAT|O_TRUNC, mode);
 	else
-		fd = open (fullpath, O_WRONLY|O_CREAT, 0644);
+		fd = open (path, O_WRONLY|O_CREAT|O_EXCL, mode);
 
 	if (fd < 0)
-		g_debug ("%s: cannot open %s for writing: %s",
-			 __FUNCTION__, fullpath, strerror(errno));
-
-	g_free (fullpath);	
+		g_warning ("%s: cannot open %s for writing: %s",
+			   __FUNCTION__, path, strerror(errno));
+	
 	return fd;
+}
+
+
+gboolean
+mu_util_is_local_file (const char* path)
+{
+	/* if it starts with file:// it's a local file (for the
+	 * purposes of this function -- if it's on a remote FS it's
+	 * still considered local) */
+	if (g_ascii_strncasecmp ("file://", path, strlen("file://")) == 0)
+		return TRUE;
+	
+	if (access (path, R_OK) == 0)
+		return TRUE;
+
+	return FALSE; 
+}
+
+
+gboolean
+mu_util_play (const char *path, gboolean allow_local, gboolean allow_remote)
+{
+#ifndef XDGOPEN
+	g_warning ("opening files not supported (xdg-open missing)");
+	return FALSE;
+#else	
+	gboolean rv;
+	GError *err;
+	const gchar *argv[3];
+	
+	g_return_val_if_fail (path, FALSE);
+	g_return_val_if_fail (mu_util_is_local_file (path) || allow_remote,
+			      FALSE);
+	g_return_val_if_fail (!mu_util_is_local_file (path) || allow_local,
+			      FALSE);
+	argv[0] = XDGOPEN;
+	argv[1] = path;
+	argv[2] = NULL;
+	
+	err = NULL;
+	rv = g_spawn_async (NULL, (gchar**)&argv, NULL, 0,
+			    NULL, NULL, NULL, &err);
+	
+	if (!rv) {
+		g_warning ("failed to spawn xdg-open: %s",
+			   err->message ? err->message : "error");
+		g_error_free (err);
+	}
+
+	return rv;
+#endif /*XDGOPEN*/
+}
+
+
+unsigned char
+mu_util_get_dtype_with_lstat (const char *path)
+{
+	struct stat statbuf;
+	
+	g_return_val_if_fail (path, DT_UNKNOWN);
+	
+	if (lstat (path, &statbuf) != 0) {
+		g_warning ("stat failed on %s: %s", path, strerror(errno));
+		return DT_UNKNOWN;
+	}
+	
+	/* we only care about dirs, regular files and links */
+	if (S_ISREG (statbuf.st_mode))
+		return DT_REG;
+	else if (S_ISDIR (statbuf.st_mode))
+		return DT_DIR;
+	else if (S_ISLNK (statbuf.st_mode))
+		return DT_LNK;
+
+	return DT_UNKNOWN;
 }
 
 

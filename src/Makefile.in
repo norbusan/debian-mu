@@ -37,11 +37,14 @@ build_triplet = @build@
 host_triplet = @host@
 DIST_COMMON = $(srcdir)/Makefile.am $(srcdir)/Makefile.in \
 	$(top_srcdir)/gtest.mk
-@HAVE_GTEST_TRUE@am__append_1 = tests
+@BUILD_TESTS_TRUE@am__append_1 = tests
 bin_PROGRAMS = mu$(EXEEXT)
 subdir = src
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
-am__aclocal_m4_deps = $(top_srcdir)/configure.ac
+am__aclocal_m4_deps = $(top_srcdir)/m4/libtool.m4 \
+	$(top_srcdir)/m4/ltoptions.m4 $(top_srcdir)/m4/ltsugar.m4 \
+	$(top_srcdir)/m4/ltversion.m4 $(top_srcdir)/m4/lt~obsolete.m4 \
+	$(top_srcdir)/configure.ac
 am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
 	$(ACLOCAL_M4)
 mkinstalldirs = $(install_sh) -d
@@ -53,13 +56,12 @@ am__DEPENDENCIES_1 =
 libmu_la_DEPENDENCIES = $(am__DEPENDENCIES_1) $(am__DEPENDENCIES_1) \
 	$(am__DEPENDENCIES_1)
 am_libmu_la_OBJECTS = mu-bookmarks.lo mu-cmd-extract.lo mu-cmd-find.lo \
-	mu-cmd-index.lo mu-cmd-mkdir.lo mu-cmd-view.lo mu-cmd.lo \
-	mu-config.lo mu-index.lo mu-log.lo mu-maildir.lo \
-	mu-msg-contact.lo mu-msg-fields.lo mu-msg-flags.lo \
-	mu-msg-iter.lo mu-msg-part.lo mu-msg-prio.lo mu-msg.lo \
-	mu-output-link.lo mu-output-plain.lo mu-query.lo mu-runtime.lo \
-	mu-store.lo mu-str-normalize.lo mu-str.lo mu-util-db.lo \
-	mu-util.lo
+	mu-cmd-index.lo mu-cmd.lo mu-config.lo mu-index.lo mu-log.lo \
+	mu-maildir.lo mu-msg-contact.lo mu-msg-fields.lo \
+	mu-msg-flags.lo mu-msg-file.lo mu-msg-iter.lo mu-msg-part.lo \
+	mu-msg-prio.lo mu-msg.lo mu-msg-file.lo mu-output.lo \
+	mu-query.lo mu-runtime.lo mu-store.lo mu-str-normalize.lo \
+	mu-str.lo mu-util-db.lo mu-util.lo
 libmu_la_OBJECTS = $(am_libmu_la_OBJECTS)
 AM_V_lt = $(am__v_lt_$(V))
 am__v_lt_ = $(am__v_lt_$(AM_DEFAULT_VERBOSITY))
@@ -182,6 +184,8 @@ ECHO_T = @ECHO_T@
 EGREP = @EGREP@
 EXEEXT = @EXEEXT@
 FGREP = @FGREP@
+GIO_CFLAGS = @GIO_CFLAGS@
+GIO_LIBS = @GIO_LIBS@
 GLIB_CFLAGS = @GLIB_CFLAGS@
 GLIB_LIBS = @GLIB_LIBS@
 GMIME_CFLAGS = @GMIME_CFLAGS@
@@ -228,9 +232,12 @@ SET_MAKE = @SET_MAKE@
 SHELL = @SHELL@
 STRIP = @STRIP@
 VERSION = @VERSION@
+WEBKIT_CFLAGS = @WEBKIT_CFLAGS@
+WEBKIT_LIBS = @WEBKIT_LIBS@
 XAPIAN = @XAPIAN@
 XAPIAN_CXXFLAGS = @XAPIAN_CXXFLAGS@
 XAPIAN_LIBS = @XAPIAN_LIBS@
+XDGOPEN = @XDGOPEN@
 abs_builddir = @abs_builddir@
 abs_srcdir = @abs_srcdir@
 abs_top_builddir = @abs_top_builddir@
@@ -295,7 +302,7 @@ INCLUDES = $(XAPIAN_CXXFLAGS) $(GMIME_CFLAGS) $(GLIB_CFLAGS)
 # don't use -Werror, as it might break on other compilers
 # use -Wno-unused-parameters, because some callbacks may not
 # really need all the params they get
-AM_CFLAGS = -Wall -Wextra -Wno-unused-parameter -Wdeclaration-after-statement
+AM_CFLAGS = -Wall -Wextra -Wno-unused-parameter -Wdeclaration-after-statement -pedantic
 AM_CXXFLAGS = -Wall -Wextra -Wno-unused-parameter
 noinst_LTLIBRARIES = \
 	libmu.la
@@ -315,13 +322,10 @@ libmu_la_SOURCES = \
 	mu-cmd-extract.c		\
 	mu-cmd-find.c			\
 	mu-cmd-index.c			\
-	mu-cmd-mkdir.c			\
-	mu-cmd-view.c			\
 	mu-cmd.c			\
 	mu-cmd.h			\
 	mu-config.c			\
 	mu-config.h			\
-	mu-error.h			\
 	mu-index.c			\
 	mu-index.h			\
 	mu-log.c			\
@@ -334,6 +338,8 @@ libmu_la_SOURCES = \
 	mu-msg-fields.h			\
 	mu-msg-flags.c			\
 	mu-msg-flags.h			\
+	mu-msg-file.h			\
+	mu-msg-file.c			\
 	mu-msg-iter-priv.hh		\
 	mu-msg-iter.cc			\
 	mu-msg-iter.h			\
@@ -342,17 +348,15 @@ libmu_la_SOURCES = \
 	mu-msg-prio.c			\
 	mu-msg-prio.h			\
 	mu-msg-priv.h			\
-	mu-msg-status.h			\
 	mu-msg.c			\
 	mu-msg.h			\
 	mu-msg.h			\
-	mu-output-link.c		\
-	mu-output-link.h		\
-	mu-output-plain.c		\
-	mu-output-plain.h		\
+	mu-msg-file.c			\
+	mu-msg-file.h			\
+	mu-output.c			\
+	mu-output.h			\
 	mu-query.cc			\
 	mu-query.h			\
-	mu-result.h			\
 	mu-runtime.c			\
 	mu-runtime.h			\
 	mu-store.cc			\
@@ -361,7 +365,6 @@ libmu_la_SOURCES = \
 	mu-str.c			\
 	mu-str.h			\
 	mu-util-db.cc			\
-	mu-util-db.h			\
 	mu-util.c			\
 	mu-util.h
 
@@ -472,8 +475,6 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mu-cmd-extract.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mu-cmd-find.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mu-cmd-index.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mu-cmd-mkdir.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mu-cmd-view.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mu-cmd.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mu-config.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mu-index.Plo@am__quote@
@@ -481,13 +482,13 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mu-maildir.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mu-msg-contact.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mu-msg-fields.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mu-msg-file.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mu-msg-flags.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mu-msg-iter.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mu-msg-part.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mu-msg-prio.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mu-msg.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mu-output-link.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mu-output-plain.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mu-output.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mu-query.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mu-runtime.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mu-store.Plo@am__quote@

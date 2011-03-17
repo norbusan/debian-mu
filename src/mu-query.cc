@@ -1,5 +1,5 @@
 /* 
-** Copyright (C) 2008-2010 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+** Copyright (C) 2008-2011 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 **
 ** This program is free software; you can redistribute it and/or modify
 ** it under the terms of the GNU General Public License as published by
@@ -19,7 +19,6 @@
 
 #include <stdexcept>
 #include <string>
-
 #include <cctype>
 #include <cstring>
 #include <stdlib.h>
@@ -34,9 +33,7 @@
 #include "mu-msg-iter-priv.hh"
 
 #include "mu-util.h"
-#include "mu-util-db.h"
 #include "mu-str.h"
-#include "mu-result.h"
 
 /*
  * custom parser for date ranges
@@ -133,12 +130,65 @@ private:
 };
 
 
+class MuSizeRangeProcessor : public Xapian::NumberValueRangeProcessor {
+public:
+	MuSizeRangeProcessor(Xapian::valueno v)
+	: Xapian::NumberValueRangeProcessor(v) {
+	}
+	
+	Xapian::valueno operator()(std::string &begin, std::string &end) {
+		
+		if (!clear_prefix (begin))
+			return Xapian::BAD_VALUENO;
+		
+		if (!substitute_size (begin) || !substitute_size (end))
+			return Xapian::BAD_VALUENO;
+
+		begin = Xapian::sortable_serialise(atol(begin.c_str()));
+		end = Xapian::sortable_serialise(atol(end.c_str()));
+		
+		return (Xapian::valueno)MU_MSG_FIELD_ID_SIZE;
+	}
+private:
+	bool clear_prefix (std::string& begin) {
+		
+		const std::string colon (":");
+		const std::string name (mu_msg_field_name
+					(MU_MSG_FIELD_ID_SIZE) + colon);
+		const std::string shortcut (
+			std::string(1, mu_msg_field_shortcut
+				    (MU_MSG_FIELD_ID_SIZE)) + colon);
+		
+		if (begin.find (name) == 0) {
+			begin.erase (0, name.length());
+			return true;
+		} else if (begin.find (shortcut) == 0) {
+			begin.erase (0, shortcut.length());
+			return true;
+		} else
+			return false;		
+	}
+	
+	bool substitute_size (std::string& size) {
+		gchar str[16];
+		guint64 num = mu_str_size_parse_kmg  (size.c_str());
+		if (num == G_MAXUINT64)
+			return false;
+		snprintf (str, sizeof(str), "%" G_GUINT64_FORMAT, num);
+		size = str;
+		return true;
+	}
+};
+
+
+
 static void add_prefix (MuMsgFieldId field, Xapian::QueryParser* qparser);
 
 struct _MuQuery {
 	Xapian::Database*		_db;
 	Xapian::QueryParser*		_qparser;
-	Xapian::ValueRangeProcessor*	_range_processor;
+	Xapian::ValueRangeProcessor*	_date_range_processor;
+	Xapian::ValueRangeProcessor*	_size_range_processor;
 };
 
 gboolean
@@ -154,9 +204,16 @@ init_mu_query (MuQuery *mqx, const char* dbpath)
 		mqx->_qparser->set_database (*mqx->_db);
 		mqx->_qparser->set_default_op (Xapian::Query::OP_AND);
 
-		mqx->_range_processor = new MuDateRangeProcessor ();
+		/* check for dates */
+		mqx->_date_range_processor = new MuDateRangeProcessor ();
 		mqx->_qparser->add_valuerangeprocessor
-			(mqx->_range_processor);
+			(mqx->_date_range_processor);
+
+		/* check for sizes */
+		mqx->_size_range_processor = new MuSizeRangeProcessor
+			(MU_MSG_FIELD_ID_SIZE);
+		mqx->_qparser->add_valuerangeprocessor
+			(mqx->_size_range_processor);
 		
 		mu_msg_field_foreach ((MuMsgFieldForEachFunc)add_prefix,
 				      (gpointer)mqx->_qparser);
@@ -181,7 +238,9 @@ uninit_mu_query (MuQuery *mqx)
 	try {
 		delete mqx->_db;
 		delete mqx->_qparser;
-		delete mqx->_range_processor;
+
+		delete mqx->_date_range_processor;
+		delete mqx->_size_range_processor;
 
 	} MU_XAPIAN_CATCH_BLOCK;
 }
@@ -253,16 +312,15 @@ mu_query_new (const char* xpath, GError **err)
 			     "'%s' is not a readable xapian dir", xpath);
 		return NULL;
 	}
-
 		
-	if (!mu_util_db_version_up_to_date (xpath)) {
+	if (mu_util_xapian_needs_upgrade (xpath)) {
 		g_set_error (err, 0, MU_ERROR_XAPIAN_NOT_UPTODATE,
 			     "%s is not up-to-date, needs a full update",
 			     xpath);
 		return NULL;
 	}
 
-	if (mu_util_db_is_empty (xpath)) 
+	if (mu_util_xapian_is_empty (xpath)) 
 		g_warning ("database %s is empty; nothing to do", xpath);
 	
 	mqx = g_new (MuQuery, 1);

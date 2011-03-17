@@ -42,7 +42,7 @@ test_mu_maildir_mkmdir_01 (void)
 	mdir   = g_strdup_printf ("%s%c%s", tmpdir, G_DIR_SEPARATOR,
 				  "cuux");
 	
-	g_assert_cmpuint (mu_maildir_mkmdir (mdir, 0755, FALSE),
+	g_assert_cmpuint (mu_maildir_mkdir (mdir, 0755, FALSE, NULL),
 			  ==, TRUE);
 
 	for (i = 0; i != G_N_ELEMENTS(subs); ++i) {
@@ -76,7 +76,7 @@ test_mu_maildir_mkmdir_02 (void)
 	mdir   = g_strdup_printf ("%s%c%s", tmpdir, G_DIR_SEPARATOR,
 				  "cuux");
 	
-	g_assert_cmpuint (mu_maildir_mkmdir (mdir, 0755, TRUE),
+	g_assert_cmpuint (mu_maildir_mkdir (mdir, 0755, TRUE, NULL),
 			  ==, TRUE);
 
 	for (i = 0; i != G_N_ELEMENTS(subs); ++i) {
@@ -113,7 +113,7 @@ test_mu_maildir_mkmdir_03 (void)
 	/* this must fail */
 	g_test_log_set_fatal_handler ((GTestLogFatalFunc)ignore_error, NULL);
 
-	g_assert_cmpuint (mu_maildir_mkmdir (NULL, 0755, TRUE),
+	g_assert_cmpuint (mu_maildir_mkdir (NULL, 0755, TRUE, NULL),
 					    ==, FALSE);
 }
 		
@@ -163,7 +163,7 @@ dir_cb (const char *fullpath, gboolean enter, WalkData *data)
 
 
 static MuResult
-msg_cb (const char *fullpath, const char* mdir, gboolean enter,
+msg_cb (const char *fullpath, const char* mdir, struct stat *statinfo,
 	WalkData *data)
 {
 	++data->_file_count;
