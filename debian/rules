@@ -40,6 +40,7 @@ install-stamp: build-stamp
 	dh_prep
 	dh_installdirs
 	$(MAKE) install prefix=$(mu)/usr
+	cp toys/mug2/mug2 $(mu)/usr/bin/mug
 	touch install-stamp
 
 binary-indep:
