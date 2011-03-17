@@ -1,9 +1,9 @@
 maildir-utils (0.9.3-1) unstable; urgency=low
 
   * new upstream releases
-  * remove outdated build dependency in debian/control
+  * fix build dependencies
 
- -- Norbert Preining <preining@debian.org>  Thu, 17 Mar 2011 14:37:58 +0900
+ -- Norbert Preining <preining@debian.org>  Thu, 17 Mar 2011 14:42:31 +0900
 
 maildir-utils (0.9.1-1) experimental; urgency=low
 
