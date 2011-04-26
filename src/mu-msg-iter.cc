@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2008-2010 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+** Copyright (C) 2008-2011 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 **
 ** This program is free software; you can redistribute it and/or modify
 ** it under the terms of the GNU General Public License as published by
@@ -28,11 +28,27 @@
 #include "mu-msg-iter-priv.hh"
 
 struct _MuMsgIter {
-	Xapian::Enquire		       *_enq;
+
+	_MuMsgIter (const Xapian::Enquire &enq, size_t batchsize):
+		_enq(enq), _batchsize(batchsize), _offset(0) {
+
+		_matches = _enq.get_mset (0, _batchsize);
+		_cursor	 = _matches.begin();
+		_is_null = _matches.empty();
+
+		for (int i = 0; i != MU_MSG_FIELD_ID_NUM; ++i)
+			_str[i] = NULL;
+	}
+
+	~_MuMsgIter () {
+		for (int i = 0; i != MU_MSG_FIELD_ID_NUM; ++i) 
+			g_free (_str[i]);
+	}
+	
+	const Xapian::Enquire          _enq;
 	Xapian::MSet                   _matches;
 	Xapian::MSet::const_iterator   _cursor;
-	size_t                         _batchsize;
-	size_t		               _offset;
+	size_t                         _batchsize, _offset;
 	char*                          _str[MU_MSG_FIELD_ID_NUM];
 	bool                           _is_null; 
 };
@@ -42,25 +58,9 @@ struct _MuMsgIter {
 MuMsgIter*
 mu_msg_iter_new (const Xapian::Enquire& enq, size_t batchsize)
 {
-	MuMsgIter *iter;
-
 	try {
-		iter = new MuMsgIter;
-		memset (iter->_str, 0, sizeof(iter->_str));
-
-		iter->_enq       = new Xapian::Enquire(enq);
-		iter->_matches   = iter->_enq->get_mset (0, batchsize);
-		if (!iter->_matches.empty()) {
-			iter->_cursor    = iter->_matches.begin();
-			iter->_is_null   = false;
-		} else
-			iter->_is_null = true;
+		return new MuMsgIter (enq, batchsize);
 		
-		iter->_batchsize = batchsize; 
-		iter->_offset    = 0;
-		
-		return iter;
-
 	} MU_XAPIAN_CATCH_BLOCK_RETURN(NULL);
 }
 
@@ -68,16 +68,7 @@ mu_msg_iter_new (const Xapian::Enquire& enq, size_t batchsize)
 void
 mu_msg_iter_destroy (MuMsgIter *iter)
 {
-	if (iter) {
-		for (int i = 0; i != MU_MSG_FIELD_ID_NUM; ++i) 
-			g_free (iter->_str[i]); 
-		
-		try {
-			delete iter->_enq;
-			delete iter;
-			
-		} MU_XAPIAN_CATCH_BLOCK;
-	}
+	try { delete iter; } MU_XAPIAN_CATCH_BLOCK;
 }
 
 
@@ -123,8 +114,7 @@ message_is_readable (MuMsgIter *iter)
 static MuMsgIter*
 get_next_batch (MuMsgIter *iter)
 {	
-	iter->_matches = iter->_enq->get_mset (iter->_offset,
-					       iter->_batchsize);
+	iter->_matches = iter->_enq.get_mset (iter->_offset, iter->_batchsize);
 	if (iter->_matches.empty()) {
 		iter->_cursor = iter->_matches.end();
 		iter->_is_null = true;
@@ -150,7 +140,7 @@ mu_msg_iter_next (MuMsgIter *iter)
 			iter = get_next_batch (iter);
 		if (iter->_cursor == iter->_matches.end())
 			return FALSE; /* no more matches */
-			
+		
 		/* the message may not be readable / existing, e.g.,
 		    * because of the database not being fully up to
 		    * date. in that case, we ignore the message. it
@@ -179,22 +169,46 @@ mu_msg_iter_is_done (MuMsgIter *iter)
 }
 
 
+static const gchar*
+get_field (MuMsgIter *iter, MuMsgFieldId mfid)
+{
+	if (!iter->_str[mfid]) { /* cache the value */
+		try {
+			const std::string s
+				(iter->_cursor.get_document().get_value(mfid));
+			iter->_str[mfid] = s.empty() ? NULL : g_strdup (s.c_str());
+			
+		} MU_XAPIAN_CATCH_BLOCK_RETURN(NULL);
+	}
+	return iter->_str[mfid];
+}
+
 const gchar*
 mu_msg_iter_get_field (MuMsgIter *iter, MuMsgFieldId mfid)
 {
 	g_return_val_if_fail (!mu_msg_iter_is_done(iter), NULL);
 	g_return_val_if_fail (mu_msg_field_id_is_valid(mfid), NULL);
 
+	return get_field (iter, mfid);
+}
+
+
+
+
+static gint64
+get_field_numeric (MuMsgIter *iter, MuMsgFieldId mfid)
+{
+	const char* str;
+
+	str = get_field (iter, mfid);
+	if (!str)
+		return 0;
+	
 	try {
-		if (!iter->_str[mfid]) { /* cache the value */
-			Xapian::Document doc (iter->_cursor.get_document());
-			iter->_str[mfid] =
-				g_strdup (doc.get_value(mfid).c_str());
-		}
-		
-		return iter->_str[mfid];
-						 
-	} MU_XAPIAN_CATCH_BLOCK_RETURN(NULL);
+
+		return static_cast<gint64>(Xapian::sortable_unserialise(str));
+
+	} MU_XAPIAN_CATCH_BLOCK_RETURN(static_cast<gint64>(-1));
 }
 
 
@@ -204,13 +218,18 @@ mu_msg_iter_get_field_numeric (MuMsgIter *iter, MuMsgFieldId mfid)
 	g_return_val_if_fail (!mu_msg_iter_is_done(iter), -1);	
 	g_return_val_if_fail (mu_msg_field_is_numeric(mfid), -1);
 	
-	try {
-		return static_cast<gint64>(
-			Xapian::sortable_unserialise(
-				mu_msg_iter_get_field(iter, mfid)));
-
-	} MU_XAPIAN_CATCH_BLOCK_RETURN(static_cast<gint64>(-1));
+	return get_field_numeric (iter, mfid);
 }
+
+
+unsigned int
+mu_msg_iter_get_index (MuMsgIter *iter)
+{
+	g_return_val_if_fail (iter, (unsigned int)-1);
+
+	return iter->_offset;
+}
+
 
 /* hmmm.... is it impossible to get a 0 docid, or just very improbable? */
 unsigned int
@@ -229,37 +248,35 @@ const char*
 mu_msg_iter_get_path (MuMsgIter *iter)
 {
 	g_return_val_if_fail (!mu_msg_iter_is_done(iter), NULL);
-	return mu_msg_iter_get_field (iter, MU_MSG_FIELD_ID_PATH);
+	return get_field (iter, MU_MSG_FIELD_ID_PATH);
 }
 
 const char*
 mu_msg_iter_get_maildir (MuMsgIter *iter)
 {
 	g_return_val_if_fail (!mu_msg_iter_is_done(iter), NULL);
-	return mu_msg_iter_get_field (iter, MU_MSG_FIELD_ID_MAILDIR);
+	return get_field (iter, MU_MSG_FIELD_ID_MAILDIR);
 }
 
 const char*
 mu_msg_iter_get_msgid (MuMsgIter *iter)
 {
 	g_return_val_if_fail (!mu_msg_iter_is_done(iter), NULL);
-	return mu_msg_iter_get_field (iter, MU_MSG_FIELD_ID_MSGID);
+	return get_field (iter, MU_MSG_FIELD_ID_MSGID);
 }
-
-
 
 const char*
 mu_msg_iter_get_from (MuMsgIter *iter)
 {
 	g_return_val_if_fail (!mu_msg_iter_is_done(iter), NULL);
-	return mu_msg_iter_get_field (iter, MU_MSG_FIELD_ID_FROM);
+	return get_field (iter, MU_MSG_FIELD_ID_FROM);
 }
 
 const char*
 mu_msg_iter_get_to (MuMsgIter *iter)
 {
 	g_return_val_if_fail (!mu_msg_iter_is_done(iter), NULL);
-	return mu_msg_iter_get_field (iter, MU_MSG_FIELD_ID_TO);
+	return get_field (iter, MU_MSG_FIELD_ID_TO);
 }
 
 
@@ -267,7 +284,7 @@ const char*
 mu_msg_iter_get_cc (MuMsgIter *iter)
 {
 	g_return_val_if_fail (!mu_msg_iter_is_done(iter), NULL);
-	return mu_msg_iter_get_field (iter, MU_MSG_FIELD_ID_CC);
+	return get_field (iter, MU_MSG_FIELD_ID_CC);
 }
 
 
@@ -275,7 +292,7 @@ const char*
 mu_msg_iter_get_subject (MuMsgIter *iter)
 {
 	g_return_val_if_fail (!mu_msg_iter_is_done(iter), NULL);
-	return mu_msg_iter_get_field (iter, MU_MSG_FIELD_ID_SUBJECT);
+	return get_field (iter, MU_MSG_FIELD_ID_SUBJECT);
 }
 
 
@@ -283,14 +300,8 @@ size_t
 mu_msg_iter_get_size (MuMsgIter *iter)
 {
 	g_return_val_if_fail (!mu_msg_iter_is_done(iter), 0);
-	
-	try {
-		return static_cast<size_t>(
-			Xapian::sortable_unserialise(
-				mu_msg_iter_get_field
-				(iter,MU_MSG_FIELD_ID_SIZE)));
-
-	} MU_XAPIAN_CATCH_BLOCK_RETURN(0);
+	return static_cast<size_t>(
+			get_field_numeric (iter,MU_MSG_FIELD_ID_SIZE));
 } 
 
 
@@ -298,22 +309,15 @@ time_t
 mu_msg_iter_get_date (MuMsgIter *iter)
 {
 	g_return_val_if_fail (!mu_msg_iter_is_done(iter), 0);
-
-	try {
-		return static_cast<time_t>(
-			Xapian::sortable_unserialise(
-				mu_msg_iter_get_field
-				(iter,MU_MSG_FIELD_ID_DATE)));
-
-	} MU_XAPIAN_CATCH_BLOCK_RETURN(0);
+	return static_cast<time_t>(
+			get_field_numeric (iter,MU_MSG_FIELD_ID_DATE));
 }
 
 MuMsgFlags
 mu_msg_iter_get_flags (MuMsgIter *iter)
 {
 	g_return_val_if_fail (!mu_msg_iter_is_done(iter), MU_MSG_FLAG_NONE);
-	
-	return static_cast<MuMsgFlags>(mu_msg_iter_get_field_numeric
+	return static_cast<MuMsgFlags>(get_field_numeric
 				       (iter, MU_MSG_FIELD_ID_FLAGS));
 } 
 
@@ -322,7 +326,47 @@ mu_msg_iter_get_prio (MuMsgIter *iter)
 {
 	g_return_val_if_fail (!mu_msg_iter_is_done(iter),
 			      MU_MSG_PRIO_NONE);
-	
-	return static_cast<MuMsgPrio>(mu_msg_iter_get_field_numeric
+	return static_cast<MuMsgPrio>(get_field_numeric
 				      (iter, MU_MSG_FIELD_ID_PRIO));
-} 
+}
+
+
+static gchar*
+get_field_copy (MuMsgIter *iter, MuMsgFieldId mfid)
+{
+	const char *s;
+
+	s = get_field (iter, mfid);
+	return s ? g_strdup (s) : NULL;
+}
+
+MuMsgData*
+mu_msg_iter_get_msgdata (MuMsgIter *iter)
+{
+	MuMsgData *mdata;
+	g_return_val_if_fail (!mu_msg_iter_is_done(iter),
+			      NULL);
+	mdata = mu_msg_data_new ();
+
+	try {
+		mdata->cc      = get_field_copy (iter, MU_MSG_FIELD_ID_CC);
+		mdata->from    = get_field_copy (iter, MU_MSG_FIELD_ID_FROM);
+		mdata->maildir = get_field_copy (iter, MU_MSG_FIELD_ID_MAILDIR);
+		mdata->msgid   = get_field_copy (iter, MU_MSG_FIELD_ID_MSGID);
+		mdata->path    = get_field_copy (iter, MU_MSG_FIELD_ID_PATH);
+		mdata->subject = get_field_copy (iter, MU_MSG_FIELD_ID_SUBJECT);
+		mdata->to      = get_field_copy (iter, MU_MSG_FIELD_ID_TO);
+		
+		mdata->size    = static_cast<size_t>(get_field_numeric
+						     (iter, MU_MSG_FIELD_ID_SIZE));
+		mdata->date    = static_cast<time_t>(get_field_numeric
+						     (iter, MU_MSG_FIELD_ID_DATE));
+		mdata->flags   = static_cast<MuMsgFlags>(get_field_numeric
+							 (iter, MU_MSG_FIELD_ID_FLAGS));
+		mdata->prio    = static_cast<MuMsgPrio>(get_field_numeric
+							(iter, MU_MSG_FIELD_ID_PRIO));
+
+	} MU_XAPIAN_CATCH_BLOCK_RETURN(NULL);
+		
+	return mdata;
+}

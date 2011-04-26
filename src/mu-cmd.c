@@ -29,7 +29,8 @@
 #include "mu-util.h"
 #include "mu-str.h"
 #include "mu-maildir.h"
-
+#include "mu-contacts.h"
+#include "mu-runtime.h"
 
 /* we ignore fields for now */
 static gboolean
@@ -128,3 +129,4 @@ mu_cmd_mkdir (MuConfig *opts)
 
 	return MU_EXITCODE_OK;
 }
+

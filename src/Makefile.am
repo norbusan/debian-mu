@@ -48,6 +48,7 @@ mu_LDADD=				\
 libmu_la_SOURCES=			\
 	mu-bookmarks.c			\
 	mu-bookmarks.h			\
+	mu-cmd-cfind.c			\
 	mu-cmd-extract.c		\
 	mu-cmd-find.c			\
 	mu-cmd-index.c			\
@@ -55,6 +56,8 @@ libmu_la_SOURCES=			\
 	mu-cmd.h			\
 	mu-config.c			\
 	mu-config.h			\
+	mu-contacts.h			\
+	mu-contacts.c			\
 	mu-index.c			\
 	mu-index.h			\
 	mu-log.c			\
@@ -63,6 +66,10 @@ libmu_la_SOURCES=			\
 	mu-maildir.h			\
 	mu-msg-contact.c		\
 	mu-msg-contact.h		\
+	mu-msg-data.c			\
+	mu-msg-data.h			\
+	mu-msg-data-cache.c		\
+	mu-msg-data-cache.h		\
 	mu-msg-fields.c			\
 	mu-msg-fields.h			\
 	mu-msg-flags.c			\

@@ -162,7 +162,7 @@ config_options_group_find (MuConfig *opts)
 				 "clear old links before filling a linksdir (false)", NULL},
 				{"format", 'o', 0, G_OPTION_ARG_STRING, &opts->formatstr,
 				 "output format ('plain'(*), 'links', 'xml',"
-				 "'json', 'sexp', 'xquery') (plain)", NULL},
+				 "'json', 'sexp', 'xquery')", NULL},
 				{"xquery", 0, 0, G_OPTION_ARG_NONE, &opts->xquery,
 				 "obsolete, use --format=xquery instead", NULL},
 				
@@ -196,6 +196,35 @@ config_options_group_mkdir (MuConfig *opts)
 
 		return og;
 }
+
+
+static void
+set_group_cfind_defaults (MuConfig *opts)
+{
+		if (!opts->formatstr) /* by default, use plain output */
+				opts->formatstr = MU_CONFIG_FORMAT_PLAIN;
+}
+
+
+static GOptionGroup *
+config_options_group_cfind (MuConfig *opts)
+{
+		GOptionGroup *og;
+		GOptionEntry entries[] = {
+				{"format", 'o', 0, G_OPTION_ARG_STRING, &opts->formatstr,
+				 "output format ('plain'(*), 'mutt', 'wanderlust',"
+				 "'org-contact', 'csv')", NULL},
+				{NULL, 0, 0, 0, NULL, NULL, NULL}
+		};
+		
+		og = g_option_group_new("cfind", "options for the 'cfind' command",
+								"", NULL, NULL);
+		g_option_group_add_entries(og, entries);
+
+		return og;
+}
+
+
 
 static GOptionGroup*
 config_options_group_extract(MuConfig *opts)
@@ -244,7 +273,8 @@ parse_cmd (MuConfig *opts, int *argcp, char ***argvp)
 				{ "cleanup", MU_CONFIG_CMD_CLEANUP },
 				{ "mkdir",   MU_CONFIG_CMD_MKDIR },
 				{ "view",    MU_CONFIG_CMD_VIEW },
-				{ "extract", MU_CONFIG_CMD_EXTRACT }
+				{ "extract", MU_CONFIG_CMD_EXTRACT },
+				{ "cfind",   MU_CONFIG_CMD_CFIND },
 		};
 		
 		opts->cmd	 = MU_CONFIG_CMD_NONE;
@@ -269,6 +299,36 @@ parse_cmd (MuConfig *opts, int *argcp, char ***argvp)
 }
 
 
+static void
+add_context_group (GOptionContext *context, MuConfig *opts)
+{
+		GOptionGroup *group;
+
+		group = NULL;
+		
+		switch (opts->cmd) {
+		case MU_CONFIG_CMD_INDEX:
+				group = config_options_group_index (opts);
+				break;
+		case MU_CONFIG_CMD_FIND:
+				group = config_options_group_find (opts);
+				break;
+		case MU_CONFIG_CMD_MKDIR:
+				group = config_options_group_mkdir (opts);
+				break;
+		case MU_CONFIG_CMD_EXTRACT:
+				group = config_options_group_extract (opts);
+				break;
+		case MU_CONFIG_CMD_CFIND:
+				group = config_options_group_cfind (opts);
+				break;
+		default: break;
+		}
+
+		if (group)
+				g_option_context_add_group(context, group);
+}
+
 
 static gboolean
 parse_params (MuConfig *opts, int *argcp, char ***argvp)
@@ -281,21 +341,7 @@ parse_params (MuConfig *opts, int *argcp, char ***argvp)
 		g_option_context_set_main_group(context,
 										config_options_group_mu(opts));
 
-		switch (opts->cmd) {
-		case MU_CONFIG_CMD_INDEX:
-				g_option_context_add_group(context, config_options_group_index(opts));
-				break;
-		case MU_CONFIG_CMD_FIND:
-				g_option_context_add_group(context, config_options_group_find(opts));
-				break;
-		case MU_CONFIG_CMD_MKDIR:
-				g_option_context_add_group(context, config_options_group_mkdir(opts));
-				break;
-		case MU_CONFIG_CMD_EXTRACT:
-				g_option_context_add_group(context, config_options_group_extract(opts));
-				break;
-		default: break;
-		}
+		add_context_group (context, opts);
 		
 		rv = g_option_context_parse(context, argcp, argvp, &err);
 		g_option_context_free (context);
@@ -304,8 +350,8 @@ parse_params (MuConfig *opts, int *argcp, char ***argvp)
 				g_error_free (err);
 				return FALSE;
 		}
-		return TRUE;
-}
+		return TRUE;}
+				
 
 MuConfig*
 mu_config_new (int *argcp, char ***argvp)
@@ -323,9 +369,10 @@ mu_config_new (int *argcp, char ***argvp)
 		}
 		
 		/* fill in the defaults if user did not specify */
-		set_group_mu_defaults(config);
-		set_group_index_defaults(config);
-		set_group_find_defaults(config);
+		set_group_mu_defaults (config);
+		set_group_index_defaults (config);
+		set_group_find_defaults (config);
+		set_group_cfind_defaults (config);
 		/* set_group_mkdir_defaults (config); */
 		
 		return config;
@@ -337,11 +384,11 @@ mu_config_destroy (MuConfig *opts)
 		if (!opts)
 				return;
 		
-		g_free(opts->muhome);
-		g_free(opts->maildir);
-		g_free(opts->linksdir);
-		g_free(opts->targetdir);
-		g_strfreev(opts->params);
+		g_free (opts->muhome);
+		g_free (opts->maildir);
+		g_free (opts->linksdir);
+		g_free (opts->targetdir);
+		g_strfreev (opts->params);
 		g_free (opts);
 }
 
@@ -351,7 +398,7 @@ show_usage (gboolean noerror)
 {
 		const char* usage=
 				"usage: mu command [options] [parameters]\n"
-				"where command is one of index, find, view, mkdir, cleanup "
+				"where command is one of index, find, cfind, view, mkdir, cleanup "
 				"or extract\n\n"
 				"see the mu, mu-<command> or mu-easy manpages for "
 				"more information\n";
@@ -394,6 +441,7 @@ mu_config_execute (MuConfig *opts)
 		case MU_CONFIG_CMD_INDEX:      return mu_cmd_index (opts);
 		case MU_CONFIG_CMD_MKDIR:      return mu_cmd_mkdir (opts);
 		case MU_CONFIG_CMD_VIEW:       return mu_cmd_view (opts);
+		case MU_CONFIG_CMD_CFIND:      return mu_cmd_cfind (opts);
 		case MU_CONFIG_CMD_UNKNOWN:
 				g_printerr ("mu: unknown command '%s'\n\n", opts->cmdstr);
 				show_usage (FALSE);

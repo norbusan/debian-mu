@@ -54,8 +54,7 @@ libmuwidgets_la_DEPENDENCIES = ${top_builddir}/src/libmu.la \
 	$(am__DEPENDENCIES_1) $(am__DEPENDENCIES_1) \
 	$(am__DEPENDENCIES_1)
 am_libmuwidgets_la_OBJECTS = mu-widget-util.lo mu-msg-attach-view.lo \
-	mu-msg-body-view.lo mu-msg-header-view.lo \
-	mu-msg-normal-view.lo mu-msg-source-view.lo mu-msg-view.lo
+	mu-msg-body-view.lo mu-msg-header-view.lo mu-msg-view.lo
 libmuwidgets_la_OBJECTS = $(am_libmuwidgets_la_OBJECTS)
 AM_V_lt = $(am__v_lt_$(V))
 am__v_lt_ = $(am__v_lt_$(AM_DEFAULT_VERBOSITY))
@@ -291,10 +290,6 @@ libmuwidgets_la_SOURCES = \
 	mu-msg-body-view.h		\
 	mu-msg-header-view.c		\
 	mu-msg-header-view.h		\
-	mu-msg-normal-view.h		\
-	mu-msg-normal-view.c		\
-	mu-msg-source-view.h		\
-	mu-msg-source-view.c		\
 	mu-msg-view.h			\
 	mu-msg-view.c
 
@@ -359,8 +354,6 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mu-msg-attach-view.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mu-msg-body-view.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mu-msg-header-view.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mu-msg-normal-view.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mu-msg-source-view.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mu-msg-view.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mu-widget-util.Plo@am__quote@
 
