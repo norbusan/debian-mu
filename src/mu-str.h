@@ -223,7 +223,7 @@ time_t mu_str_date_parse_hdwmy (const char* str);
  * 
  * @param str a string with a size, such a "100", "100Kb", "1Mb"
  * 
- * @return 
+ * @return the corresponding time_t value (as a guint64)
  */
 guint64 mu_str_size_parse_kmg (const char* str);
 
@@ -248,6 +248,59 @@ const char* mu_str_fullpath_s (const char* path, const char* name);
  * @return the escaped string, newly allocated (free with g_free)
  */
 char* mu_str_escape_c_literal (const gchar* str)
+        G_GNUC_WARN_UNUSED_RESULT;
+
+
+/** 
+ * macro to check whether the string is empty, ie. if it's NULL or
+ * it's length is 0
+ * 
+ * @param S a string
+ * 
+ * @return TRUE if the string is empty, FALSE otherwise
+ */
+#define mu_str_is_empty(S) ((!(S)||!(*S))?TRUE:FALSE)
+
+
+
+/** 
+ * guess some nick name for the given name; if we can determine an
+ * first name, last name, the nick will be first name + the first char
+ * of the last name. otherwise, it's just the first name. clearly,
+ * this is just a rough guess for setting an initial value for nicks.
+ * 
+ * @param name a name
+ * 
+ * @return the guessed nick, as a newly allocated string (free with g_free)
+ */
+gchar* mu_str_guess_nick (const char* name)
+        G_GNUC_WARN_UNUSED_RESULT;
+
+
+/** 
+ * guess the first name for the given name; clearly,
+ * this is just a rough guess for setting an initial value.
+ * 
+ * @param name a name
+ * 
+ * @return the first name, as a newly allocated string (free with
+ * g_free)
+ */
+gchar* mu_str_guess_first_name (const char* name)
+        G_GNUC_WARN_UNUSED_RESULT;
+
+
+
+/** 
+ * guess the last name for the given name; clearly,
+ * this is just a rough guess for setting an initial value.
+ * 
+ * @param name a name
+ * 
+ * @return the last name, as a newly allocated string (free with
+ * g_free)
+ */
+gchar* mu_str_guess_last_name (const char* name)
         G_GNUC_WARN_UNUSED_RESULT;
 
 G_END_DECLS

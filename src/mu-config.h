@@ -34,6 +34,14 @@ G_BEGIN_DECLS
 #define MU_CONFIG_FORMAT_SEXP	"sexp"     /* output sexps */
 #define MU_CONFIG_FORMAT_XQUERY "xquery"   /* output the xapian query */
 
+/* for cfind */
+#define MU_CONFIG_FORMAT_MUTT_ALIAS	"mutt-alias"  /* mutt alias style */
+#define MU_CONFIG_FORMAT_MUTT_AB	"mutt-ab"     /* mutt ext addr book */
+#define MU_CONFIG_FORMAT_WL     "wl"       /* Wanderlust address-book */
+#define MU_CONFIG_FORMAT_CSV    "csv"      /* comma-sep'd values */
+#define MU_CONFIG_FORMAT_ORG_CONTACT "org-contact" /* org-contact */
+#define MU_CONFIG_FORMAT_BBDB   "bbdb"     /* BBDB */
+
 enum _MuConfigCmd {
 		MU_CONFIG_CMD_INDEX,
 		MU_CONFIG_CMD_FIND,
@@ -41,6 +49,7 @@ enum _MuConfigCmd {
 		MU_CONFIG_CMD_MKDIR,
 		MU_CONFIG_CMD_VIEW,
 		MU_CONFIG_CMD_EXTRACT,
+		MU_CONFIG_CMD_CFIND,
 		MU_CONFIG_CMD_NONE,
 	
 		MU_CONFIG_CMD_UNKNOWN
@@ -77,7 +86,7 @@ struct _MuConfig {
 										 * default */
 		int			     max_msg_size;  /* maximum size for message files */
 	
-		/* options for querying */
+		/* options for querying  */
 		gboolean         xquery;        /* (obsolete) give the Xapian
 										   query instead of search
 										   results */

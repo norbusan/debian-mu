@@ -55,13 +55,15 @@ LTLIBRARIES = $(noinst_LTLIBRARIES)
 am__DEPENDENCIES_1 =
 libmu_la_DEPENDENCIES = $(am__DEPENDENCIES_1) $(am__DEPENDENCIES_1) \
 	$(am__DEPENDENCIES_1)
-am_libmu_la_OBJECTS = mu-bookmarks.lo mu-cmd-extract.lo mu-cmd-find.lo \
-	mu-cmd-index.lo mu-cmd.lo mu-config.lo mu-index.lo mu-log.lo \
-	mu-maildir.lo mu-msg-contact.lo mu-msg-fields.lo \
-	mu-msg-flags.lo mu-msg-file.lo mu-msg-iter.lo mu-msg-part.lo \
-	mu-msg-prio.lo mu-msg.lo mu-msg-file.lo mu-output.lo \
-	mu-query.lo mu-runtime.lo mu-store.lo mu-str-normalize.lo \
-	mu-str.lo mu-util-db.lo mu-util.lo
+am_libmu_la_OBJECTS = mu-bookmarks.lo mu-cmd-cfind.lo \
+	mu-cmd-extract.lo mu-cmd-find.lo mu-cmd-index.lo mu-cmd.lo \
+	mu-config.lo mu-contacts.lo mu-index.lo mu-log.lo \
+	mu-maildir.lo mu-msg-contact.lo mu-msg-data.lo \
+	mu-msg-data-cache.lo mu-msg-fields.lo mu-msg-flags.lo \
+	mu-msg-file.lo mu-msg-iter.lo mu-msg-part.lo mu-msg-prio.lo \
+	mu-msg.lo mu-msg-file.lo mu-output.lo mu-query.lo \
+	mu-runtime.lo mu-store.lo mu-str-normalize.lo mu-str.lo \
+	mu-util-db.lo mu-util.lo
 libmu_la_OBJECTS = $(am_libmu_la_OBJECTS)
 AM_V_lt = $(am__v_lt_$(V))
 am__v_lt_ = $(am__v_lt_$(AM_DEFAULT_VERBOSITY))
@@ -319,6 +321,7 @@ mu_LDADD = \
 libmu_la_SOURCES = \
 	mu-bookmarks.c			\
 	mu-bookmarks.h			\
+	mu-cmd-cfind.c			\
 	mu-cmd-extract.c		\
 	mu-cmd-find.c			\
 	mu-cmd-index.c			\
@@ -326,6 +329,8 @@ libmu_la_SOURCES = \
 	mu-cmd.h			\
 	mu-config.c			\
 	mu-config.h			\
+	mu-contacts.h			\
+	mu-contacts.c			\
 	mu-index.c			\
 	mu-index.h			\
 	mu-log.c			\
@@ -334,6 +339,10 @@ libmu_la_SOURCES = \
 	mu-maildir.h			\
 	mu-msg-contact.c		\
 	mu-msg-contact.h		\
+	mu-msg-data.c			\
+	mu-msg-data.h			\
+	mu-msg-data-cache.c		\
+	mu-msg-data-cache.h		\
 	mu-msg-fields.c			\
 	mu-msg-fields.h			\
 	mu-msg-flags.c			\
@@ -472,15 +481,19 @@ distclean-compile:
 	-rm -f *.tab.c
 
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mu-bookmarks.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mu-cmd-cfind.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mu-cmd-extract.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mu-cmd-find.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mu-cmd-index.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mu-cmd.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mu-config.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mu-contacts.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mu-index.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mu-log.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mu-maildir.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mu-msg-contact.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mu-msg-data-cache.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mu-msg-data.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mu-msg-fields.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mu-msg-file.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mu-msg-flags.Plo@am__quote@
