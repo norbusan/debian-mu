@@ -1,5 +1,7 @@
+/* -*-mode: c; tab-width: 8; indent-tabs-mode: t; c-basic-offset: 8 -*-*/
+
 /* 
-** Copyright (C) 2008-2010 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+** Copyright (C) 2008-2011 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 **
 ** This program is free software; you can redistribute it and/or modify
 ** it under the terms of the GNU General Public License as published by
@@ -56,8 +58,8 @@ gboolean mu_log_init_with_fd    (int fd, gboolean doclose, gboolean quiet,
 				 gboolean debug) G_GNUC_WARN_UNUSED_RESULT;
 
 /**
- * be absolutely silent, except for runtime errors, which will be
- * written to stderr.
+ * be silent except for runtime errors, which will be written to
+ * stderr.
  *  
  * @return TRUE if initialization succeeds, FALSE otherwise
  */
@@ -67,6 +69,7 @@ gboolean mu_log_init_silence    (void) G_GNUC_WARN_UNUSED_RESULT;
  * unitialize the logging system, and free all resources
  */
 void mu_log_uninit             (void);
+
 
 G_END_DECLS
 

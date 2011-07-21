@@ -1,5 +1,7 @@
+/* -*-mode: c; tab-width: 8; indent-tabs-mode: t; c-basic-offset: 8 -*-*/
+
 /*
-** Copyright (C) 2008-2010 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+** Copyright (C) 2008-2011 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 **
 ** This program is free software; you can redistribute it and/or modify
 ** it under the terms of the GNU General Public License as published by
@@ -23,42 +25,34 @@
 #include <gmime/gmime.h>
 #include <stdlib.h>
 
-#include "mu-msg.h"
+#include <mu-msg.h>
+#include <mu-msg-file.h>
+#include <mu-msg-doc.h>
+#include <mu-msg-cache.h>
 
 G_BEGIN_DECLS
 
+
+struct _MuMsgFile {
+	GMimeMessage	*_mime_msg;
+	time_t		 _timestamp;
+	size_t		 _size;
+	char		 _path    [PATH_MAX + 1];
+	char		 _maildir [PATH_MAX + 1];
+};
+
+
 /* we put the the MuMsg definition in this separate -priv file, so we
  * can split the mu_msg implementations over separate files */
-
-enum _StringFields {
-
-	HTML_FIELD  = 0,   /* body as HTML */
-	TEXT_FIELD,        /* body as plain text */
-	SUMMARY_FIELD,     /* body summary */
-
-	TO_FIELD,          /* To: */
-	CC_FIELD,	   /* Cc: */
-	
-	PATH_FIELD,        /* full path */
-	MDIR_FIELD,        /* the maildir */
-	
-	FLAGS_FIELD_STR,   /* message flags */
-	
-	FIELD_NUM
-};
-typedef enum _StringFields StringFields;
-
 struct _MuMsg {
-	guint           _refcount;
-	
-	GMimeMessage    *_mime_msg;
-	MuMsgFlags	_flags;
-	
-	char*           _fields[FIELD_NUM];
 
-	size_t		_size;
-	time_t		_timestamp;	
-	MuMsgPrio       _prio;
+	guint		 _refcount;
+
+	/* our two backend */
+	MuMsgFile	*_file; /* based on GMime, ie. a file on disc */
+	MuMsgDoc        *_doc;  /* based on Xapian::Document */
+	
+	MuMsgCache      *_cache;
 };
 
 G_END_DECLS

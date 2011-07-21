@@ -1,3 +1,5 @@
+/* -*-mode: c; tab-width: 8; indent-tabs-mode: t; c-basic-offset: 8 -*-*/
+
 /*
 ** Copyright (C) 2010-2011 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 **
@@ -22,6 +24,7 @@
 #endif /*HAVE_CONFIG_H*/
 
 #include <stdlib.h>
+#include <stdio.h>
 
 #include "mu-msg.h"
 #include "mu-msg-part.h"
@@ -32,32 +35,86 @@
 #include "mu-contacts.h"
 #include "mu-runtime.h"
 
+
+static void
+each_part (MuMsg *msg, MuMsgPart *part, gchar **attach)
+{
+	if (mu_msg_part_looks_like_attachment (part, TRUE) &&
+	    (part->file_name)) {
+
+		char *tmp = *attach;
+
+		*attach = g_strdup_printf ("%s%s'%s'",
+					   *attach ? *attach : "",
+					   *attach ? ", " : "",
+					   part->file_name);
+		g_free (tmp);
+	}
+}
+
+/* return comma-sep'd list of attachments */
+static gchar *
+get_attach_str (MuMsg *msg)
+{
+	gchar *attach;
+
+	attach = NULL;
+	mu_msg_part_foreach (msg, (MuMsgPartForeachFunc)each_part, &attach);
+
+	return attach;
+}	
+
+
+static void
+print_field (const char* field, const char *val, gboolean color)
+{
+	if (!val)
+		return;
+
+	g_print ("%s%s%s: %s%s%s\n",
+		 color ? MU_COLOR_MAGENTA : "",
+		 field,
+		 color ? MU_COLOR_DEFAULT : "",
+		 color ? MU_COLOR_GREEN : "",
+		 val ? val : "",
+		 color ? MU_COLOR_DEFAULT : "");
+}
+
+
 /* we ignore fields for now */
 static gboolean
-view_msg (MuMsg *msg, const gchar *fields, size_t summary_len)
+view_msg (MuMsg *msg, const gchar *fields, gboolean summary,
+	  gboolean color)
 {
 	const char *field;
+	gchar *attachs;
 	time_t date;
+	const int SUMMARY_LEN = 5;
 
-	if ((field = mu_msg_get_from (msg)))
-		g_print ("From: %s\n", field);
+	print_field ("From", mu_msg_get_from (msg), color);
+	print_field ("To",   mu_msg_get_to (msg), color);
+	print_field ("Cc",   mu_msg_get_cc (msg), color);
+	print_field ("Bcc",  mu_msg_get_bcc (msg), color);
+	print_field ("Subject",  mu_msg_get_subject (msg), color);
 	
-	if ((field = mu_msg_get_to (msg)))
-		g_print ("To: %s\n", field);
+	if ((date = mu_msg_get_date (msg))) 
+		print_field ("Date", mu_str_date_s ("%c", date),
+			     color);
 
-	if ((field = mu_msg_get_cc (msg)))
-		g_print ("Cc: %s\n", field);
-
-	if ((field = mu_msg_get_subject (msg)))
-		g_print ("Subject: %s\n", field);
+	if ((attachs = get_attach_str (msg))) {
+		print_field ("Attachments", attachs, color);
+		g_free (attachs);
+	}
 	
-	if ((date = mu_msg_get_date (msg)))
-		g_print ("Date: %s\n", mu_str_date_s ("%c", date));
-
-	if (summary_len > 0) {
-		field = mu_msg_get_summary (msg, summary_len);
-		g_print ("Summary: %s\n", field ? field : "<none>");
-	} else if ((field = mu_msg_get_body_text (msg))) 
+	if (!(field = mu_msg_get_body_text (msg)))
+		return TRUE; /* no body -- nothing more to do */
+	
+	if (summary) {
+		gchar *summ;
+		summ = mu_str_summarize (field, SUMMARY_LEN);
+		print_field ("Summary", summ, color);
+		g_free (summ);
+	} else
 		g_print ("\n%s\n", field);
 
 	return TRUE;
@@ -82,13 +139,13 @@ mu_cmd_view (MuConfig *opts)
 	for (i = 1, rv = MU_EXITCODE_OK;
 	     opts->params[i] && rv == MU_EXITCODE_OK; ++i) {
 		GError *err = NULL;
-		MuMsg  *msg = mu_msg_new (opts->params[i], NULL, &err);
+		MuMsg  *msg = mu_msg_new_from_file (opts->params[i], NULL, &err);
 		if (!msg) {
 			g_warning ("error: %s", err->message);
 			g_error_free (err);
 			return MU_EXITCODE_ERROR;
 		}
-		if (!view_msg (msg, NULL, opts->summary_len))
+		if (!view_msg (msg, NULL, opts->summary, opts->color))
 			rv = MU_EXITCODE_ERROR;
 		
 		mu_msg_unref (msg);

@@ -1,3 +1,5 @@
+/* -*-mode: c; tab-width: 8; indent-tabs-mode: t; c-basic-offset: 8 -*-*/
+
 /*
 ** Copyright (C) 2008-2011 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 **
@@ -136,8 +138,8 @@ run_query_format (MuMsgIter *iter, MuConfig *opts,
 		return mu_output_links (iter, opts->linksdir, opts->clearlinks,
 					count);
 	case FORMAT_PLAIN: 
-		return mu_output_plain (iter, opts->fields, opts->summary_len,
-					count);
+		return mu_output_plain (iter, opts->fields, opts->summary,
+					opts->color, count);
 	case FORMAT_XML:
 		return mu_output_xml (iter, count);
 	case FORMAT_JSON:
@@ -178,8 +180,8 @@ run_query (MuQuery *xapian, const gchar *query, MuConfig *opts,
 
 	rv = run_query_format (iter, opts, format, count);
 		
-	if (rv && count && *count == 0) 
-		g_warning ("no matches found");
+	if (rv && count && *count == 0)
+		g_warning ("no matching messages found");
 	
 	mu_msg_iter_destroy (iter);
 
@@ -217,17 +219,6 @@ static gboolean
 query_params_valid (MuConfig *opts)
 {
 	const gchar *xpath;
-	
-	if (opts->linksdir) 
-		if (opts->xquery) {
-			g_warning ("invalid option for --linksdir");
-			return FALSE;
-		}
-
-	if (opts->xquery) {
-		g_warning ("--xquery is obsolete; use --format=xquery instead");
-		return FALSE;
-	}
 	
 	xpath = mu_runtime_path (MU_RUNTIME_PATH_XAPIANDB);
 	

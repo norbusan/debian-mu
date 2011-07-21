@@ -22,12 +22,33 @@
 
 #include <glib.h>
 #include <mu-msg.h>
-#include <mu-msg-data.h>
 
 G_BEGIN_DECLS
 
+
+/**
+ * MuMsgIter is a structure to iterate over the results of a
+ * query. You can iterate only in one-direction, and you can do it
+ * only once.
+ * 
+ */
+
 struct _MuMsgIter;
 typedef struct _MuMsgIter MuMsgIter;
+
+
+/**
+ * create a new MuMsgIter -- basically, an iterator over the search
+ * results
+ * 
+ * @param enq a Xapian::Enquire* cast to XapianEnquire* (because this
+ * is C, not C++),providing access to search results
+ * @param batchsize how many results to retrieve at once
+ * 
+ * @return a new MuMsgIter, or NULL in case of error
+ */
+MuMsgIter *mu_msg_iter_new (XapianEnquire *enq,
+			    size_t batchsize) G_GNUC_WARN_UNUSED_RESULT;
 
 /**
  * get the next message (which you got from
@@ -61,36 +82,18 @@ void		 mu_msg_iter_destroy           (MuMsgIter *iter);
 
 
 /**
- * get the corresponding MuMsg for this iter; this requires the
- * corresponding message file to be present at the expected place in
- * the maildir in the file system. Note, it's faster to use the
- * database fields (the various mu_msg_iter_get_... functions), so
- * MuMsg should use only when information is needed that is not
- * provided from the iter).
+ * get the corresponding MuMsg for this iter; this instance is owned
+ * by MuMsgIter, and becomes invalid after either mu_msg_iter_destroy
+ * or mu_msg_iter_next. _do not_ unref it.
  * 
  * @param iter a valid MuMsgIter instance 
  * @param err which receives error info or NULL. err is only filled
  * when the function returns NULL
  * 
- * @return a MuMsgGMime instance, or NULL in case of error. Use
- * mu_msg_gmime_destroy when the instance is no longer needed
+ * @return a MuMsg instance, or NULL in case of error
  */
 MuMsg* mu_msg_iter_get_msg (MuMsgIter *iter, GError **err)
-        G_GNUC_MALLOC G_GNUC_WARN_UNUSED_RESULT;
-
-
-/** 
- * get a structure with information about this iter; this struct is
- * newly allocated, can be used to keep an in-memory record of a
- * message
- * 
- * @param iter a valid msg iterator
- * 
- * @return a newly allocate MuMsgData struct (free with
- * mu_msg_data_destroy), or NULL in case of error
- */
-MuMsgData* mu_msg_iter_get_msgdata (MuMsgIter *iter)
-        G_GNUC_MALLOC G_GNUC_WARN_UNUSED_RESULT;
+          G_GNUC_MALLOC G_GNUC_WARN_UNUSED_RESULT;
 
 
 
@@ -105,7 +108,7 @@ unsigned int     mu_msg_iter_get_docid         (MuMsgIter *iter);
 
 
 
-/** 
+/**
  * get the index for this iterator (ie. somewhere between [0..n-1],
  * with being the number of matches, and increasing 1 for each
  * iter_next)
@@ -116,124 +119,6 @@ unsigned int     mu_msg_iter_get_docid         (MuMsgIter *iter);
 
  */
 unsigned int      mu_msg_iter_get_index        (MuMsgIter *iter);
-
-
-/**
- * get the full path of the message file
- * 
- * @param iter a valid MuMsgIter iterator
- * 
- * @return the path, or NULL in case of error
- */
-const char*      mu_msg_iter_get_path          (MuMsgIter *iter);
-
-
-/**
- * get the maildir of the message - e.g., a message file 
- * /home/user/Maildir/foo/bar/cur/abc123 would have maildir
- *   "/foo/bar"
- * 
- * @param iter a valid MuMsgIter iterator
- *  * @return the path, or NULL in case of error
- */
-const char*      mu_msg_iter_get_maildir (MuMsgIter *iter);
-
-
-
-/**
- * get the msgid of the message
- *  
- * @param iter a valid MuMsgIter iterator
- * 
- * @return the msgid or NULL in case of error
- */
-const char*      mu_msg_iter_get_msgid (MuMsgIter *iter);
-
-
-
-/**
- * get the size of the message in Kb
- * 
- * @param iter a valid MuMsgIter iterator
- * 
- * @return the size, or 0 in case of error
- */
-size_t           mu_msg_iter_get_size          (MuMsgIter *iter);  
-
-/**
- * get the timestamp (ctime) of the message file
- * 
- * @param iter a valid MuMsgIter iterator
- * 
- * @return the size, or 0 in case of error
- */
-time_t           mu_msg_iter_get_timestamp     (MuMsgIter *iter);  
-
-/**
- * get the sent time of the message
- * 
- * @param iter a valid MuMsgIter iterator
- * 
- * @return the time, or 0 in case of error
- */
-time_t           mu_msg_iter_get_date          (MuMsgIter *iter);  
-
-/**
- * get the message sender(s) of the message
- * 
- * @param iter a valid MuMsgIter iterator
- * 
- * @return the time, or 0 in case of error
- */
-const char*      mu_msg_iter_get_from          (MuMsgIter *iter);
-
-/**
- * get the message recipient (To:) of the message
- * 
- * @param iter a valid MuMsgIter iterator
- * 
- * @return the To-recipient(s), or NULL in case of error
- */
-const char*      mu_msg_iter_get_to            (MuMsgIter *iter);
-
-
-/**
- * get the message recipient (Cc:) of the message
- * 
- * @param iter a valid MuMsgIter iterator
- * 
- * @return the Cc-recipient(s), or NULL in case of error
- */
-const char*      mu_msg_iter_get_cc            (MuMsgIter *iter);
-
-/**
- * get the subject of the message
- * 
- * @param iter a valid MuMsgIter iterator
- * 
- * @return the subject, or NULL in case of error
- */
-const char*      mu_msg_iter_get_subject       (MuMsgIter *iter);
-
-/**
- * get the message flags 
- * 
- * @param iter a valid MuMsgIter iterator
- * 
- * @return the message flags, or MU_MSG_FLAG_UNKNOWN
- */
-MuMsgFlags       mu_msg_iter_get_flags         (MuMsgIter *iter);
-
-
-/**
- * get the message priority 
- * 
- * @param iter a valid MuMsgIter iterator
- * 
- * @return the message priority, or MU_MSG_PRIO_NONE
- */
-MuMsgPrio    mu_msg_iter_get_prio      (MuMsgIter *iter);
-
 
 /**
  * get some message field

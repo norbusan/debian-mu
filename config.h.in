@@ -73,6 +73,9 @@
 /* 'Schema' version of the database */
 #undef MU_XAPIAN_DB_VERSION
 
+/* Define to 1 if your C compiler doesn't accept -c and -o together. */
+#undef NO_MINUS_C_MINUS_O
+
 /* Name of package */
 #undef PACKAGE
 
@@ -102,3 +105,9 @@
 
 /* Path to xdg-open */
 #undef XDGOPEN
+
+/* Number of bits in a file offset, on hosts where this is settable. */
+#undef _FILE_OFFSET_BITS
+
+/* Define for large files, on AIX-style hosts. */
+#undef _LARGE_FILES

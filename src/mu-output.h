@@ -1,3 +1,5 @@
+/* -*-mode: c; tab-width: 8; indent-tabs-mode: t; c-basic-offset: 8 -*-*/
+
 /*
 ** Copyright (C) 2008-2011 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 **
@@ -31,13 +33,18 @@ G_BEGIN_DECLS
  * 
  * @param iter iterator pointing to a message row
  * @param fields the fields to print (see MuMsgFields)
- * @param summary_len number of lines to include in message summary
- * @param count output param to receive the number of messages found, or NULL
+ * 
+ * @param summary whether we should include a summary (TRUE) or not
+ * (FALSE)
+ * @param whether we should display ANSI-colors in output (TRUE) or
+ * not (FALSE)
+ * @param count output param to receive the number of messages found,
+ * or NULL
  * 
  * @return TRUE if the printing succeeded, FALSE in case of error
  */
 gboolean mu_output_plain (MuMsgIter *iter, const char *fields,
-			  size_t summary_len, size_t *count);
+			  gboolean summary, gboolean color, size_t *count);
 
 /**
  * output the search results (MsgIter) as a maildir of symlinks

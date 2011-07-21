@@ -1,3 +1,5 @@
+/* -*-mode: c; tab-width: 8; indent-tabs-mode: t; c-basic-offset: 8 -*-*/
+
 /*
 ** Copyright (C) 2008-2010 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 **
@@ -95,12 +97,13 @@ gboolean mu_util_check_dir (const gchar* path, gboolean readable,
     G_GNUC_WARN_UNUSED_RESULT;
 
 
-/** 
+/**
  * get our the cache directory, typically, /tmp/mu-<userid>/
  *  
  * @return the cache directory; don't free 
  */
 const char* mu_util_cache_dir (void) G_GNUC_CONST;
+
 
 
 /**
@@ -157,7 +160,14 @@ gboolean mu_util_play (const char *path,
 gchar* mu_util_xapian_dbversion (const gchar *xpath) G_GNUC_WARN_UNUSED_RESULT;
 
 
-
+/**
+ * check whether the database needs to be upgraded, e.g., when it was
+ * created with a different version of mu
+ * 
+ * @param xpath path to the database dir
+ * 
+ * @return TRUE if the database needs upgrading, FALSE otherwise
+ */
 gboolean mu_util_xapian_needs_upgrade (const gchar *xpath);
 
 
@@ -175,16 +185,18 @@ gboolean mu_util_xapian_is_empty (const gchar *xpath);
 /**
  * clear the database, ie., remove all of the contents. This is a
  * destructive operation, but the database can be restored be doing a
- * full scan of the maildirs.
+ * full scan of the maildirs. Also, clear the contacts cache file
  * 
  * @param xpath path to the database
+ * @param ccache path to the contacts cache file
  * 
  * @return TRUE if the clearing succeeded, FALSE otherwise.
  */
-gboolean mu_util_xapian_clear (const gchar *xpath);
+gboolean mu_util_xapian_clear (const gchar *xpath,
+			       const gchar *ccache);
 
 
-/** 
+/**
  * check if the database is locked for writing
  * 
  * @param xpath path to a xapian database
@@ -243,6 +255,18 @@ enum {
  */
 unsigned char mu_util_get_dtype_with_lstat (const char *path);
 
+
+/**
+ * we need this when using Xapian::Document* from C
+ * 
+ */
+typedef gpointer XapianDocument;
+
+/**
+ * we need this when using Xapian::Enquire* from C
+ * 
+ */
+typedef gpointer XapianEnquire;
 
 /**
  * 
@@ -308,7 +332,7 @@ unsigned char mu_util_get_dtype_with_lstat (const char *path);
 /* name of the bookmark file */
 #define MU_BOOKMARK_FILENAME "bookmarks"
 
-/* metdata key for the xapian 'schema' version */
+/* metadata key for the xapian 'schema' version */
 #define MU_STORE_VERSION_KEY "db_version"
 
 
@@ -368,6 +392,15 @@ enum _MuError {
 	MU_ERROR_INTERNAL
 };
 typedef enum _MuError MuError;
+
+
+#define MU_COLOR_RED		"\x1b[31m"
+#define MU_COLOR_GREEN		"\x1b[32m"
+#define MU_COLOR_YELLOW		"\x1b[33m"
+#define MU_COLOR_BLUE		"\x1b[34m"
+#define MU_COLOR_MAGENTA	"\x1b[35m"
+#define MU_COLOR_CYAN		"\x1b[36m"
+#define MU_COLOR_DEFAULT	"\x1b[0m"
 
 G_END_DECLS
 
