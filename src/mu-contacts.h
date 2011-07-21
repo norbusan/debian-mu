@@ -1,3 +1,5 @@
+/* -*-mode: c; tab-width: 8; indent-tabs-mode: t; c-basic-offset: 8 -*-*/
+
 /*
 ** Copyright (C) 2011 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 **
@@ -28,49 +30,48 @@ G_BEGIN_DECLS
 struct _MuContacts;
 typedef struct _MuContacts MuContacts;
 
-
-/** 
+/**
  * create a new MuContacts object; use mu_contacts_destroy when you no longer need it
  * 
  * @param ccachefile full path to the file with cached list of contacts
  * 
  * @return a new MuContacts* if succeeded, NULL otherwise
  */
-MuContacts* mu_contacts_new (const gchar* ccachefile)
+MuContacts* mu_contacts_new (const gchar *ccachefile)
           G_GNUC_MALLOC G_GNUC_WARN_UNUSED_RESULT;
 
 
-/** 
+/**
  * add a contacts; if there's a contact with this e-mail address
  * already, it will not updated unless the timestamp of this one is
  * higher and has a non-empty name
  * 
  * @param contacts a contacts object
+ * @param email e-mail address of the contact (not NULL)
  * @param name name of the contact (or NULL)
- * @param email e-mail address of the contact
  * @param tstamp timestamp for this address
  * 
  * @return TRUE if succeeded, FALSE otherwise
  */
-gboolean mu_contacts_add (MuContacts *contacts, const char* name, const char *email,
-			  time_t tstamp);
+gboolean mu_contacts_add (MuContacts *contacts, const char *email,
+			  const char* name, time_t tstamp);
 
-/** 
+/**
  * destroy the Contacts object
  * 
  * @param contacts a contacts object
  */
 void mu_contacts_destroy (MuContacts *contacts);
 
-/** 
+/**
  * call called for mu_contacts_foreach; returns the e-mail address,
  * name (which may be NULL) and the timestamp for the address
  *
  */
-typedef void (*MuContactsForeachFunc) (const char *email, const char *name, time_t tstamp,
-				       gpointer user_data);
+typedef void (*MuContactsForeachFunc) (const char *email, const char *name,
+				       time_t tstamp, gpointer user_data);
 
-/** 
+/**
  * call a function for either each contact, or each contact satisfying
  * a regular expression,
  * 

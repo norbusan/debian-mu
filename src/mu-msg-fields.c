@@ -1,3 +1,5 @@
+/* -*-mode: c; tab-width: 8; indent-tabs-mode: t; c-basic-offset: 8 -*-*/
+
 /*
 ** Copyright (C) 2008-2011 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 **
@@ -29,14 +31,27 @@
  * must be in the value (at least when using MuMsgIter)
  */
 enum _FieldFlags { 
-	FLAG_GMIME	      = 1 << 0,	/* field retrieved through gmime */
-	FLAG_XAPIAN_INDEX     = 1 << 1,	/* field is indexed in xapian */
-	FLAG_XAPIAN_TERM      = 1 << 2,	/* field stored as term in xapian */
-	FLAG_XAPIAN_VALUE     = 1 << 3,	/* field stored as value in xapian */
-	FLAG_XAPIAN_CONTACT   = 1 << 4,	/* field contains an e-mail-addr */
-	FLAG_XAPIAN_ESCAPE    = 1 << 5, /* field needs escaping for xapian */
-	FLAG_NORMALIZE	      = 1 << 6  /* field needs fix for case/accents */
-
+	FLAG_GMIME	         = 1 << 0, /* field retrieved through
+					    * gmime */
+	FLAG_XAPIAN_INDEX        = 1 << 1, /* field is indexed in
+			          	    * xapian */
+	FLAG_XAPIAN_TERM         = 1 << 2, /* field stored as term in
+			          	    * xapian */
+	FLAG_XAPIAN_VALUE        = 1 << 3, /* field stored as value in
+			          	    * xapian */
+	FLAG_XAPIAN_CONTACT      = 1 << 4, /* field contains one or more
+					    * e-mail-addresses */
+	FLAG_XAPIAN_ESCAPE       = 1 << 5, /* field needs escaping for
+					    * xapian */
+	FLAG_XAPIAN_BOOLEAN      = 1 << 6, /* use 'add_boolean_prefix'
+					    * for Xapian queries */
+	FLAG_XAPIAN_PREFIX_ONLY  = 1 << 7, /* whether this fields
+					    * matches only in queries
+					    * when a prefix is used */
+	FLAG_NORMALIZE	         = 1 << 8, /* field needs flattening for
+					    * case/accents */
+	FLAG_DONT_CACHE          = 1 << 9  /* don't cache this field in
+					    * the MuMsg cache */
 };
 typedef enum _FieldFlags	FieldFlags;
 
@@ -59,18 +74,36 @@ typedef struct _MuMsgField MuMsgField;
  * misinterpreted by the query-preprocesser which turns queries into
  * lowercase */
 static const MuMsgField FIELD_DATA[] = {
+	
+	{  
+		MU_MSG_FIELD_ID_ATTACH,
+		MU_MSG_FIELD_TYPE_STRING,
+		"attach" , 'a', 'A',  
+		FLAG_GMIME | FLAG_XAPIAN_TERM | FLAG_NORMALIZE |
+		FLAG_DONT_CACHE
+	},
+
+	{  
+		MU_MSG_FIELD_ID_BCC,
+		MU_MSG_FIELD_TYPE_STRING,
+		"bcc" , 'h', 'H',  /* 'hidden */
+		FLAG_GMIME | FLAG_XAPIAN_CONTACT |
+		FLAG_XAPIAN_VALUE
+	},
+	
 	{  
 		MU_MSG_FIELD_ID_BODY_TEXT,
 		MU_MSG_FIELD_TYPE_STRING,
 		"body", 'b', 'B',
-		FLAG_GMIME | FLAG_XAPIAN_INDEX | FLAG_NORMALIZE
+		FLAG_GMIME | FLAG_XAPIAN_INDEX | FLAG_NORMALIZE |
+		FLAG_DONT_CACHE 
 	},
 	
 	{ 
 		MU_MSG_FIELD_ID_BODY_HTML,
 		MU_MSG_FIELD_TYPE_STRING,
 		"bodyhtml", 'h', 0,
-		FLAG_GMIME
+		FLAG_GMIME | FLAG_DONT_CACHE 
 	},
 	
 	{ 
@@ -84,14 +117,16 @@ static const MuMsgField FIELD_DATA[] = {
 		MU_MSG_FIELD_ID_DATE, 
 		MU_MSG_FIELD_TYPE_TIME_T,
 		"date", 'd', 'D',
-		FLAG_GMIME | FLAG_XAPIAN_TERM | FLAG_XAPIAN_VALUE
+		FLAG_GMIME | FLAG_XAPIAN_TERM | FLAG_XAPIAN_VALUE |
+		FLAG_XAPIAN_BOOLEAN | FLAG_XAPIAN_PREFIX_ONLY
 	},
 	
 	{ 
 		MU_MSG_FIELD_ID_FLAGS, 
 		MU_MSG_FIELD_TYPE_INT,
 		"flag", 'g', 'G',  /* flaGs */
-		FLAG_GMIME | FLAG_XAPIAN_TERM | FLAG_XAPIAN_VALUE
+		FLAG_GMIME | FLAG_XAPIAN_TERM | FLAG_XAPIAN_VALUE |
+		FLAG_XAPIAN_PREFIX_ONLY
 	},
 
 	{ 
@@ -105,7 +140,8 @@ static const MuMsgField FIELD_DATA[] = {
 		MU_MSG_FIELD_ID_PATH, 
 		MU_MSG_FIELD_TYPE_STRING,
 		"path", 'l', 'L',   /* 'l' for location */
- 		FLAG_GMIME | FLAG_XAPIAN_VALUE
+		FLAG_GMIME | FLAG_XAPIAN_VALUE |
+		FLAG_XAPIAN_BOOLEAN  | FLAG_XAPIAN_PREFIX_ONLY
 	},
 
 	{   
@@ -113,21 +149,24 @@ static const MuMsgField FIELD_DATA[] = {
 		MU_MSG_FIELD_TYPE_STRING,
 		"maildir", 'm', 'M',
 		FLAG_GMIME | FLAG_XAPIAN_TERM | FLAG_XAPIAN_VALUE |
-		FLAG_NORMALIZE | FLAG_XAPIAN_ESCAPE
+		FLAG_NORMALIZE | FLAG_XAPIAN_ESCAPE |
+		FLAG_XAPIAN_BOOLEAN | FLAG_XAPIAN_PREFIX_ONLY
 	},
 	
 	{ 
 		MU_MSG_FIELD_ID_PRIO,
 		MU_MSG_FIELD_TYPE_INT,
 		"prio", 'p', 'P',  
-		FLAG_GMIME | FLAG_XAPIAN_TERM | FLAG_XAPIAN_VALUE
+		FLAG_GMIME | FLAG_XAPIAN_TERM | FLAG_XAPIAN_VALUE |
+		FLAG_XAPIAN_PREFIX_ONLY 
 	},
 
 	{ 
 		MU_MSG_FIELD_ID_SIZE,
 		MU_MSG_FIELD_TYPE_BYTESIZE,
 		"size", 'z', 'Z', /* siZe */
-		FLAG_GMIME | FLAG_XAPIAN_TERM | FLAG_XAPIAN_VALUE
+		FLAG_GMIME | FLAG_XAPIAN_TERM | FLAG_XAPIAN_VALUE |
+		FLAG_XAPIAN_PREFIX_ONLY
 	},
 	
 	{ 
@@ -142,7 +181,7 @@ static const MuMsgField FIELD_DATA[] = {
 		MU_MSG_FIELD_ID_TO,
 		MU_MSG_FIELD_TYPE_STRING,
 		"to", 't', 'T',
-		FLAG_GMIME | FLAG_XAPIAN_CONTACT | FLAG_XAPIAN_VALUE 
+		FLAG_GMIME | FLAG_XAPIAN_CONTACT | FLAG_XAPIAN_VALUE
 	},
 	
 	{ 
@@ -150,7 +189,7 @@ static const MuMsgField FIELD_DATA[] = {
 		MU_MSG_FIELD_TYPE_STRING,
 		"msgid", 'i', 'I',  /* 'i' for Id */
 		FLAG_GMIME | FLAG_XAPIAN_TERM | FLAG_XAPIAN_VALUE |
-		FLAG_XAPIAN_ESCAPE
+		FLAG_XAPIAN_ESCAPE | FLAG_XAPIAN_PREFIX_ONLY
 	},
 	
 	{ 
@@ -158,6 +197,14 @@ static const MuMsgField FIELD_DATA[] = {
 		MU_MSG_FIELD_TYPE_TIME_T,
 		"timestamp", 'x', 0,
 		FLAG_GMIME 
+	},
+
+	{ 
+		MU_MSG_FIELD_ID_REFS,
+		MU_MSG_FIELD_TYPE_STRING,
+		"refs", 'r', 'R',
+		FLAG_GMIME | FLAG_XAPIAN_VALUE |
+		FLAG_XAPIAN_PREFIX_ONLY
 	}
 };
 
@@ -194,12 +241,12 @@ mu_msg_field_foreach (MuMsgFieldForEachFunc func, gconstpointer data)
 MuMsgFieldId
 mu_msg_field_id_from_name (const char* str, gboolean err)
 {
- 	int i;
+	int i;
 
 	g_return_val_if_fail (str, MU_MSG_FIELD_ID_NONE);
 	
 	for (i = 0; i != G_N_ELEMENTS(FIELD_DATA); ++i)
-		if (strcmp(str, FIELD_DATA[i]._name) == 0)
+		if (g_strcmp0(str, FIELD_DATA[i]._name) == 0)
 			return FIELD_DATA[i]._id;
 
 	if (err)
@@ -212,7 +259,7 @@ mu_msg_field_id_from_name (const char* str, gboolean err)
 MuMsgFieldId
 mu_msg_field_id_from_shortcut (char kar, gboolean err)
 {
- 	int i;
+	int i;
 	for (i = 0; i != G_N_ELEMENTS(FIELD_DATA); ++i)
 		if (kar == FIELD_DATA[i]._shortcut)
 			return FIELD_DATA[i]._id;
@@ -228,7 +275,7 @@ gboolean
 mu_msg_field_gmime (MuMsgFieldId id)
 {
 	g_return_val_if_fail (mu_msg_field_id_is_valid(id),FALSE);
-	return mu_msg_field(id)->_flags & FLAG_GMIME;
+	return mu_msg_field(id)->_flags & FLAG_GMIME ? TRUE: FALSE;
 }
 
 
@@ -236,28 +283,53 @@ gboolean
 mu_msg_field_xapian_index  (MuMsgFieldId id)
 {
 	g_return_val_if_fail (mu_msg_field_id_is_valid(id),FALSE);
-	return mu_msg_field(id)->_flags & FLAG_XAPIAN_INDEX;
+	return mu_msg_field(id)->_flags & FLAG_XAPIAN_INDEX  ? TRUE: FALSE;
 }
 
 gboolean
 mu_msg_field_xapian_value (MuMsgFieldId id)
 {
 	g_return_val_if_fail (mu_msg_field_id_is_valid(id),FALSE);
-	return mu_msg_field(id)->_flags & FLAG_XAPIAN_VALUE;
+	return mu_msg_field(id)->_flags & FLAG_XAPIAN_VALUE  ? TRUE: FALSE;
 }
 
 gboolean
 mu_msg_field_xapian_term (MuMsgFieldId id)
 {
 	g_return_val_if_fail (mu_msg_field_id_is_valid(id),FALSE);
-	return mu_msg_field(id)->_flags & FLAG_XAPIAN_TERM;
+	return mu_msg_field(id)->_flags & FLAG_XAPIAN_TERM  ? TRUE: FALSE;
+}
+
+
+gboolean
+mu_msg_field_uses_boolean_prefix (MuMsgFieldId id)
+{
+	g_return_val_if_fail (mu_msg_field_id_is_valid(id),FALSE);
+	return mu_msg_field(id)->_flags & FLAG_XAPIAN_BOOLEAN?TRUE:FALSE;
+}
+
+
+gboolean
+mu_msg_field_needs_prefix (MuMsgFieldId id)
+{
+	g_return_val_if_fail (mu_msg_field_id_is_valid(id),FALSE);
+	return mu_msg_field(id)->_flags & FLAG_XAPIAN_PREFIX_ONLY?TRUE:FALSE;
+}
+
+
+gboolean
+mu_msg_field_is_cacheable (MuMsgFieldId id)
+{
+	g_return_val_if_fail (mu_msg_field_id_is_valid(id),FALSE);
+	/* note the FALSE: TRUE */
+	return mu_msg_field(id)->_flags & FLAG_DONT_CACHE ? FALSE : TRUE;
 }
 
 gboolean
 mu_msg_field_xapian_contact (MuMsgFieldId id)
 {
 	g_return_val_if_fail (mu_msg_field_id_is_valid(id),FALSE);
-	return mu_msg_field(id)->_flags & FLAG_XAPIAN_CONTACT;
+	return mu_msg_field(id)->_flags & FLAG_XAPIAN_CONTACT ? TRUE: FALSE;
 }
 
 
@@ -265,14 +337,14 @@ gboolean
 mu_msg_field_normalize (MuMsgFieldId id)
 {
 	g_return_val_if_fail (mu_msg_field_id_is_valid(id),FALSE);
-	return mu_msg_field(id)->_flags & FLAG_NORMALIZE;
+	return mu_msg_field(id)->_flags & FLAG_NORMALIZE  ? TRUE: FALSE;
 }
 
 gboolean
 mu_msg_field_xapian_escape (MuMsgFieldId id)
 {
 	g_return_val_if_fail (mu_msg_field_id_is_valid(id),FALSE);
-	return mu_msg_field(id)->_flags & FLAG_XAPIAN_ESCAPE;
+	return mu_msg_field(id)->_flags & FLAG_XAPIAN_ESCAPE  ? TRUE: FALSE;
 }
 
 

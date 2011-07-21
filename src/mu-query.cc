@@ -30,7 +30,6 @@
 #include "mu-msg-fields.h"
 
 #include "mu-msg-iter.h"
-#include "mu-msg-iter-priv.hh"
 
 #include "mu-util.h"
 #include "mu-str.h"
@@ -47,14 +46,31 @@ public:
 		if (!clear_prefix (begin))
 			return Xapian::BAD_VALUENO;
 
+		// now and begin should only appear at the end, so
+		// correct them...
+		if (begin == "today" || begin == "now")
+			std::swap (begin, end);
+		
 		substitute_date (begin);
 		substitute_date (end);
 
 		normalize_date (begin);
 		normalize_date (end);
+
+		// note, we'll have to compare the *completed*
+		// versions of begin and end to if the were specified
+		// in the opposite order; however, if that is true, we
+		// have to complete begin, end 'for real', as the
+		// begin date is completed to the begin of the
+		// interval, and the to the end of the interval
+		// ie. begin: 2008 -> 200801010000 end: 2008 ->
+		// 200812312359
+		if (complete_date12(begin,true) >
+		    complete_date12(end, false))			
+			std::swap (begin, end);
 		
-		complete_date (begin, 12, true);
-		complete_date (end, 12, false);
+		begin = complete_date12(begin,true);
+		end =	complete_date12(end, false);
 		
 		return (Xapian::valueno)MU_MSG_PSEUDO_FIELD_ID_DATESTR;
 	}
@@ -107,25 +123,23 @@ private:
 			char k = date[i];
 			if (std::isdigit(k))
 				cleanup += date[i];
-			else if (k != ':' && k != '-' && k != '/' && k != '.' &&
-				 k != ',')
-				throw std::runtime_error ("error in date str");
 		}
 		date = cleanup;
 	}
 	
-	void complete_date (std::string& date, size_t len,
-			    bool is_begin) const {
+	std::string complete_date12 (const std::string date, bool is_begin) const {
 
+		std::string compdate;
 		const std::string bsuffix ("00000101000000");
 		const std::string esuffix ("99991231235959");
-
+		const size_t size = 12;
+		
 		if (is_begin)
-			date = std::string (date + bsuffix.substr (date.length()));
+			compdate = std::string (date + bsuffix.substr (date.length()));
 		else
-			date = std::string (date + esuffix.substr (date.length()));
+			compdate = std::string (date + esuffix.substr (date.length()));
 
-		date = date.substr (0, len);
+		return compdate.substr (0, size);
 	}
 };
 
@@ -144,9 +158,13 @@ public:
 		if (!substitute_size (begin) || !substitute_size (end))
 			return Xapian::BAD_VALUENO;
 
-		begin = Xapian::sortable_serialise(atol(begin.c_str()));
-		end = Xapian::sortable_serialise(atol(end.c_str()));
-		
+		/* swap if b > e */
+		if (begin > end)
+			std::swap (begin, end);
+
+		begin = Xapian::sortable_serialise (atol(begin.c_str()));
+		end = Xapian::sortable_serialise (atol(end.c_str()));
+			
 		return (Xapian::valueno)MU_MSG_FIELD_ID_SIZE;
 	}
 private:
@@ -212,6 +230,7 @@ set_query (MuQuery *mqx, Xapian::Query& q, const char* searchexpr,
 			(searchexpr,
 			 Xapian::QueryParser::FLAG_BOOLEAN          |
 			 Xapian::QueryParser::FLAG_PURE_NOT         |
+			 Xapian::QueryParser::FLAG_WILDCARD	    |
 			 Xapian::QueryParser::FLAG_AUTO_SYNONYMS    |
 			 Xapian::QueryParser::FLAG_BOOLEAN_ANY_CASE);
 
@@ -239,22 +258,20 @@ add_prefix (MuMsgFieldId mfid, Xapian::QueryParser* qparser)
 			(1, mu_msg_field_xapian_prefix (mfid));
 		const std::string shortcut
 			(1, mu_msg_field_shortcut (mfid));
-
-		if (mfid == MU_MSG_FIELD_ID_FLAGS || mfid == MU_MSG_FIELD_ID_PRIO) {
+		
+		if (mu_msg_field_uses_boolean_prefix (mfid)) {
+		 	qparser->add_boolean_prefix
+		 		(mu_msg_field_name(mfid), pfx);
+		 	qparser->add_boolean_prefix (shortcut, pfx);
+		} else {
 			qparser->add_prefix
 				(mu_msg_field_name(mfid), pfx);
-			qparser->add_prefix (shortcut, pfx);
-		} else if (mfid == MU_MSG_FIELD_ID_MAILDIR ||
-		      mfid == MU_MSG_FIELD_ID_MSGID) {
-			qparser->add_boolean_prefix
-				(mu_msg_field_name(mfid), pfx);
-			qparser->add_boolean_prefix (shortcut, pfx);
-		} else {
-			qparser->add_boolean_prefix
-				(mu_msg_field_name(mfid), pfx);
-			qparser->add_boolean_prefix (shortcut, pfx);
-			qparser->add_prefix ("", pfx);
+		 	qparser->add_prefix (shortcut, pfx);
 		}
+		
+		if (!mu_msg_field_needs_prefix(mfid)) 
+			qparser->add_prefix ("", pfx);
+
 	} MU_XAPIAN_CATCH_BLOCK;
 }
 
@@ -348,7 +365,7 @@ mu_query_run (MuQuery *self, const char* searchexpr,
 		enq.set_query(query);
 		enq.set_cutoff(0,0);
 		
-		return mu_msg_iter_new (enq, batchsize);
+		return mu_msg_iter_new ((XapianEnquire*)&enq, batchsize);
 		
 	} MU_XAPIAN_CATCH_BLOCK_RETURN(NULL);
 }

@@ -1,3 +1,5 @@
+/* -*-mode: c++; tab-width: 8; indent-tabs-mode: t; c-basic-offset: 8-*- */
+
 /*
 ** Copyright (C) 2008-2011 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 **
@@ -27,7 +29,7 @@
 #include <stdexcept>
 
 #include "mu-msg.h"
-#include "mu-msg-contact.h"
+#include "mu-msg-part.h"
 #include "mu-store.h"
 #include "mu-util.h"
 #include "mu-str.h"
@@ -47,7 +49,7 @@ struct _MuStore {
 	_MuStore (const char *xpath, const char *contacts_cache) :
 		_db (xpath, Xapian::DB_CREATE_OR_OPEN), _in_transaction(0),
 		_processed (0), _trx_size(MU_STORE_DEFAULT_TRX_SIZE), _contacts (0),
-		_version (0){
+		_version (0) {
 	
 		if (!check_version (this)) 
 			throw std::runtime_error
@@ -67,11 +69,13 @@ struct _MuStore {
 
 	~_MuStore () {
 		try {
+			g_free (_version);
 			mu_contacts_destroy (_contacts);
 			mu_store_flush (this);
 			
 			MU_WRITE_LOG ("closing xapian database with %d documents",
 				      (int)_db.get_doccount());
+
 		} MU_XAPIAN_CATCH_BLOCK;
 	}
 	
@@ -82,7 +86,7 @@ struct _MuStore {
 	int    _processed;
 	size_t _trx_size;
 	guint  _batchsize;  /* batch size of a xapian transaction */
-
+	
 	/* contacts object to cache all the contact information */
 	MuContacts *_contacts;
 	
@@ -90,23 +94,41 @@ struct _MuStore {
 };
 
 
+/* we cache these prefix strings, so we don't have to allocate the all
+ * the time; this should save 10-20 string allocs per message */
+G_GNUC_CONST static const std::string&
+prefix (MuMsgFieldId mfid)
+{
+	static std::string fields[MU_MSG_FIELD_ID_NUM];
+	static bool initialized = false;
+	
+	if (G_UNLIKELY(!initialized)) {
+		for (int i = 0; i != MU_MSG_FIELD_ID_NUM; ++i)
+			fields[i] = std::string (1, mu_msg_field_xapian_prefix
+						 ((MuMsgFieldId)i));
+		initialized = true;
+	}
+
+	return fields[mfid];
+}
+
+
+
 static void
 add_synonym_for_flag (MuMsgFlags flag, Xapian::WritableDatabase *db)
 {
-	std::string pfx (1, mu_msg_field_xapian_prefix
-			 (MU_MSG_FIELD_ID_FLAGS));
+	const std::string pfx(prefix(MU_MSG_FIELD_ID_FLAGS));
 
 	db->clear_synonyms (pfx + mu_msg_flag_name (flag));
-	db->add_synonym (pfx + mu_msg_flag_name (flag),
-			 pfx + (std::string(1, mu_msg_flag_char (flag))));
+	db->add_synonym (pfx + mu_msg_flag_name (flag), pfx +
+			 (std::string(1, mu_msg_flag_char (flag))));
 }
 
 
 static void
 add_synonym_for_prio (MuMsgPrio prio, Xapian::WritableDatabase *db)
 {
-	std::string pfx (1, mu_msg_field_xapian_prefix
-			 (MU_MSG_FIELD_ID_PRIO));
+	const std::string pfx (prefix(MU_MSG_FIELD_ID_PRIO));
 	
 	std::string s1 (pfx + mu_msg_prio_name (prio));
 	std::string s2 (pfx + (std::string(1, mu_msg_prio_char (prio))));
@@ -311,7 +333,6 @@ add_terms_values_date (Xapian::Document& doc, MuMsg *msg,
 static void
 add_terms_values_number (Xapian::Document& doc, MuMsg *msg, MuMsgFieldId mfid)
 {
-	const std::string pfx (1, mu_msg_field_xapian_prefix(mfid));
 	gint64 num = mu_msg_get_field_numeric (msg, mfid);
 
 	const std::string numstr (Xapian::sortable_serialise((double)num));
@@ -320,10 +341,10 @@ add_terms_values_number (Xapian::Document& doc, MuMsg *msg, MuMsgFieldId mfid)
 	if (mfid == MU_MSG_FIELD_ID_FLAGS) {
 		for (const char *cur = mu_msg_flags_str_s ((MuMsgFlags)num);
 		     cur && *cur; ++cur)
-			doc.add_term  (pfx + (char)tolower (*cur));
+			doc.add_term  (prefix(mfid) + (char)tolower (*cur));
 
 	} else if (mfid == MU_MSG_FIELD_ID_PRIO) {
-		doc.add_term (pfx + std::string(1,
+		doc.add_term (prefix(mfid) + std::string(1,
 			      mu_msg_prio_char((MuMsgPrio)num)));
 	} //else
 	// 	doc.add_term  (pfx + numstr);
@@ -335,14 +356,16 @@ add_terms_values_string (Xapian::Document& doc, MuMsg *msg,
 {
 	const char *orig;
 	char *val;
-		
-	orig = mu_msg_get_field_string (msg, mfid);
-	if (!orig)
-		return;
-	val = g_strdup (orig);
-		
-	const std::string prefix (1, mu_msg_field_xapian_prefix(mfid));
+	size_t len;
+	
+	if (!(orig = mu_msg_get_field_string (msg, mfid)))
+		return; /* nothing to do */
 
+	/* try stack-allocation, it's much faster*/
+	len = strlen (orig);
+	val = (char*)(G_LIKELY(len < 1024)?g_alloca(len+1):g_malloc(len+1));
+	strcpy (val, orig);
+	
 	/* the value is what we'll display; the unchanged original */
 	if (mu_msg_field_xapian_value(mfid)) 			 
 		doc.add_value ((Xapian::valueno)mfid, val);
@@ -356,14 +379,51 @@ add_terms_values_string (Xapian::Document& doc, MuMsg *msg,
 	if (mu_msg_field_xapian_index (mfid)) {
 		Xapian::TermGenerator termgen;
 		termgen.set_document (doc);
-		termgen.index_text_without_positions (val, 1, prefix);
+		termgen.index_text_without_positions (val, 1, prefix(mfid));
 	}
 	
 	if (mu_msg_field_xapian_term(mfid))
-		doc.add_term (prefix + std::string(val, 0, MU_STORE_MAX_TERM_LENGTH));
-	
-	g_free (val);
+		doc.add_term (prefix(mfid) +
+			      std::string(val, 0, MU_STORE_MAX_TERM_LENGTH));
+
+	if (!(G_LIKELY(len < 1024)))
+		g_free (val);
 }
+
+struct PartData {
+	PartData (Xapian::Document& doc, MuMsgFieldId mfid):
+		_doc (doc), _mfid(mfid) {}
+	Xapian::Document _doc;
+	MuMsgFieldId _mfid;
+};
+
+static void
+each_part (MuMsg *msg, MuMsgPart *part, PartData *pdata)
+{
+	if (mu_msg_part_looks_like_attachment (part, TRUE) &&
+	    (part->file_name)) {
+
+		char val[MU_STORE_MAX_TERM_LENGTH + 1];
+		strncpy (val, part->file_name, sizeof(val));
+
+		/* now, let's create a terms... */
+		mu_str_normalize_in_place (val, TRUE);
+		mu_str_ascii_xapian_escape_in_place (val);
+		
+		pdata->_doc.add_term (prefix(pdata->_mfid) +
+			      std::string(val, 0, MU_STORE_MAX_TERM_LENGTH));
+	}
+}
+
+
+static void
+add_terms_values_attach (Xapian::Document& doc, MuMsg *msg,
+		       MuMsgFieldId mfid)
+{
+	PartData pdata (doc, mfid);	
+	mu_msg_part_foreach (msg, (MuMsgPartForeachFunc)each_part, &pdata);
+}	
+
 
 static void
 add_terms_values_body (Xapian::Document& doc, MuMsg *msg,
@@ -387,8 +447,8 @@ add_terms_values_body (Xapian::Document& doc, MuMsg *msg,
 	
 	norm = mu_str_normalize (str, TRUE);
 	termgen.index_text_without_positions
-		(norm, 1,
-		 std::string(1, mu_msg_field_xapian_prefix(mfid)));
+		(norm, 1, prefix(mfid));
+
 	g_free (norm);
 }
 
@@ -416,6 +476,9 @@ add_terms_values (MuMsgFieldId mfid, MsgDoc* msgdoc)
 	case MU_MSG_FIELD_ID_BODY_TEXT:
 		add_terms_values_body (*msgdoc->_doc, msgdoc->_msg, mfid);
 		break;
+	case MU_MSG_FIELD_ID_ATTACH:
+		add_terms_values_attach (*msgdoc->_doc, msgdoc->_msg, mfid);
+		break;
 	default:	
 		if (mu_msg_field_is_numeric (mfid)) 
 			add_terms_values_number (*msgdoc->_doc, msgdoc->_msg,
@@ -430,81 +493,88 @@ add_terms_values (MuMsgFieldId mfid, MsgDoc* msgdoc)
 }
 
 
-static const std::string*
+static const std::string&
 xapian_pfx (MuMsgContact *contact)
 {
-	static const std::string to_pfx
-		(1, mu_msg_field_xapian_prefix(MU_MSG_FIELD_ID_TO));
-	static const std::string from_pfx
-		(1, mu_msg_field_xapian_prefix(MU_MSG_FIELD_ID_FROM));
-	static const std::string cc_pfx
-		(1, mu_msg_field_xapian_prefix(MU_MSG_FIELD_ID_CC));
+	static const std::string empty;
 	
 	/* use ptr to string to prevent copy... */
 	switch (contact->type) {
 	case MU_MSG_CONTACT_TYPE_TO:
-		return &to_pfx; 
+		return prefix(MU_MSG_FIELD_ID_TO);
 	case MU_MSG_CONTACT_TYPE_FROM:
-		return &from_pfx;
+		return prefix(MU_MSG_FIELD_ID_FROM);
 	case MU_MSG_CONTACT_TYPE_CC:
-		return &cc_pfx;
-	default: /* dont;t support other type (e.g, bcc) */
-		return 0; 
+		return prefix(MU_MSG_FIELD_ID_CC);
+	case MU_MSG_CONTACT_TYPE_BCC:
+		return prefix(MU_MSG_FIELD_ID_BCC);
+	default: 
+		g_warning ("unsupported contact type %u",
+			   (unsigned)contact->type);
+		return empty;
 	}
 }
-
 
 
 static void
 each_contact_info (MuMsgContact *contact, MsgDoc *msgdoc)
 {
-
-	const std::string *pfxp (xapian_pfx(contact));
-	if (!pfxp)
+	const std::string pfx (xapian_pfx(contact));
+	if (pfx.empty())
 		return; /* unsupported contact type */
 	
 	if (!mu_str_is_empty(contact->name)) {
 		Xapian::TermGenerator termgen;
 		termgen.set_document (*msgdoc->_doc);
 		char *norm = mu_str_normalize (contact->name, TRUE);
-		termgen.index_text_without_positions (norm, 1, *pfxp);
+		termgen.index_text_without_positions (norm, 1, pfx);
 		g_free (norm);
 	}
 
 	/* don't normalize e-mail address, but do lowercase it */
-	if (contact->address && contact->address[0] != '\0') {
+	if (!mu_str_is_empty(contact->address)) {
 		char *escaped = mu_str_ascii_xapian_escape (contact->address);
 		msgdoc->_doc->add_term
-			(std::string (*pfxp + escaped, 0, MU_STORE_MAX_TERM_LENGTH));
+			(std::string  (pfx + escaped, 0,
+				       MU_STORE_MAX_TERM_LENGTH));
 		g_free (escaped);
 		
 		/* store it also in our contacts cache */
 		if (msgdoc->_store->_contacts)
 			mu_contacts_add (msgdoc->_store->_contacts,
-					 contact->name, contact->address,
+					 contact->address, contact->name, 
 					 mu_msg_get_date(msgdoc->_msg));
 	}
 }
 
-
-/* get a unique id for this message */
-static std::string
+/* get a unique id for this message; note, this function returns a
+ * static buffer -- not reentrant */
+static const char*
 get_message_uid (const char* path)
 {
-	static const std::string pathprefix 
-		(1, mu_msg_field_xapian_prefix(MU_MSG_FIELD_ID_PATH));
+	char pfx = 0;
+	static char buf[PATH_MAX + 10];
+	
+	if (G_UNLIKELY(!pfx)) {
+		pfx = mu_msg_field_xapian_prefix(MU_MSG_FIELD_ID_PATH);
+		buf[0]=pfx;
+	}
 
-	return pathprefix + path;
+	std::strcpy (buf + 1, path);
+
+	return buf;
 }
 
-static const std::string
+/* get a unique id for this message; note, this function returns a
+ * static buffer -- not reentrant */
+static const char*
 get_message_uid (MuMsg *msg)
 {
-	return get_message_uid (mu_msg_get_path(msg));
+ 	return get_message_uid (mu_msg_get_path(msg));
 }
 
 MuResult
-mu_store_store (MuStore *store, MuMsg *msg)
+mu_store_store (MuStore *store, MuMsg *msg, gboolean replace)
 {	
 	g_return_val_if_fail (store, MU_ERROR);
 	g_return_val_if_fail (msg, MU_ERROR);
@@ -527,8 +597,18 @@ mu_store_store (MuStore *store, MuMsg *msg)
 			 (MuMsgContactForeachFunc)each_contact_info,
 			 &msgdoc);
 			
-		/* we replace all existing documents for this file */
-		id = store->_db.replace_document (uid, newdoc);
+		/* add_document is slightly
+		   faster, we can use it when
+		 * we know the document does not exist yet, eg., in
+		 * case of a rebuild */
+		if (replace) /* we replace all existing documents for this file */
+			id = store->_db.replace_document (uid, newdoc);
+		else
+			id = store->_db.add_document (newdoc);
+
+		/* DEBUG */
+		//g_print ("\n[%s]\n", newdoc.serialise().c_str());
+		
 		++store->_processed;
 		commit_trx_if (store,
 			       store->_processed % store->_trx_size == 0);
@@ -596,6 +676,7 @@ mu_store_get_timestamp (MuStore *store, const char* msgpath)
 
 	rv = (time_t) g_ascii_strtoull (stampstr, NULL, 10);
 	g_free (stampstr);
+
 	return rv;
 }
 

@@ -1,3 +1,5 @@
+/* -*-mode: c; tab-width: 8; indent-tabs-mode: t; c-basic-offset: 8 -*-*/
+
 /*
 ** Copyright (C) 2010 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 **
@@ -20,43 +22,72 @@
 #ifndef __MU_MSG_FILE_H__
 #define __MU_MSG_FILE_H__
 
-#include <glib.h>
-#include <mu-msg-flags.h>
-
-G_BEGIN_DECLS
+struct _MuMsgFile;
+typedef struct _MuMsgFile MuMsgFile;
 
 /**
- * get the Maildir flags from the full path of a mailfile. The flags
- * are as specified in http://cr.yp.to/proto/maildir.html, plus
- * MU_MSG_FLAG_NEW for new messages, ie the ones that live in
- * new/. The flags are logically OR'ed. Note that the file does not
- * have to exist; the flags are based on the path only.
+ * create a new message from a file
+ * 
+ * @param path full path to the message
+ * @param mdir
+ * @param err error to receive (when function returns NULL), or NULL
+ * 
+ * @return a new MuMsg, or NULL in case of error
+ */
+MuMsgFile *mu_msg_file_new (const char *path,
+			    const char* mdir, GError **err)
+                            G_GNUC_MALLOC G_GNUC_WARN_UNUSED_RESULT;
+
+/**
+ * destroy a MuMsgFile object
  *
- * @param pathname of a mailfile; it does not have to refer to an
- * actual message
- * 
- * @return the flags, or MU_MSG_FILE_FLAG_UNKNOWN in case of error
+ * @param self object to destroy, or NULL
  */
-MuMsgFlags mu_msg_file_get_flags_from_path (const char* pathname);
+void mu_msg_file_destroy (MuMsgFile *self);
+
+
 
 /**
- * get the new pathname for a message, based on the old path and the
- * new flags. Note that setting/removing the MU_MSG_FLAG_NEW will
- * change the directory in which a message lives. The flags are as
- * specified in http://cr.yp.to/proto/maildir.html, plus
- * MU_MSG_FLAG_NEW for new messages, ie the ones that live in
- * new/. The flags are logically OR'ed. Note that the file does not
- * have to exist; the flags are based on the path only.
+ * get a specific header
  * 
- * @param oldpath the old (current) full path to the message (including the filename) 
- * @param newflags the new flags for this message
+ * @param self a MuMsgFile instance
+ * @param header a header (e.g. 'X-Mailer' or 'List-Id')
  * 
- * @return a new path name; use g_free when done with. NULL in case of
- * error.
+ * @return the value of the header or NULL if not found. Note, only
+ * valid as long as this MuMsgFile is valid -- before
+ * mu_msg_file_destroy
  */
-char* mu_msg_file_get_path_from_flags (const char *oldpath, MuMsgFlags newflags);
+const char* mu_msg_file_get_header (MuMsgFile *self, const char *header);
 
 
-G_END_DECLS
+/**
+ * get a string value for this message
+ * 
+ * @param self a valid MuMsgFile
+ * @param msfid the message field id to get (must be string-based one) *
+ * @param do_free receives TRUE or FALSE, conveying if this string
+ * should be owned & freed (TRUE) or not by caller. In case 'FALSE',
+ * this function should be treated as if it were returning a const
+ * char*, and note that in that case the string is only valid as long
+ * as the MuMsgFile is alive, ie. before mu_msg_file_destroy
+ * 
+ * @return a const string, or NULL
+ */
+char* mu_msg_file_get_str_field (MuMsgFile *self,
+				 MuMsgFieldId msfid,
+				 gboolean *do_free)
+	                         G_GNUC_WARN_UNUSED_RESULT;
+
+/**
+ * get a numeric value for this message -- the return value should be
+ * cast into the actual type, e.g., time_t, MuMsgPrio etc.
+ * 
+ * @param self a valid MuMsgFile
+ * @param msfid the message field id to get (must be string-based one)
+ * 
+ * @return the numeric value, or -1
+ */
+gint64 mu_msg_file_get_num_field (MuMsgFile *self, MuMsgFieldId msfid);
+
 
 #endif /*__MU_MSG_FILE_H__*/

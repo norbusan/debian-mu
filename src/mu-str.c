@@ -1,5 +1,7 @@
+/* -*-mode: c; tab-width: 8; indent-tabs-mode: t; c-basic-offset: 8 -*-*/
+
 /* 
-** Copyright (C) 2010 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+** Copyright (C) 2008-2011 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 **
 ** This program is free software; you can redistribute it and/or modify
 ** it under the terms of the GNU General Public License as published by
@@ -179,7 +181,7 @@ cleanup_contact (char *contact)
 	 * good to cleanup corporate contact address spam... */
 	c = g_strstr_len (contact, -1, "(");
 	if (c && c - contact > 5)
-	*c = '\0';
+		*c = '\0';
 			
 	g_strstrip (contact);
 }
@@ -251,9 +253,9 @@ each_check_prefix (MuMsgFieldId mfid, CheckPrefix *cpfx)
 	}
 }
 
-/* colon is a position inside q pointing at a ':' character. function
- * determines whether the prefix is a registered prefix (like
- * 'subject' or 'from' or 's') */
+/* 'colon' points at a position inside q pointing at a ':'
+ * character. function determines whether the prefix is a registered
+ * prefix (like 'subject' or 'from' or 's') */
 static gboolean
 is_xapian_prefix (const char *q, const char *colon)
 {
@@ -289,55 +291,56 @@ is_xapian_prefix (const char *q, const char *colon)
 time_t
 mu_str_date_parse_hdwmy (const char* str)
 {
-       long int num;
-       char *end;
-       time_t now, delta;
-       time_t never = (time_t)-1;
+	long int num;
+	char *end;
+	time_t now, delta;
+	time_t never = (time_t)-1;
        
-       g_return_val_if_fail (str, never);
+	g_return_val_if_fail (str, never);
        
-       num = strtol  (str, &end, 10);
-       if (num <= 0 || num > 9999)  
-               return never;
+	num = strtol  (str, &end, 10);
+	if (num <= 0 || num > 9999)  
+		return never;
 
-       if (!end || end[1] != '\0')
-               return never;
+	if (!end || end[1] != '\0')
+		return never;
        
-       switch (end[0]) {
-       case 'h': /* hour */    
-               delta = num * 60 * 60; break;
-       case 'd': /* day */
-               delta = num * 24 * 60 * 60; break;
-       case 'w': /* week */
-               delta = num * 7 * 24 * 60 * 60; break;
-       case 'm':
-               delta = num * 30 * 24 * 60 * 60; break;
-       case 'y':
-               delta = num * 365 * 24 * 60 * 60; break; 
-       default:
-               return never;
-       }
+	switch (end[0]) {
+	case 'h': /* hour */    
+		delta = num * 60 * 60; break;
+	case 'd': /* day */
+		delta = num * 24 * 60 * 60; break;
+	case 'w': /* week */
+		delta = num * 7 * 24 * 60 * 60; break;
+	case 'm': /* month */
+		delta = num * 30 * 24 * 60 * 60; break;
+	case 'y': /* year */
+		delta = num * 365 * 24 * 60 * 60; break; 
+	default:
+		return never;
+	}
 
-       now = time(NULL);
-       return delta <= now ? now - delta : never;  
+	now = time(NULL);
+	return delta <= now ? now - delta : never;  
 }
 
 guint64
 mu_str_size_parse_kmg (const char* str)
 {
-	guint64 num;
+	gint64 num;
 	char *end;
 	
 	g_return_val_if_fail (str, G_MAXUINT64);
 	
 	num = strtol (str, &end, 10);
-	if (num <= 0)  
+	if (num < 0)  
 		return G_MAXUINT64;
 	
 	if (!end || end[1] != '\0')
 		return G_MAXUINT64;
 	
 	switch (tolower(end[0])) {
+	case 'b': return num;                      /* bytes */	
 	case 'k': return num * 1000;               /* kilobyte */
 	case 'm': return num * 1000 * 1000;        /* megabyte */
 	/* case 'g': return num * 1000 * 1000 * 1000; /\* gigabyte *\/ */
@@ -347,6 +350,10 @@ mu_str_size_parse_kmg (const char* str)
 
 }
 
+/*
+ * Xapian treats various characters such as '@', '-', ':' and '.'
+ * specially; function below is an ugly hack to make it DWIM in most
+ * cases...*/
 char*
 mu_str_ascii_xapian_escape_in_place (char *query)
 {
@@ -360,23 +367,32 @@ mu_str_ascii_xapian_escape_in_place (char *query)
 	replace_dot = (g_strstr_len(query, -1, "@") != NULL);
 	
 	for (cur = query; *cur; ++cur) {
-		if (*cur == '@') 
-			*cur = '_';
 
-		else if (replace_dot && *cur == '.') {
-			if (cur[1] == '.')  /* don't replace '..' */
-				cur += 2;
+		*cur = tolower(*cur);
+
+		switch (*cur) {
+		case '@':
+		case '-':
+			*cur = '_'; break;
+		case '.': {
+			/* don't replace a final cur */
+			if (cur[1]== ' ' || cur[1]=='\t' || cur[1]== '.')  
+				++cur;
+			else if (cur[1] == '\0')
+				break;
 			else
 				*cur = '_';
-		} else if (*cur == ':') {
+			break;
+		}
+		case ':':
 			/* if there's a registered xapian prefix before the
 			 * ':', don't touch it. Otherwise replace ':' with
-			  * a space'... ugly...
-			  */			 
+			 * a space'... ugh yuck ugly...
+			 */			 
 			if (!is_xapian_prefix (query, cur))
 				*cur = '_';
-		} else
-			*cur = tolower(*cur);
+			break;
+		}
 	}
 	
 	return query;
@@ -505,6 +521,7 @@ mu_str_guess_nick (const char* name)
 
 	nick = g_strdup_printf ("%s%s", fname, initial);
 	g_free (fname);
+	g_free (lname);
 	
 leave:
 	{
@@ -516,4 +533,3 @@ leave:
 	
 	return nick;
 }
-

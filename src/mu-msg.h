@@ -1,4 +1,5 @@
-/* 
+/* -*- mode: c; tab-width: 8; indent-tabs-mode: t; c-basic-offset: 8 -*-
+**
 ** Copyright (C) 2010 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 **
 ** This program is free software; you can redistribute it and/or modify
@@ -23,47 +24,48 @@
 #include <mu-msg-flags.h>
 #include <mu-msg-fields.h>
 #include <mu-msg-prio.h>
-#include <mu-util.h> /* for MuResult, MuError */
+#include <mu-util.h> /* for MuResult, MuError and XapianDocument */
 
 G_BEGIN_DECLS
 
 struct _MuMsg;
 typedef struct _MuMsg MuMsg;
 
-
-/**
- * initialize the GMime-system; this function needs to be called
- * before doing anything else with MuMsg. mu_runtime_init will call
- * this function, so if you use that, you should not call this
- * function.
- */
-void mu_msg_gmime_init (void);
-
-/**
- * uninitialize the GMime-system; this function needs to be called
- * after you're done with MuMsg. mu_runtime_uninit will call this
- * function, so if you use that, you should not call this function.
- */
-void mu_msg_gmime_uninit (void);
-
-
 /**
  * create a new MuMsg* instance which parses a message and provides
- * read access to its properties; call mu_msg_destroy when done with it.
+ * read access to its properties; call mu_msg_unref when done with it.
  *
  * @param path full path to an email message file
  * @param mdir the maildir for this message; ie, if the path is
  * ~/Maildir/foo/bar/cur/msg, the maildir would be foo/bar; you can
  * pass NULL for this parameter, in which case some maildir-specific
  * information is not available.
- * @param err receive error information (MU_ERROR_FILE or MU_ERROR_GMIME), or NULL. There
+ * @param err receive error information (MU_ERROR_FILE or
+ * MU_ERROR_GMIME), or NULL. There will only be err info if the
+ * function returns NULL
+ * 
+ * @return a new MuMsg instance or NULL in case of error; call
+ * mu_msg_unref when done with this message
+ */
+MuMsg *mu_msg_new_from_file (const char* filepath, const char *maildir,
+			     GError **err)
+                             G_GNUC_MALLOC G_GNUC_WARN_UNUSED_RESULT;
+
+
+/**
+ * create a new MuMsg* instance based on a Xapian::Document
+ *
+ * @param doc a ptr to a Xapian::Document (but cast to XapianDocument,
+ * because this is C not C++)
+ * @param err receive error information, or NULL. There
  * will only be err info if the function returns NULL
  * 
  * @return a new MuMsg instance or NULL in case of error; call
  * mu_msg_unref when done with this message
  */
-MuMsg *mu_msg_new (const char* filepath, const char *maildir,
-		   GError **err) G_GNUC_MALLOC G_GNUC_WARN_UNUSED_RESULT;
+MuMsg *mu_msg_new_from_doc (const XapianDocument* doc, GError **err)
+                                    G_GNUC_MALLOC G_GNUC_WARN_UNUSED_RESULT;
+
 
 
 /**
@@ -87,6 +89,15 @@ void mu_msg_unref (MuMsg *msg);
 
 
 /**
+ * cache the values from the backend (file or db), so we don't the
+ * backend anymore
+ * 
+ * @param self a message
+ */
+void mu_msg_cache_values (MuMsg *self);
+
+
+/**
  * get the plain text body of this message
  *
  * @param msg a valid MuMsg* instance
@@ -107,25 +118,6 @@ const char*     mu_msg_get_body_text       (MuMsg *msg);
  * such body. the returned string should *not* be modified or freed.
  */
 const char*     mu_msg_get_body_html       (MuMsg *msg);
-
-
-/**
- * get a summary of the body of this message; a summary takes up to
- * the first @max_lines from the message, and replaces newlines
- * etc. with single whitespace characters. This only works if there's
- * a text-body for the message
- *
- * @param msg a valid MuMsg* instance
- * @param max_lines the max number of lines to summarize
- * 
- * @return the summary of the message or NULL in case of error or if
- * there is no such body. the returned string should *not* be modified
- * or freed. When called multiple times, the function will always
- * return the same summary, regardless of a different max_lines value.
- */
-const char*     mu_msg_get_summary (MuMsg *msg, size_t max_lines);
-
-
 
 /**
  * get the sender (From:) of this message
@@ -159,6 +151,19 @@ const char*     mu_msg_get_to	   (MuMsg *msg);
  * or freed.
  */
 const char*     mu_msg_get_cc	     (MuMsg *msg);
+
+
+/**
+ * get the blind carbon-copy recipients (Bcc:) of this message; this
+ * field usually only appears in outgoing messages
+ *
+ * @param msg a valid MuMsg* instance
+ * 
+ * @return the Bcc: recipients of this Message or NULL in case of
+ * error or if there are no such recipients. the returned string
+ * should *not* be modified or freed.
+ */
+const char*     mu_msg_get_bcc	     (MuMsg *msg);
 
 /**
  * get the file system path of this message
@@ -291,6 +296,126 @@ MuMsgPrio   mu_msg_get_prio        (MuMsg *msg);
  */
 time_t          mu_msg_get_timestamp       (MuMsg *msg);
 
+
+
+/**
+ * get a specific header from the message. This value will _not_ be
+ * cached
+ * 
+ * @param self a MuMsg instance
+ * @param header a specific header (like 'X-Mailer' or 'Organization')
+ * 
+ * @return a header string which is valid as long as this MuMsg is
+ */
+const char* mu_msg_get_header (MuMsg *self, const char *header);
+
+
+
+/**
+ * get the list of references as a comma-separated string
+ * 
+ * @param msg a valid MuMsg
+ * 
+ * @return a comma-separated string with the references or NULL if
+ * there are none. Don't modify/free
+ */
+const char* mu_msg_get_references_str (MuMsg *msg);
+
+
+enum _MuMsgContactType {  /* Reply-To:? */
+	MU_MSG_CONTACT_TYPE_TO    = 0,
+	MU_MSG_CONTACT_TYPE_FROM,  
+	MU_MSG_CONTACT_TYPE_CC,   
+	MU_MSG_CONTACT_TYPE_BCC,
+	
+	MU_MSG_CONTACT_TYPE_NUM
+};
+typedef guint MuMsgContactType;
+
+#define mu_msg_contact_type_is_valid(MCT)\
+	((MCT) < MU_MSG_CONTACT_TYPE_NUM)
+
+struct _MuMsgContact {
+	const char		*name;	    /* Foo Bar */
+	const char		*address;   /* foo@bar.cuux */
+	MuMsgContactType	 type;	    /* MU_MSG_CONTACT_TYPE_{ TO,
+					     * CC, BCC, FROM} */  
+};
+typedef struct _MuMsgContact	 MuMsgContact;
+
+/**
+ * create a new MuMsgContact object; note, in many case, this is not
+ * needed, any a stack-allocated struct can be uses.
+ * 
+ * @param name the name of the contact
+ * @param address the e-mail address of the contact
+ * @param type the type of contact: cc, bcc, from, to
+ * 
+ * @return a newly allocated MuMsgConcact or NULL in case of
+ * error. use mu_msg_contact_destroy to destroy it when it's no longer
+ * needed.
+ */
+MuMsgContact *mu_msg_contact_new (const char *name, const char *address,
+				  MuMsgContactType type)
+				  G_GNUC_MALLOC G_GNUC_WARN_UNUSED_RESULT;
+
+/**
+ * destroy a MuMsgConcact object
+ * 
+ * @param contact a contact object, or NULL
+ */
+void          mu_msg_contact_destroy (MuMsgContact *contact);
+
+/**
+ * macro to get the name of a contact
+ * 
+ * @param ct a MuMsgContact
+ * 
+ * @return the name
+ */
+#define mu_msg_contact_name(ct)    ((ct)->name)
+
+/**
+ * macro to get the address of a contact
+ * 
+ * @param ct a MuMsgContact
+ * 
+ * @return the address
+ */
+#define mu_msg_contact_address(ct) ((ct)->address)
+
+/**
+ * macro to get the contact type
+ * 
+ * @param ct a MuMsgContact
+ * 
+ * @return the contact type
+ */
+#define mu_msg_contact_type(ct)    ((ct)->type)
+
+
+/**
+ * callback function
+ *
+ * @param contact
+ * @param user_data a user provided data pointer
+ *
+ * @return TRUE if we should continue the foreach, FALSE otherwise
+ */
+typedef gboolean  (*MuMsgContactForeachFunc) (MuMsgContact* contact,
+					      gpointer user_data);
+
+/**
+ * call a function for each of the contacts in a message 
+ *
+ * @param msg a valid MuMsgGMime* instance
+ * @param func a callback function to call for each contact; when
+ * the callback does not return TRUE, it won't be called again
+ * @param user_data a user-provide pointer that will be passed to the callback
+ * 
+ */
+void mu_msg_contact_foreach (MuMsg *msg, MuMsgContactForeachFunc func,
+			     gpointer user_data);
 
 G_END_DECLS
 

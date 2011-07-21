@@ -1,4 +1,4 @@
-## Copyright (C) 2008-2010 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+## Copyright (C) 2008-2011 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 ##
 ## This program is free software; you can redistribute it and/or modify it
 ## under the terms of the GNU General Public License as published by the
@@ -56,9 +56,18 @@ TEST_PROGS += test-mu-query
 test_mu_query_SOURCES= test-mu-query.c dummy.cc
 test_mu_query_LDADD=    libtestmucommon.la
 
+TEST_PROGS += test-mu-contacts
+test_mu_contacts_SOURCES= test-mu-contacts.c dummy.cc
+test_mu_contacts_LDADD=    libtestmucommon.la
+
 TEST_PROGS += test-mu-cmd
 test_mu_cmd_SOURCES= test-mu-cmd.c dummy.cc
 test_mu_cmd_LDADD=    libtestmucommon.la
+
+TEST_PROGS += test-mu-cmd-cfind
+test_mu_cmd_cfind_SOURCES= test-mu-cmd-cfind.c dummy.cc
+test_mu_cmd_cfind_LDADD= libtestmucommon.la
+
 
 TEST_PROGS += test-mu-msg
 test_mu_msg_SOURCES= test-mu-msg.c dummy.cc
@@ -72,9 +81,10 @@ TEST_PROGS += test-mu-store
 test_mu_store_SOURCES= test-mu-store.c dummy.cc
 test_mu_store_LDADD= libtestmucommon.la
 
-TEST_PROGS += test-mu-msg-file
-test_mu_msg_file_SOURCES= test-mu-msg-file.c dummy.cc
-test_mu_msg_file_LDADD=  libtestmucommon.la
+# TEST_PROGS += test-mu-msg-file
+# test_mu_msg_file_SOURCES= test-mu-msg-file.c dummy.cc
+# test_mu_msg_file_LDADD=  libtestmucommon.la
+#
 
 libtestmucommon_la_SOURCES=				\
 	test-mu-common.c				\
@@ -100,6 +110,7 @@ EXTRA_DIST=							\
 	testdir/cur/1220863042.12663_1.mindcrime!2,S		\
 	testdir/cur/1220863060.12663_3.mindcrime!2,S		\
 	testdir/cur/1283599333.1840_11.cthulhu!2,		\
+	testdir/cur/1305664394.2171_402.cthulhu!2,		\
 	testdir2/bar/cur/mail1					\
 	testdir2/bar/cur/mail2					\
 	testdir2/bar/cur/mail3					\

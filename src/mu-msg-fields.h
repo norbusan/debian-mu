@@ -26,22 +26,30 @@ G_BEGIN_DECLS
 
 /* don't change the order, add new types at the end, as these numbers
  * are used in the database */
-enum _MuMsgFieldId {	
- 	MU_MSG_FIELD_ID_BODY_TEXT   = 0,
+enum _MuMsgFieldId {
+
+	/* first all the string-based ones */
+	MU_MSG_FIELD_ID_ATTACH	    = 0,
+	MU_MSG_FIELD_ID_BCC,
 	MU_MSG_FIELD_ID_BODY_HTML,
+	MU_MSG_FIELD_ID_BODY_TEXT,
 	MU_MSG_FIELD_ID_CC,
-	MU_MSG_FIELD_ID_DATE,
-	MU_MSG_FIELD_ID_FLAGS,
 	MU_MSG_FIELD_ID_FROM,
+	MU_MSG_FIELD_ID_MAILDIR,
+	MU_MSG_FIELD_ID_MSGID,
 	MU_MSG_FIELD_ID_PATH,
-	MU_MSG_FIELD_ID_MAILDIR, 
-	MU_MSG_FIELD_ID_PRIO,
-	MU_MSG_FIELD_ID_SIZE,
+	MU_MSG_FIELD_ID_REFS,
 	MU_MSG_FIELD_ID_SUBJECT,
 	MU_MSG_FIELD_ID_TO,
-	MU_MSG_FIELD_ID_MSGID,
-	MU_MSG_FIELD_ID_TIMESTAMP,
+	/* MU_MSG_STRING_FIELD_ID_NUM, see below */
 
+	/* then the numerical ones */
+	MU_MSG_FIELD_ID_DATE,
+	MU_MSG_FIELD_ID_FLAGS,
+	MU_MSG_FIELD_ID_PRIO,
+	MU_MSG_FIELD_ID_SIZE,
+	MU_MSG_FIELD_ID_TIMESTAMP,
+	
 	MU_MSG_FIELD_ID_NUM,
 
 	/* fake fields */
@@ -53,6 +61,8 @@ typedef enum _MuMsgFieldId MuMsgFieldId;
 
 /* some specials... */
 static const MuMsgFieldId MU_MSG_FIELD_ID_NONE = (MuMsgFieldId)-1;
+#define MU_MSG_STRING_FIELD_ID_NUM (MU_MSG_FIELD_ID_TO + 1)
+
 
 #define mu_msg_field_id_is_valid(MFID) \
 	((MFID) < MU_MSG_FIELD_ID_NUM)
@@ -126,6 +136,16 @@ MuMsgFieldType mu_msg_field_type (MuMsgFieldId id) G_GNUC_PURE;
 
 
 /**
+ * is the field a string?
+ * 
+ * @param id a MuMsgFieldId
+ * 
+ * @return TRUE if the field a string, FALSE otherwise
+ */
+#define mu_msg_field_is_string(MFID)\
+	(mu_msg_field_type((MFID))==MU_MSG_FIELD_TYPE_STRING?TRUE:FALSE)
+
+/**
  * is the field numeric (has type MU_MSG_FIELD_TYPE_(BYTESIZE|TIME_T|INT))?
  * 
  * @param id a MuMsgFieldId
@@ -133,6 +153,16 @@ MuMsgFieldType mu_msg_field_type (MuMsgFieldId id) G_GNUC_PURE;
  * @return TRUE if the field is numeric, FALSE otherwise
  */
 gboolean mu_msg_field_is_numeric (MuMsgFieldId id) G_GNUC_PURE;
+
+
+/**
+ * whether the field value should be cached (in MuMsg) -- we cache
+ * values so we can use the MuMsg without needing to keep the
+ * underlying data source (the GMimeMessage or the database ptr) alive
+ * in practice, the fields we *don't* cache are the message body
+ * (html, txt), because they take too much memory
+ */
+gboolean mu_msg_field_is_cacheable (MuMsgFieldId id) G_GNUC_PURE;
 
 
 /**
@@ -163,6 +193,33 @@ gboolean mu_msg_field_xapian_term (MuMsgFieldId id) G_GNUC_PURE;
  * @return TRUE if the field is Xapian-enabled, FALSE otherwise
  */
 gboolean mu_msg_field_xapian_value (MuMsgFieldId id) G_GNUC_PURE;
+
+
+/**
+ * whether we should use add_boolean_prefix (see Xapian documentation)
+ * for this field in queries. Used in mu-query.cc
+ * 
+ * @param id a MuMsgFieldId
+ * 
+ * @return TRUE if this field wants add_boolean_prefix, FALSE
+ * otherwise
+ */
+gboolean mu_msg_field_uses_boolean_prefix (MuMsgFieldId id) G_GNUC_PURE;
+
+
+
+/**
+ * wether this fields needs a prefix in queries -- ie,
+ * 'msgid:<some-message-id>' will only match with the explicit prefix,
+ * while 'subject:foo' will also match as just 'foo'. Used in
+ * mu-query.cc
+ * 
+ * @param id a MuMsgFieldId
+ * 
+ * @return TRUE if this field only matches with a prefix, FALSE
+ * otherwise
+ */
+gboolean mu_msg_field_needs_prefix (MuMsgFieldId id) G_GNUC_PURE;
 
 
 /**
@@ -232,8 +289,6 @@ MuMsgFieldId mu_msg_field_id_from_name (const char* str,
  */
 MuMsgFieldId  mu_msg_field_id_from_shortcut (char kar,
 					     gboolean err) G_GNUC_PURE;
-
-
 G_END_DECLS
 
 #endif /*__MU_MSG_FIELDS_H__*/

@@ -22,6 +22,7 @@
 #endif /*HAVE_CONFIG_H*/
 
 #include <stdlib.h>
+#include <stdio.h>
 
 #include "mu-cmd.h"
 #include "mu-util.h"
@@ -138,12 +139,32 @@ each_contact_org_contact (const char *email, const char *name)
 			 name, email);
 }
 
+static void
+print_plain (const char *email, const char *name, gboolean color)
+{
+	if (name)
+		g_print ("%s%s%s ",
+			 color ? MU_COLOR_MAGENTA : "",
+			 name,
+			 color ? MU_COLOR_DEFAULT : "");
+
+	g_print ("%s%s%s\n",
+		 color ? MU_COLOR_GREEN : "",
+		 email,
+		 color ? MU_COLOR_DEFAULT : "");
+}
+
+struct _ECData {
+	OutputFormat format;
+	gboolean color;
+};
+typedef struct _ECData ECData;
+
 
 static void
-each_contact (const char *email, const char *name, time_t tstamp,
-	      OutputFormat format)
+each_contact (const char *email, const char *name, time_t tstamp, ECData *ecdata)
 {
-	switch (format) {
+	switch (ecdata->format) {
 	case FORMAT_MUTT_ALIAS: each_contact_mutt_alias (email, name); break;
 	case FORMAT_MUTT_AB:
 		g_print ("%s\t%s\t\n", email, name ? name : ""); break;
@@ -155,17 +176,19 @@ each_contact (const char *email, const char *name, time_t tstamp,
 		g_print ("%s,%s\n", name ? name : "", email);
 		break;
 	default:
-                g_print ("%s%s%s\n", name ? name : "", name ? " " : "", email);
+		print_plain (email, name, ecdata->color);
 	}
 }
 
 
 static MuExitCode
-run_cmd_cfind (const char* pattern, OutputFormat format)
+run_cmd_cfind (const char* pattern, OutputFormat format,
+	       gboolean color)
 {
 	gboolean rv;
 	MuContacts *contacts;
 	size_t num;
+	ECData ecdata = {format, color};
 	
 	contacts = mu_contacts_new (mu_runtime_path(MU_RUNTIME_PATH_CONTACTS));
 	if (!contacts) {
@@ -174,15 +197,18 @@ run_cmd_cfind (const char* pattern, OutputFormat format)
 	}
 
 	print_header (format);
-	rv = mu_contacts_foreach (contacts, (MuContactsForeachFunc)each_contact,
-				  GINT_TO_POINTER(format), pattern, &num);
+	rv = mu_contacts_foreach (contacts,
+				  (MuContactsForeachFunc)each_contact,
+				  &ecdata, pattern, &num);
 	
 	mu_contacts_destroy (contacts);
 
-	if (rv) 
-		return (num == 0) ? MU_EXITCODE_NO_MATCHES : MU_EXITCODE_OK;
-	else
-		return MU_EXITCODE_ERROR;
+	if (num == 0) {
+		g_warning ("no matching contacts found");
+		return MU_EXITCODE_NO_MATCHES;
+	}
+
+	return rv ? MU_EXITCODE_OK : MU_EXITCODE_ERROR;
 
 	
 }
@@ -205,10 +231,10 @@ mu_cmd_cfind (MuConfig *opts)
 
 	/* only one pattern allowed */
 	if (opts->params[1] && opts->params[2]) {
-		g_warning ("usage: mu cfind [OPTIONS] [<ptrn>]");
+		g_warning ("usage: mu cfind [options] [<ptrn>]");
 		return MU_EXITCODE_ERROR;
 	}
 
-	return run_cmd_cfind (opts->params[1], format);
+	return run_cmd_cfind (opts->params[1], format, opts->color);
 }
 

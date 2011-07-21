@@ -1,3 +1,5 @@
+/* -*-mode: c++; tab-width: 8; indent-tabs-mode: t; c-basic-offset: 8-*- */
+
 /*
 ** Copyright (C) 2008-2011 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 **
@@ -28,8 +30,8 @@
 #include "mu-util.h"
 
 
-char*
-mu_util_xapian_get_metadata (const gchar *xpath, const gchar *key)
+static char*
+xapian_get_metadata (const gchar *xpath, const gchar *key)
 {
 	g_return_val_if_fail (xpath, NULL);
 	g_return_val_if_fail (key, NULL);
@@ -49,37 +51,12 @@ mu_util_xapian_get_metadata (const gchar *xpath, const gchar *key)
 	return NULL;
 }
 
-
-gboolean
-mu_util_xapian_set_metadata (const gchar *xpath,
-			     const gchar *key, const gchar *val)
-{
-	g_return_val_if_fail (xpath, FALSE);
-	g_return_val_if_fail (key, FALSE);
-	g_return_val_if_fail (val, FALSE);
-	
-	if (!access(xpath, F_OK) == 0) {
-		g_warning ("cannot access %s: %s", xpath, strerror(errno));
-		return FALSE;
-	}
-	
-	try {			
-		Xapian::WritableDatabase db (xpath, Xapian::DB_OPEN);
-		db.set_metadata (key, val);
-		return TRUE;
-		
-	} MU_XAPIAN_CATCH_BLOCK;
-	
-	return FALSE;
-}
-
-
 char*
 mu_util_xapian_dbversion (const gchar *xpath)
 {
 	g_return_val_if_fail (xpath, NULL);
 
-	return mu_util_xapian_get_metadata (xpath, MU_STORE_VERSION_KEY);
+	return xapian_get_metadata (xpath, MU_STORE_VERSION_KEY);
 }
 
 gboolean
@@ -122,16 +99,30 @@ mu_util_xapian_is_empty (const gchar* xpath)
 }
 
 gboolean
-mu_util_xapian_clear (const gchar *xpath)
+mu_util_xapian_clear (const gchar *xpath,
+		      const char  *ccache)
 {
 	g_return_val_if_fail (xpath, FALSE);
+	g_return_val_if_fail (ccache, FALSE);
 	
 	try {
+		int rv;
+		
+		/* clear the database */
 		Xapian::WritableDatabase db
 			(xpath, Xapian::DB_CREATE_OR_OVERWRITE);
 		db.flush ();
-		
 		MU_WRITE_LOG ("emptied database %s", xpath);
+
+		/* clear the contacts cache; this is not totally
+		 * fail-safe, as some other process may still have it
+		 * open... */
+		rv = unlink (ccache);
+		if (rv != 0 && errno != ENOENT) {
+			g_warning ("failed to remove contacts-cache: %s",
+				   strerror(errno));
+			return FALSE;
+		}
 		
 		return TRUE;
 		
@@ -151,7 +142,8 @@ mu_util_xapian_is_locked (const gchar *xpath)
 	} catch (const Xapian::DatabaseLockError& xer) {
 		return TRUE;
 	} catch (const Xapian::Error &xer) {
-		g_warning ("%s: error: %s", __FUNCTION__, xer.get_msg().c_str());
+		g_warning ("%s: error: %s", __FUNCTION__,
+			   xer.get_msg().c_str());
 	}
 	
 	return FALSE;

@@ -58,10 +58,9 @@ libmu_la_DEPENDENCIES = $(am__DEPENDENCIES_1) $(am__DEPENDENCIES_1) \
 am_libmu_la_OBJECTS = mu-bookmarks.lo mu-cmd-cfind.lo \
 	mu-cmd-extract.lo mu-cmd-find.lo mu-cmd-index.lo mu-cmd.lo \
 	mu-config.lo mu-contacts.lo mu-index.lo mu-log.lo \
-	mu-maildir.lo mu-msg-contact.lo mu-msg-data.lo \
-	mu-msg-data-cache.lo mu-msg-fields.lo mu-msg-flags.lo \
-	mu-msg-file.lo mu-msg-iter.lo mu-msg-part.lo mu-msg-prio.lo \
-	mu-msg.lo mu-msg-file.lo mu-output.lo mu-query.lo \
+	mu-maildir.lo mu-msg-cache.lo mu-msg-doc.lo mu-msg-fields.lo \
+	mu-msg-file.lo mu-msg-flags.lo mu-msg-iter.lo mu-msg-part.lo \
+	mu-msg-prio.lo mu-msg.lo mu-output.lo mu-query.lo \
 	mu-runtime.lo mu-store.lo mu-str-normalize.lo mu-str.lo \
 	mu-util-db.lo mu-util.lo
 libmu_la_OBJECTS = $(am_libmu_la_OBJECTS)
@@ -337,19 +336,16 @@ libmu_la_SOURCES = \
 	mu-log.h			\
 	mu-maildir.c			\
 	mu-maildir.h			\
-	mu-msg-contact.c		\
-	mu-msg-contact.h		\
-	mu-msg-data.c			\
-	mu-msg-data.h			\
-	mu-msg-data-cache.c		\
-	mu-msg-data-cache.h		\
+	mu-msg-cache.c			\
+	mu-msg-cache.h			\
+	mu-msg-doc.cc			\
+	mu-msg-doc.h			\
 	mu-msg-fields.c			\
 	mu-msg-fields.h			\
+	mu-msg-file.c			\
+	mu-msg-file.h			\
 	mu-msg-flags.c			\
 	mu-msg-flags.h			\
-	mu-msg-file.h			\
-	mu-msg-file.c			\
-	mu-msg-iter-priv.hh		\
 	mu-msg-iter.cc			\
 	mu-msg-iter.h			\
 	mu-msg-part.c			\
@@ -360,8 +356,6 @@ libmu_la_SOURCES = \
 	mu-msg.c			\
 	mu-msg.h			\
 	mu-msg.h			\
-	mu-msg-file.c			\
-	mu-msg-file.h			\
 	mu-output.c			\
 	mu-output.h			\
 	mu-query.cc			\
@@ -491,9 +485,8 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mu-index.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mu-log.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mu-maildir.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mu-msg-contact.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mu-msg-data-cache.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mu-msg-data.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mu-msg-cache.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mu-msg-doc.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mu-msg-fields.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mu-msg-file.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mu-msg-flags.Plo@am__quote@
