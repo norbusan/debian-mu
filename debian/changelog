@@ -1,8 +1,9 @@
 maildir-utils (0.9.6-1) unstable; urgency=low
 
   * new upstream release
+  * change build dep from libwebkit-dev to libwebkitgtk-dev (Closes: #635419)
 
- -- Norbert Preining <preining@debian.org>  Thu, 21 Jul 2011 10:22:53 +0900
+ -- Norbert Preining <preining@debian.org>  Tue, 26 Jul 2011 08:03:57 +0900
 
 maildir-utils (0.9.5-1) unstable; urgency=low
 
