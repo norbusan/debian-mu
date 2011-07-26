@@ -27,7 +27,7 @@ Package: maildir-utils-gtk
 Section: mail
 Priority: optional
 Architecture: any
-Depends: xdg-utils, ${shlibs:Depends}, ${misc:Depends}
+Depends: maildir-utils, xdg-utils, ${shlibs:Depends}, ${misc:Depends}
 Description: Set of utilities to deal with Maildirs (upstream name mu) - gui
  mu is a set of utilities to deal with Maildirs, specifically, 
  indexing and searching. 
