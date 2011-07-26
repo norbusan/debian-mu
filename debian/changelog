@@ -1,3 +1,10 @@
+maildir-utils (0.9.6-2) unstable; urgency=low
+
+  * split of mug into its own package to reduce dependencies
+    (suggestion by Stephan Jänecke)
+
+ -- Norbert Preining <preining@debian.org>  Tue, 26 Jul 2011 21:36:01 +0900
+
 maildir-utils (0.9.6-1) unstable; urgency=low
 
   * new upstream release

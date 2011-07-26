@@ -12,7 +12,7 @@ Package: maildir-utils
 Section: mail
 Priority: optional
 Architecture: any
-Depends: xdg-utils, ${shlibs:Depends}, ${misc:Depends}
+Depends: ${shlibs:Depends}, ${misc:Depends}
 Description: Set of utilities to deal with Maildirs (upstream name mu)
  mu is a set of utilities to deal with Maildirs, specifically, 
  indexing and searching. 
@@ -22,3 +22,13 @@ Description: Set of utilities to deal with Maildirs (upstream name mu)
   - mu mkmdir - creates a new Maildir
  .
  mu uses libgmime2 to parse the message, and Xapian to store the message data. 
+
+Package: maildir-utils-gtk
+Section: mail
+Priority: optional
+Architecture: any
+Depends: xdg-utils, ${shlibs:Depends}, ${misc:Depends}
+Description: Set of utilities to deal with Maildirs (upstream name mu) - gui
+ mu is a set of utilities to deal with Maildirs, specifically, 
+ indexing and searching. 
+ This package provides a GUI for searching wiht mu.
