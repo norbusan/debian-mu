@@ -32,4 +32,4 @@ Replaces: maildir-utils (<= 0.9.6-1)
 Description: Set of utilities to deal with Maildirs (upstream name mu) - gui
  mu is a set of utilities to deal with Maildirs, specifically, 
  indexing and searching. 
- This package provides a GUI for searching wiht mu.
+ This package provides a GUI for searching with mu.
