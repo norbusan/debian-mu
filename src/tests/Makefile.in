@@ -62,7 +62,8 @@ am__EXEEXT_1 = test-mu-util$(EXEEXT) test-mu-str$(EXEEXT) \
 	test-mu-query$(EXEEXT) test-mu-contacts$(EXEEXT) \
 	test-mu-cmd$(EXEEXT) test-mu-cmd-cfind$(EXEEXT) \
 	test-mu-msg$(EXEEXT) test-mu-runtime$(EXEEXT) \
-	test-mu-store$(EXEEXT)
+	test-mu-store$(EXEEXT) test-mu-threads$(EXEEXT) \
+	test-mu-date$(EXEEXT)
 PROGRAMS = $(noinst_PROGRAMS)
 am_test_mu_cmd_OBJECTS = test-mu-cmd.$(OBJEXT) dummy.$(OBJEXT)
 test_mu_cmd_OBJECTS = $(am_test_mu_cmd_OBJECTS)
@@ -75,6 +76,9 @@ am_test_mu_contacts_OBJECTS = test-mu-contacts.$(OBJEXT) \
 	dummy.$(OBJEXT)
 test_mu_contacts_OBJECTS = $(am_test_mu_contacts_OBJECTS)
 test_mu_contacts_DEPENDENCIES = libtestmucommon.la
+am_test_mu_date_OBJECTS = test-mu-date.$(OBJEXT) dummy.$(OBJEXT)
+test_mu_date_OBJECTS = $(am_test_mu_date_OBJECTS)
+test_mu_date_DEPENDENCIES = libtestmucommon.la
 am_test_mu_maildir_OBJECTS = test-mu-maildir.$(OBJEXT) dummy.$(OBJEXT)
 test_mu_maildir_OBJECTS = $(am_test_mu_maildir_OBJECTS)
 test_mu_maildir_DEPENDENCIES = libtestmucommon.la
@@ -97,6 +101,9 @@ test_mu_store_DEPENDENCIES = libtestmucommon.la
 am_test_mu_str_OBJECTS = test-mu-str.$(OBJEXT) dummy.$(OBJEXT)
 test_mu_str_OBJECTS = $(am_test_mu_str_OBJECTS)
 test_mu_str_DEPENDENCIES = libtestmucommon.la
+am_test_mu_threads_OBJECTS = test-mu-threads.$(OBJEXT) dummy.$(OBJEXT)
+test_mu_threads_OBJECTS = $(am_test_mu_threads_OBJECTS)
+test_mu_threads_DEPENDENCIES = libtestmucommon.la
 am_test_mu_util_OBJECTS = test-mu-util.$(OBJEXT) dummy.$(OBJEXT)
 test_mu_util_OBJECTS = $(am_test_mu_util_OBJECTS)
 test_mu_util_DEPENDENCIES = libtestmucommon.la
@@ -144,16 +151,18 @@ am__v_GEN_ = $(am__v_GEN_$(AM_DEFAULT_VERBOSITY))
 am__v_GEN_0 = @echo "  GEN   " $@;
 SOURCES = $(libtestmucommon_la_SOURCES) $(test_mu_cmd_SOURCES) \
 	$(test_mu_cmd_cfind_SOURCES) $(test_mu_contacts_SOURCES) \
-	$(test_mu_maildir_SOURCES) $(test_mu_msg_SOURCES) \
-	$(test_mu_msg_fields_SOURCES) $(test_mu_query_SOURCES) \
-	$(test_mu_runtime_SOURCES) $(test_mu_store_SOURCES) \
-	$(test_mu_str_SOURCES) $(test_mu_util_SOURCES)
+	$(test_mu_date_SOURCES) $(test_mu_maildir_SOURCES) \
+	$(test_mu_msg_SOURCES) $(test_mu_msg_fields_SOURCES) \
+	$(test_mu_query_SOURCES) $(test_mu_runtime_SOURCES) \
+	$(test_mu_store_SOURCES) $(test_mu_str_SOURCES) \
+	$(test_mu_threads_SOURCES) $(test_mu_util_SOURCES)
 DIST_SOURCES = $(libtestmucommon_la_SOURCES) $(test_mu_cmd_SOURCES) \
 	$(test_mu_cmd_cfind_SOURCES) $(test_mu_contacts_SOURCES) \
-	$(test_mu_maildir_SOURCES) $(test_mu_msg_SOURCES) \
-	$(test_mu_msg_fields_SOURCES) $(test_mu_query_SOURCES) \
-	$(test_mu_runtime_SOURCES) $(test_mu_store_SOURCES) \
-	$(test_mu_str_SOURCES) $(test_mu_util_SOURCES)
+	$(test_mu_date_SOURCES) $(test_mu_maildir_SOURCES) \
+	$(test_mu_msg_SOURCES) $(test_mu_msg_fields_SOURCES) \
+	$(test_mu_query_SOURCES) $(test_mu_runtime_SOURCES) \
+	$(test_mu_store_SOURCES) $(test_mu_str_SOURCES) \
+	$(test_mu_threads_SOURCES) $(test_mu_util_SOURCES)
 ETAGS = etags
 CTAGS = ctags
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
@@ -194,6 +203,10 @@ GMIME_LIBS = @GMIME_LIBS@
 GREP = @GREP@
 GTK_CFLAGS = @GTK_CFLAGS@
 GTK_LIBS = @GTK_LIBS@
+GUILE_CFLAGS = @GUILE_CFLAGS@
+GUILE_CONFIG = @GUILE_CONFIG@
+GUILE_LIBS = @GUILE_LIBS@
+GUILE_SNARF = @GUILE_SNARF@
 INSTALL = @INSTALL@
 INSTALL_DATA = @INSTALL_DATA@
 INSTALL_PROGRAM = @INSTALL_PROGRAM@
@@ -296,13 +309,15 @@ top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 TEST_PROGS = test-mu-util test-mu-str test-mu-maildir \
 	test-mu-msg-fields test-mu-query test-mu-contacts test-mu-cmd \
-	test-mu-cmd-cfind test-mu-msg test-mu-runtime test-mu-store
+	test-mu-cmd-cfind test-mu-msg test-mu-runtime test-mu-store \
+	test-mu-threads test-mu-date
 INCLUDES = $(XAPIAN_CXXFLAGS)					\
 	 $(GMIME_CFLAGS)					\
 	 $(GLIB_CFLAGS)						\
 	-I ${top_srcdir} -I ${top_srcdir}/src			\
 	-DMU_TESTMAILDIR=\"${abs_srcdir}/testdir/\"		\
 	-DMU_TESTMAILDIR2=\"${abs_srcdir}/testdir2/\"		\
+	-DMU_TESTMAILDIR3=\"${abs_srcdir}/testdir3/\"		\
 	-DMU_PROGRAM=\"${abs_top_builddir}/src/mu\"		\
 	-DABS_CURDIR=\"${abs_builddir}\"			\
 	-DABS_SRCDIR=\"${abs_srcdir}\"
@@ -336,6 +351,10 @@ test_mu_runtime_SOURCES = test-mu-runtime.c dummy.cc
 test_mu_runtime_LDADD = libtestmucommon.la
 test_mu_store_SOURCES = test-mu-store.c dummy.cc
 test_mu_store_LDADD = libtestmucommon.la
+test_mu_threads_SOURCES = test-mu-threads.c dummy.cc
+test_mu_threads_LDADD = libtestmucommon.la
+test_mu_date_SOURCES = test-mu-date.c dummy.cc
+test_mu_date_LDADD = libtestmucommon.la
 
 # TEST_PROGS += test-mu-msg-file
 # test_mu_msg_file_SOURCES= test-mu-msg-file.c dummy.cc
@@ -367,11 +386,46 @@ EXTRA_DIST = \
 	testdir/cur/1220863060.12663_3.mindcrime!2,S		\
 	testdir/cur/1283599333.1840_11.cthulhu!2,		\
 	testdir/cur/1305664394.2171_402.cthulhu!2,		\
+	testdir/cur/1252168370_3.14675.cthulhu!2,S		\
 	testdir2/bar/cur/mail1					\
 	testdir2/bar/cur/mail2					\
 	testdir2/bar/cur/mail3					\
 	testdir2/bar/cur/mail4					\
-	testdir2/Foo/cur/mail5
+	testdir2/bar/cur/mail5					\
+	testdir2/bar/cur/181736.eml				\
+	testdir2/bar/cur/mail6					\
+	testdir2/bar/tmp/.noindex				\
+	testdir2/bar/new/.noindex				\
+	testdir2/Foo/cur/mail5					\
+	testdir2/Foo/cur/arto.eml				\
+	testdir2/Foo/tmp/.noindex				\
+	testdir2/Foo/new/.noindex				\
+	testdir3/tree						\
+	testdir3/tree/new					\
+	testdir3/tree/new/.noindex				\
+	testdir3/tree/cur					\
+	testdir3/tree/cur/child0.1				\
+	testdir3/tree/cur/root1					\
+	testdir3/tree/cur/child3.0.0.0.0			\
+	testdir3/tree/cur/child0.0				\
+	testdir3/tree/cur/child4.1				\
+	testdir3/tree/cur/child4.0				\
+	testdir3/tree/cur/root2					\
+	testdir3/tree/cur/child0.1.0				\
+	testdir3/tree/cur/child2.0.0				\
+	testdir3/tree/cur/root0					\
+	testdir3/tree/tmp					\
+	testdir3/tree/tmp/.noindex				\
+	testdir3/cycle						\
+	testdir3/cycle/new					\
+	testdir3/cycle/new/.noindex				\
+	testdir3/cycle/cur					\
+	testdir3/cycle/cur/rogue0				\
+	testdir3/cycle/cur/cycle0				\
+	testdir3/cycle/cur/cycle0.0.0				\
+	testdir3/cycle/cur/cycle0.0				\
+	testdir3/cycle/tmp					\
+	testdir3/cycle/tmp/.noindex
 
 all: all-am
 
@@ -436,6 +490,9 @@ test-mu-cmd-cfind$(EXEEXT): $(test_mu_cmd_cfind_OBJECTS) $(test_mu_cmd_cfind_DEP
 test-mu-contacts$(EXEEXT): $(test_mu_contacts_OBJECTS) $(test_mu_contacts_DEPENDENCIES) 
 	@rm -f test-mu-contacts$(EXEEXT)
 	$(AM_V_CXXLD)$(CXXLINK) $(test_mu_contacts_OBJECTS) $(test_mu_contacts_LDADD) $(LIBS)
+test-mu-date$(EXEEXT): $(test_mu_date_OBJECTS) $(test_mu_date_DEPENDENCIES) 
+	@rm -f test-mu-date$(EXEEXT)
+	$(AM_V_CXXLD)$(CXXLINK) $(test_mu_date_OBJECTS) $(test_mu_date_LDADD) $(LIBS)
 test-mu-maildir$(EXEEXT): $(test_mu_maildir_OBJECTS) $(test_mu_maildir_DEPENDENCIES) 
 	@rm -f test-mu-maildir$(EXEEXT)
 	$(AM_V_CXXLD)$(CXXLINK) $(test_mu_maildir_OBJECTS) $(test_mu_maildir_LDADD) $(LIBS)
@@ -457,6 +514,9 @@ test-mu-store$(EXEEXT): $(test_mu_store_OBJECTS) $(test_mu_store_DEPENDENCIES)
 test-mu-str$(EXEEXT): $(test_mu_str_OBJECTS) $(test_mu_str_DEPENDENCIES) 
 	@rm -f test-mu-str$(EXEEXT)
 	$(AM_V_CXXLD)$(CXXLINK) $(test_mu_str_OBJECTS) $(test_mu_str_LDADD) $(LIBS)
+test-mu-threads$(EXEEXT): $(test_mu_threads_OBJECTS) $(test_mu_threads_DEPENDENCIES) 
+	@rm -f test-mu-threads$(EXEEXT)
+	$(AM_V_CXXLD)$(CXXLINK) $(test_mu_threads_OBJECTS) $(test_mu_threads_LDADD) $(LIBS)
 test-mu-util$(EXEEXT): $(test_mu_util_OBJECTS) $(test_mu_util_DEPENDENCIES) 
 	@rm -f test-mu-util$(EXEEXT)
 	$(AM_V_CXXLD)$(CXXLINK) $(test_mu_util_OBJECTS) $(test_mu_util_LDADD) $(LIBS)
@@ -472,6 +532,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test-mu-cmd.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test-mu-common.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test-mu-contacts.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test-mu-date.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test-mu-maildir.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test-mu-msg-fields.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test-mu-msg.Po@am__quote@
@@ -479,6 +540,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test-mu-runtime.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test-mu-store.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test-mu-str.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test-mu-threads.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test-mu-util.Po@am__quote@
 
 .c.o:
@@ -734,7 +796,15 @@ uninstall-am:
 	tags uninstall uninstall-am
 
 
+#
+# NOTE: we set the locale/tz to some well-know values, so the tests
+# (at least when running under 'make check') run in a predictable
+# environment. There are specific tests different timezone, though.
+#
+
 test: all $(TEST_PROGS)
+	 @export LC_ALL="en_US.utf8"
+	 @export TZ="Europe/Helsinki"
 	 @test -z "$(TEST_PROGS)" || gtester --verbose $(TEST_PROGS) || exit $$?; \
 	 test -z "$(SUBDIRS)" || \
 		for subdir in $(SUBDIRS); do \

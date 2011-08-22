@@ -33,48 +33,48 @@
 
 #include "mu-util.h"
 #include "mu-str.h"
+#include "mu-date.h"
 
 /*
  * custom parser for date ranges
  */
-class MuDateRangeProcessor : public Xapian::ValueRangeProcessor {
+class MuDateRangeProcessor : public Xapian::StringValueRangeProcessor {
 public:
-	MuDateRangeProcessor() {}
+	MuDateRangeProcessor():
+		Xapian::StringValueRangeProcessor(
+			(Xapian::valueno)MU_MSG_FIELD_ID_DATE) {}
 
 	Xapian::valueno operator()(std::string &begin, std::string &end) {
 
 		if (!clear_prefix (begin))
 			return Xapian::BAD_VALUENO;
-
-		// now and begin should only appear at the end, so
-		// correct them...
-		if (begin == "today" || begin == "now")
-			std::swap (begin, end);
 		
-		substitute_date (begin);
-		substitute_date (end);
-
-		normalize_date (begin);
-		normalize_date (end);
-
-		// note, we'll have to compare the *completed*
-		// versions of begin and end to if the were specified
-		// in the opposite order; however, if that is true, we
-		// have to complete begin, end 'for real', as the
-		// begin date is completed to the begin of the
-		// interval, and the to the end of the interval
-		// ie. begin: 2008 -> 200801010000 end: 2008 ->
-		// 200812312359
-		if (complete_date12(begin,true) >
-		    complete_date12(end, false))			
-			std::swap (begin, end);
 		
-		begin = complete_date12(begin,true);
-		end =	complete_date12(end, false);
 		
-		return (Xapian::valueno)MU_MSG_PSEUDO_FIELD_ID_DATESTR;
+		 begin = to_sortable (begin, true);
+		 end   = to_sortable (end, false);
+		 
+		if (begin > end) 
+			throw Xapian::QueryParserError
+				("end time is before begin");
+		
+		return (Xapian::valueno)MU_MSG_FIELD_ID_DATE;
 	}
 private:
+	std::string to_sortable (std::string& s, bool is_begin) {
+
+		const char* str;
+		time_t t;
+		
+		str = mu_date_interpret_s (s.c_str(), is_begin ? TRUE: FALSE);
+		str = mu_date_complete_s (str, is_begin ? TRUE: FALSE);
+		t   = mu_date_str_to_time_t (str, TRUE /*local*/);
+		str = mu_date_time_t_to_str (t, FALSE /*UTC*/);
+		
+		return s = std::string(str);
+	}
+
+
 	bool clear_prefix (std::string& begin) {
 		
 		const std::string colon (":");
@@ -93,54 +93,8 @@ private:
 		} else
 			return false;		
 	}
-	
-	void substitute_date (std::string& date) {
-		char datebuf[13];
-		time_t now = time(NULL);
-		
-		if (date == "today") {
-			strftime(datebuf, sizeof(datebuf), "%Y%m%d0000",
-				 localtime(&now));
-			date = datebuf;
-		} else if (date == "now") {
-			strftime(datebuf, sizeof(datebuf), "%Y%m%d%H%M",
-				 localtime(&now));
-			date = datebuf;
-		} else {
-			time_t t;
-			t = mu_str_date_parse_hdwmy (date.c_str());
-			if (t != (time_t)-1) {
-				strftime(datebuf, sizeof(datebuf), "%Y%m%d%H%M",
-					 localtime(&t));
-				date = datebuf;
-			}
-		}		
-	}
-		
-	void normalize_date (std::string& date) {
-		std::string cleanup;
-		for (unsigned i = 0; i != date.length(); ++i) {
-			char k = date[i];
-			if (std::isdigit(k))
-				cleanup += date[i];
-		}
-		date = cleanup;
-	}
-	
-	std::string complete_date12 (const std::string date, bool is_begin) const {
 
-		std::string compdate;
-		const std::string bsuffix ("00000101000000");
-		const std::string esuffix ("99991231235959");
-		const size_t size = 12;
-		
-		if (is_begin)
-			compdate = std::string (date + bsuffix.substr (date.length()));
-		else
-			compdate = std::string (date + esuffix.substr (date.length()));
-
-		return compdate.substr (0, size);
-	}
+	
 };
 
 
@@ -189,9 +143,9 @@ private:
 	
 	bool substitute_size (std::string& size) {
 		gchar str[16];
-		guint64 num = mu_str_size_parse_kmg  (size.c_str());
-		if (num == G_MAXUINT64)
-			return false;
+		gint64 num = mu_str_size_parse_bkm(size.c_str());
+		if (num < 0)
+			throw Xapian::QueryParserError ("invalid size");
 		snprintf (str, sizeof(str), "%" G_GUINT64_FORMAT, num);
 		size = str;
 		return true;
@@ -222,28 +176,35 @@ struct _MuQuery {
 	MuSizeRangeProcessor	_size_range_processor;
 };
 
-static bool
-set_query (MuQuery *mqx, Xapian::Query& q, const char* searchexpr,
-	   GError **err)  {
+static const Xapian::Query
+get_query (MuQuery *mqx, const char* searchexpr, GError **err)
+{
+	Xapian::Query query;
+	char *preprocessed;	
+		
+	preprocessed = mu_query_preprocess (searchexpr);
+
 	try {
-		q = mqx->_qparser.parse_query
-			(searchexpr,
+		query = mqx->_qparser.parse_query
+			(preprocessed,
 			 Xapian::QueryParser::FLAG_BOOLEAN          |
 			 Xapian::QueryParser::FLAG_PURE_NOT         |
 			 Xapian::QueryParser::FLAG_WILDCARD	    |
 			 Xapian::QueryParser::FLAG_AUTO_SYNONYMS    |
 			 Xapian::QueryParser::FLAG_BOOLEAN_ANY_CASE);
-
-		return true;
+		g_free (preprocessed);
+		return query;
 		
-	} MU_XAPIAN_CATCH_BLOCK;
-	
-	/* some error occured */
-	g_set_error (err, 0, MU_ERROR_QUERY, "parse error in query '%s'",
-		     searchexpr);
-	
-	return false;
+	} catch (...) {
+		/* some error occured */
+		g_set_error (err, 0, MU_ERROR_QUERY,
+			     "parse error in query");
+		g_free (preprocessed);
+		throw;
+	}
 }
+
+
 
 static void
 add_prefix (MuMsgFieldId mfid, Xapian::QueryParser* qparser)
@@ -333,9 +294,9 @@ mu_query_preprocess (const char *query)
 
 
 MuMsgIter*
-mu_query_run (MuQuery *self, const char* searchexpr,
+mu_query_run (MuQuery *self, const char* searchexpr, gboolean threads,
 	      MuMsgFieldId sortfieldid, gboolean ascending,
-	      size_t batchsize, GError **err)  
+	      GError **err)  
 {
 	g_return_val_if_fail (self, NULL);
 	g_return_val_if_fail (searchexpr, NULL);	
@@ -343,29 +304,26 @@ mu_query_run (MuQuery *self, const char* searchexpr,
 			      sortfieldid == MU_MSG_FIELD_ID_NONE,
 			      NULL);
 	try {
-		Xapian::Query query;
-		char *preprocessed;	
-
-		preprocessed = mu_query_preprocess (searchexpr);
-
-		if (!set_query(self, query, preprocessed, err)) {
-			g_free (preprocessed);
-			return NULL;
-		}
-		g_free (preprocessed);
-		
 		Xapian::Enquire enq (self->_db);
 
-		if (batchsize == 0)
-			batchsize = self->_db.get_doccount();
-
-		if (sortfieldid != MU_MSG_FIELD_ID_NONE)
+		/* note, when our result will be *threaded*, we sort
+		 * there, and don't let Xapian do any sorting */
+		if (!threads && sortfieldid != MU_MSG_FIELD_ID_NONE)
 			enq.set_sort_by_value ((Xapian::valueno)sortfieldid,
 					       ascending ? true : false);
-		enq.set_query(query);
+
+		if (!mu_str_is_empty(searchexpr)) /* NULL or "" */
+			enq.set_query(get_query (self, searchexpr, err));
+		else
+			enq.set_query(Xapian::Query::MatchAll);
+
+
 		enq.set_cutoff(0,0);
 		
-		return mu_msg_iter_new ((XapianEnquire*)&enq, batchsize);
+		return mu_msg_iter_new (
+			(XapianEnquire*)&enq,
+			self->_db.get_doccount(), threads,
+			threads ? sortfieldid : MU_MSG_FIELD_ID_NONE);
 		
 	} MU_XAPIAN_CATCH_BLOCK_RETURN(NULL);
 }
@@ -377,17 +335,7 @@ mu_query_as_string (MuQuery *self, const char *searchexpr, GError **err)
 	g_return_val_if_fail (searchexpr, NULL);
 		
 	try {
-		Xapian::Query query;
-		char *preprocessed;
-		
-		preprocessed = mu_query_preprocess (searchexpr);
-		
-		if (!set_query(self, query, preprocessed, err)) {
-			g_free (preprocessed);
-			return NULL;
-		}
-		g_free (preprocessed);
-
+		Xapian::Query query (get_query(self, searchexpr, err)); 
 		return g_strdup(query.get_description().c_str());
 		
 	} MU_XAPIAN_CATCH_BLOCK_RETURN(NULL);

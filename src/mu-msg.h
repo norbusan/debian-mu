@@ -56,14 +56,15 @@ MuMsg *mu_msg_new_from_file (const char* filepath, const char *maildir,
  * create a new MuMsg* instance based on a Xapian::Document
  *
  * @param doc a ptr to a Xapian::Document (but cast to XapianDocument,
- * because this is C not C++)
+ * because this is C not C++). MuMsg takes _ownership_ of this pointer;
+ * don't touch it afterwards
  * @param err receive error information, or NULL. There
  * will only be err info if the function returns NULL
  * 
  * @return a new MuMsg instance or NULL in case of error; call
  * mu_msg_unref when done with this message
  */
-MuMsg *mu_msg_new_from_doc (const XapianDocument* doc, GError **err)
+MuMsg *mu_msg_new_from_doc (XapianDocument* doc, GError **err)
                                     G_GNUC_MALLOC G_GNUC_WARN_UNUSED_RESULT;
 
 
@@ -76,7 +77,7 @@ MuMsg *mu_msg_new_from_doc (const XapianDocument* doc, GError **err)
  * @return the message with its reference count increased, or NULL in
  * case of error.
  */
-MuMsg * mu_msg_ref (MuMsg *msg);
+MuMsg *mu_msg_ref (MuMsg *msg);
 
 /**
  * decrease the reference count for this message. if the reference
@@ -250,7 +251,7 @@ MuMsgFlags     mu_msg_get_flags      (MuMsg *msg);
  * 
  * @return the filesize 
  */
-size_t          mu_msg_get_size       (MuMsg *msg);
+size_t mu_msg_get_size (MuMsg *msg);
 
 
 /**
@@ -263,6 +264,16 @@ size_t          mu_msg_get_size       (MuMsg *msg);
  */
 const char*  mu_msg_get_field_string  (MuMsg *msg, MuMsgFieldId mfid);
 
+
+/**
+ * get some field value as string-list
+ * 
+ * @param msg a valid MuMsg instance
+ * @param field the field to retrieve; it must be a string-list-typed field
+ * 
+ * @return a list that should not be freed
+ */
+const GSList* mu_msg_get_field_string_list (MuMsg *self, MuMsgFieldId mfid);
 
 /**
  * get some field value as string
@@ -294,7 +305,7 @@ MuMsgPrio   mu_msg_get_prio        (MuMsg *msg);
  * 
  * @return the timestamp or 0 in case of error
  */
-time_t          mu_msg_get_timestamp       (MuMsg *msg);
+time_t     mu_msg_get_timestamp       (MuMsg *msg);
 
 
 
@@ -312,14 +323,60 @@ const char* mu_msg_get_header (MuMsg *self, const char *header);
 
 
 /**
- * get the list of references as a comma-separated string
+ * get the list of references, with the direct parent as the final
+ * one; this final one is typically the 'In-reply-to' field. Note, any
+ * reference (message-id) will appear at most once, duplicates are
+ * filtered out.
  * 
  * @param msg a valid MuMsg
  * 
- * @return a comma-separated string with the references or NULL if
- * there are none. Don't modify/free
+ * @return a list with the references for this msg. Don't modify/free
  */
-const char* mu_msg_get_references_str (MuMsg *msg);
+const GSList* mu_msg_get_references (MuMsg *msg);
+
+/**
+ * get the list of tags (ie., X-Label)
+ * 
+ * @param msg a valid MuMsg
+ * 
+ * @return a list with the tags for this msg. Don't modify/free
+ */
+const GSList* mu_msg_get_tags (MuMsg *self);
+
+
+/**
+ * compare two messages for sorting
+ * 
+ * @param m1 a message
+ * @param m2 another message
+ * @param mfid the message to use for the comparison
+ * 
+ * @return negative if m1 is smaller, positive if m1 is smaller, 0 if
+ * they are equal
+ */
+int mu_msg_cmp (MuMsg *m1, MuMsg *m2, MuMsgFieldId mfid);
+
+
+
+/**
+ * move a message to another maildir; the function returns the full
+ * path to the new message, and changes the msg to now point to the
+ * new maildir
+ * 
+ * @param msg a message with an existing file system path in an actual
+ * maildir
+ * @param targetmdir the target maildir; note that this the base-level
+ * Maildir, ie. /home/user/Maildir/archive, and must _not_ include the
+ * 'cur' or 'new' part. mu_msg_move_to_maildir will make sure that the
+ * copy is from new/ to new/ and cur/ to cur/. Also note that the target
+ * maildir must be on the same filesystem. *
+ * @param err (may be NULL) may contain error information; note if the
+ * function return FALSE, err is not set for all error condition
+ * (ie. not for parameter errors)
+ * @return TRUE if it worked, FALSE otherwise
+ */
+gboolean mu_msg_move_to_maildir (MuMsg *msg, const char* targetmdir,
+				 GError **err);
 
 
 enum _MuMsgContactType {  /* Reply-To:? */

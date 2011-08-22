@@ -45,42 +45,6 @@
 #include "mu-msg-flags.h"
 #include "mu-msg-fields.h"
 
-const char* 
-mu_str_date_s (const char* frm, time_t t)
-{
-	struct tm *tmbuf;
-	static char buf[128];
-
-	g_return_val_if_fail (frm, NULL);
-	
-	tmbuf = localtime(&t);
-	
-	strftime (buf, sizeof(buf), frm, tmbuf);
-
-	return buf;
-}
-
-char* 
-mu_str_date (const char *frm, time_t t)
-{
-	return g_strdup (mu_str_date_s(frm, t));
-}
-
-
-
-const char* 
-mu_str_display_date_s (time_t t)
-{
-	time_t now;
-	static const time_t SECS_IN_DAY = 24 * 60 * 60;
-	
-	now = time (NULL);
-
-	if (ABS(now - t) > SECS_IN_DAY)
-		return mu_str_date_s ("%x", t);
-	else
-		return mu_str_date_s ("%X", t);
-}
 
 const char*
 mu_str_size_s  (size_t s)
@@ -288,67 +252,115 @@ is_xapian_prefix (const char *q, const char *colon)
 	return FALSE;
 }
 
-time_t
-mu_str_date_parse_hdwmy (const char* str)
-{
-	long int num;
-	char *end;
-	time_t now, delta;
-	time_t never = (time_t)-1;
-       
-	g_return_val_if_fail (str, never);
-       
-	num = strtol  (str, &end, 10);
-	if (num <= 0 || num > 9999)  
-		return never;
 
-	if (!end || end[1] != '\0')
-		return never;
-       
-	switch (end[0]) {
-	case 'h': /* hour */    
-		delta = num * 60 * 60; break;
-	case 'd': /* day */
-		delta = num * 24 * 60 * 60; break;
-	case 'w': /* week */
-		delta = num * 7 * 24 * 60 * 60; break;
-	case 'm': /* month */
-		delta = num * 30 * 24 * 60 * 60; break;
-	case 'y': /* year */
-		delta = num * 365 * 24 * 60 * 60; break; 
-	default:
-		return never;
-	}
-
-	now = time(NULL);
-	return delta <= now ? now - delta : never;  
-}
-
-guint64
-mu_str_size_parse_kmg (const char* str)
+gint64
+mu_str_size_parse_bkm (const char* str)
 {
 	gint64 num;
-	char *end;
-	
-	g_return_val_if_fail (str, G_MAXUINT64);
-	
-	num = strtol (str, &end, 10);
-	if (num < 0)  
-		return G_MAXUINT64;
-	
-	if (!end || end[1] != '\0')
-		return G_MAXUINT64;
-	
-	switch (tolower(end[0])) {
-	case 'b': return num;                      /* bytes */	
-	case 'k': return num * 1000;               /* kilobyte */
-	case 'm': return num * 1000 * 1000;        /* megabyte */
-	/* case 'g': return num * 1000 * 1000 * 1000; /\* gigabyte *\/ */
-	default:
-		return G_MAXUINT64;
-	}
 
+	g_return_val_if_fail (str, -1);
+
+	if (!isdigit(str[0]))
+		return -1;
+	
+	num = atoi(str);
+	for (++str; isdigit(*str); ++str);
+	
+	switch (tolower(*str)) {
+	case '\0':
+	case 'b' : return num;                      /* bytes */
+	case 'k':  return num * 1000;               /* kilobyte */
+	case 'm':  return num * 1000 * 1000;        /* megabyte */
+	default:
+		return -1;
+	}
 }
+
+
+
+char*
+mu_str_from_list (const GSList *lst, char sepa)
+{
+	const GSList *cur;
+	char *str;
+
+	g_return_val_if_fail (sepa, NULL);
+	
+	for (cur = lst, str = NULL; cur; cur = g_slist_next(cur)) {
+
+		char *tmp;
+		/* two extra dummy '\0' so -Wstack-protector won't complain */
+		char sep[4] = { '\0', '\0', '\0', '\0' }; 
+		sep[0] = cur->next ? sepa : '\0';
+
+		tmp = g_strdup_printf ("%s%s%s",
+				       str ? str : "",
+				       (gchar*)cur->data,
+				       sep);
+		g_free (str);
+		str = tmp;
+	}
+	
+	return str;
+}
+
+GSList*
+mu_str_to_list (const char *str, char sepa, gboolean strip)
+{
+	GSList *lst;
+	gchar **strs, **cur;
+	/* two extra dummy '\0' so -Wstack-protector won't complain */
+	char sep[4] = { '\0', '\0', '\0', '\0' }; 
+	
+	g_return_val_if_fail (sepa, NULL);
+	
+	if (!str)
+		return NULL;
+
+	sep[0] = sepa;
+	strs = g_strsplit (str, sep, -1);
+
+	for (cur = strs, lst = NULL; cur && *cur; ++cur) {
+		char *elm;
+		elm = g_strdup(*cur);
+		if (strip)
+			elm = g_strstrip (elm);
+		
+		lst = g_slist_prepend (lst, elm);
+	}
+		
+	lst = g_slist_reverse (lst);
+	g_strfreev (strs);
+
+	return lst;
+}
+
+void
+mu_str_free_list (GSList *lst)
+{
+	g_slist_foreach (lst, (GFunc)g_free, NULL);
+	g_slist_free (lst);	
+}
+
+const gchar*
+mu_str_subject_normalize (const gchar* str)
+{
+	gchar *last_colon;
+	g_return_val_if_fail (str, NULL);
+
+	last_colon = g_strrstr (str, ":");
+	if (!last_colon)
+		return str;
+	else {
+		gchar *str;
+		str = last_colon + 1;
+		while (*str == ' ')
+			++str;
+		return str;
+	}
+}
+
+
 
 /*
  * Xapian treats various characters such as '@', '-', ':' and '.'
@@ -440,6 +452,46 @@ mu_str_escape_c_literal (const gchar* str)
 
 	return g_string_free (tmp, FALSE);
 }
+
+
+
+/* turn \0-terminated buf into ascii (which is a utf8 subset); convert
+ *   any non-ascii into '.'
+ */
+char*
+mu_str_asciify_in_place (char *buf)
+{
+	char *c;
+	for (c = buf; c && *c; ++c)
+		if (!isascii(*c))
+			c[0] = '.';
+
+	return buf;
+}
+
+gchar*
+mu_str_convert_to_utf8 (const char* buffer, const char *charset)
+{
+	GError *err;
+	gchar * utf8;
+
+	g_return_val_if_fail (buffer, NULL);
+	g_return_val_if_fail (charset, NULL );
+	
+	err = NULL;
+	utf8 = g_convert_with_fallback (buffer, -1, "UTF-8",
+					charset, NULL, 
+					NULL, NULL, &err);
+	if (!utf8) {
+		g_debug ("%s: conversion failed from %s: %s",
+			 __FUNCTION__, charset, err ? err->message : "");
+		if (err)
+			g_error_free (err);
+	}
+	
+	return utf8;
+}
+
 
 
 gchar*

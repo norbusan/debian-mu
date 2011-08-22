@@ -68,15 +68,12 @@ char* mu_query_version (MuQuery *store)
  * manpage, or http://xapian.org/docs/queryparser.html
  * 
  * @param self a valid MuQuery instance
- * @param expr the search expression
+ * @param expr the search expression or "" to match all messages
+ * @param threads calculate message-threads
  * @param sortfield the field id to sort by or MU_MSG_FIELD_ID_NONE if
  * sorting is not desired
  * @param ascending if TRUE sort in ascending (A-Z) order, otherwise,
  * sort in descending (Z-A) order
- * @param batchsize the size of batches to receive; this is mainly for
- * reasons - it's best to get the size one wants to show the user at once.
- * If you pass '0' as the batchsize, mu will use the maximum size (the count
- * of documents in the database)
  * @param err receives error information (if there is any); if
  * function returns non-NULL, err will _not_be set. err can be NULL
  * possible error (err->code) is MU_ERROR_QUERY,
@@ -84,9 +81,9 @@ char* mu_query_version (MuQuery *store)
  * @return a MuMsgIter instance you can iterate over, or NULL in
  * case of error
  */
-MuMsgIter* mu_query_run (MuQuery *self, const char* expr,
+MuMsgIter* mu_query_run (MuQuery *self, const char* expr, gboolean threads,
 			 MuMsgFieldId sortfieldid, gboolean ascending,
-			 size_t batchsize, GError **err)
+			 GError **err)
     G_GNUC_MALLOC G_GNUC_WARN_UNUSED_RESULT;
 
 /**

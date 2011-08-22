@@ -29,6 +29,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
+#include <locale.h>
 
 #include "test-mu-common.h"
 #include "src/mu-query.h"
@@ -58,6 +59,27 @@ fill_database (const char *testdir)
 	return xpath;
 }
 
+static void
+assert_no_dups (MuMsgIter *iter)
+{
+	GHashTable *hash;
+
+	hash = g_hash_table_new_full (g_str_hash, g_str_equal,
+				      (GDestroyNotify)g_free, NULL);
+
+	mu_msg_iter_reset (iter);
+	while (!mu_msg_iter_is_done(iter)) {
+		MuMsg *msg = mu_msg_iter_get_msg (iter, NULL);
+		/* make sure there are no duplicates */
+		g_assert (!g_hash_table_lookup (hash, mu_msg_get_path (msg)));
+		g_hash_table_insert (hash, g_strdup (mu_msg_get_path(msg)),
+				     GUINT_TO_POINTER(TRUE));
+		mu_msg_iter_next (iter);
+	}
+	mu_msg_iter_reset (iter);
+	g_hash_table_destroy (hash);
+}
+
 
 /* note: this also *moves the iter* */
 static guint
@@ -65,7 +87,7 @@ run_and_count_matches (const char *xpath, const char *query)
 {
 	MuQuery  *mquery;
 	MuMsgIter *iter;
-	guint count;
+	guint count1, count2;
 	
 	mquery = mu_query_new (xpath, NULL);
 	g_assert (query);
@@ -80,17 +102,29 @@ run_and_count_matches (const char *xpath, const char *query)
 	/* 	g_free (xs); */
 	/* } */
 	
-	iter = mu_query_run (mquery, query, MU_MSG_FIELD_ID_NONE,
-			     FALSE, 1, NULL);
+	iter = mu_query_run (mquery, query, FALSE, MU_MSG_FIELD_ID_NONE,
+			     FALSE, NULL);
 	mu_query_destroy (mquery);
 	g_assert (iter);
 
-	for (count = 0; !mu_msg_iter_is_done(iter);
-	     mu_msg_iter_next(iter), ++count);
+	assert_no_dups (iter);
+	
+	/* run query twice, to test mu_msg_iter_reset */
+	for (count1 = 0; !mu_msg_iter_is_done(iter); 
+	     mu_msg_iter_next(iter), ++count1);
+
+	mu_msg_iter_reset (iter);
+	
+	assert_no_dups (iter);
+	
+	for (count2 = 0; !mu_msg_iter_is_done(iter);
+	     mu_msg_iter_next(iter), ++count2);
 	
 	mu_msg_iter_destroy (iter);
+
+	g_assert_cmpuint (count1, ==, count2);
 	
-	return count;
+	return count1;
 }
 
 
@@ -117,6 +151,7 @@ test_mu_query_01 (void)
 		{ "foo:pepernoot",      0 },
 		{ "funky",              1 },
 		{ "fünkÿ",              1 },
+		{ "",                   13 }
 	};
 
 	
@@ -200,9 +235,9 @@ test_mu_query_04 (void)
  		{ "baggins", 1},
 		{ "prio:h", 1},
 		{ "prio:high", 1},
-		{ "prio:normal", 4},
+		{ "prio:normal", 5},
 		{ "prio:l", 7},
-		{ "not prio:l", 5},
+		{ "not prio:l", 6},
 	};
 	
 	xpath = fill_database (MU_TESTMAILDIR);
@@ -230,8 +265,8 @@ test_mu_query_accented_chars_01 (void)
 	g_assert (xpath != NULL);
 
 	query = mu_query_new (xpath, NULL);
-	iter = mu_query_run (query, "fünkÿ", MU_MSG_FIELD_ID_NONE,
-			     FALSE, 1, NULL);
+	iter = mu_query_run (query, "fünkÿ", FALSE, MU_MSG_FIELD_ID_NONE,
+			     FALSE, NULL);
 	err = NULL;
 	msg = mu_msg_iter_get_msg (iter, &err); /* don't unref */
 	if (!msg) {
@@ -306,22 +341,26 @@ test_mu_query_wildcards (void)
 
 
 static void
-test_mu_query_dates (void)
+test_mu_query_dates_helsinki (void)
 {
 	gchar *xpath;
 	int i;
+	const char *old_tz;
+
 	
 	QResults queries[] = {
 		{ "date:20080731..20080804", 5},
-		{ "date:20080804..20080731", 5},
-		{ "date:2008-07/31..2008@08:04", 5},
-		{ "date:2008-0731..20080804 s:gcc", 1},
-		{ "date:2008-08-11-08-03..now", 1},
-		{ "date:2008-08-11-08-03..today", 1},
-		{ "date:now..2008-08-11-08-03", 1},
-		{ "date:today..2008-08-11-08-03", 1},
-		{ "date:2008-08-11-08-05..now", 0},
+		/* { "date:20080804..20080731", 5}, */
+		{ "date:20080731..20080804", 5},
+		{ "date:20080731..20080804 s:gcc", 1},
+		{ "date:200808110803..now", 1},
+		{ "date:200808110803..today", 1},
+		/* { "date:now..2008-08-11-08-03", 1}, */
+		/* { "date:today..2008-08-11-08-03", 1}, */
+		{ "date:200808110801..now", 1},
 	};
+
+	old_tz = set_tz ("Europe/Helsinki");
 	
 	xpath = fill_database (MU_TESTMAILDIR);
 	g_assert (xpath != NULL);
@@ -331,8 +370,77 @@ test_mu_query_dates (void)
 				  ==, queries[i].count);
 
 	g_free (xpath);
+	set_tz (old_tz);
 	
 }
+
+static void
+test_mu_query_dates_sydney (void)
+{
+	gchar *xpath;
+	int i;
+	const char *old_tz;
+
+	
+	QResults queries[] = {
+		{ "date:20080731..20080804", 5},
+		/* { "date:20080804..20080731", 5}, */
+		{ "date:20080731..20080804", 5},
+		{ "date:20080731..20080804 s:gcc", 1},
+		{ "date:200808110803..now", 1},
+		{ "date:200808110803..today", 1},
+		/* { "date:now..2008-08-11-08-03", 1}, */
+		/* { "date:today..2008-08-11-08-03", 1}, */
+		{ "date:200808110801..now", 1},
+	};
+
+	old_tz = set_tz ("Australia/Sydney");
+	
+	xpath = fill_database (MU_TESTMAILDIR);
+	g_assert (xpath != NULL);
+	
+ 	for (i = 0; i != G_N_ELEMENTS(queries); ++i) 
+		g_assert_cmpuint (run_and_count_matches (xpath, queries[i].query),
+				  ==, queries[i].count);
+
+	g_free (xpath);
+	set_tz (old_tz);
+	
+}
+
+static void
+test_mu_query_dates_la (void)
+{
+	gchar *xpath;
+	int i;
+	const char *old_tz;
+	
+	QResults queries[] = {
+		{ "date:20080731..20080804", 5},
+		/* { "date:20080804..20080731", 5}, */
+		{ "date:20080731..20080804", 5},
+		{ "date:20080731..20080804 s:gcc", 1},
+		{ "date:200808110803..now", 0},
+		{ "date:200808110803..today", 0},
+		/* { "date:now..2008-08-11-08-03", 1}, */
+		/* { "date:today..2008-08-11-08-03", 1}, */
+		{ "date:200808110801..now", 0}, /* does not match in LA */
+ 	};
+	
+	old_tz = set_tz ("America/Los_Angeles");
+	
+	xpath = fill_database (MU_TESTMAILDIR);
+	g_assert (xpath != NULL);
+	
+ 	for (i = 0; i != G_N_ELEMENTS(queries); ++i) 
+		g_assert_cmpuint (run_and_count_matches (xpath, queries[i].query),
+				  ==, queries[i].count);
+
+	g_free (xpath);
+	set_tz (old_tz);
+}
+
+
 
 
 static void
@@ -342,9 +450,9 @@ test_mu_query_sizes (void)
 	int i;
 	
 	QResults queries[] = {
-		{ "size:0b..2m", 12},
+		{ "size:0b..2m", 13},
 		{ "size:2k..4k", 2},
-		{ "size:2m..0b", 12}
+		{ "size:2m..0b", 13}
 	};
 	
 	xpath = fill_database (MU_TESTMAILDIR);
@@ -377,9 +485,65 @@ test_mu_query_attach (void)
 
 	/* g_print ("(%s)\n", xpath); */
 	
+ 	for (i = 0; i != G_N_ELEMENTS(queries); ++i)
+		g_assert_cmpuint (run_and_count_matches (xpath, queries[i].query),
+				  ==, queries[i].count);
+
+	g_free (xpath);	
+}
+
+
+static void
+test_mu_query_tags (void)
+{
+	gchar *xpath;
+	int i;
+	
+	QResults queries[] = {
+		{ "x:paradise", 1},
+		{ "tag:lost", 1},
+		{ "tag:lost tag:paradise", 1},
+		{ "tag:lost tag:horizon", 0},
+		{ "tag:lost OR tag:horizon", 1},
+		{ "x:paradise,lost", 0},
+	};
+	
+	xpath = fill_database (MU_TESTMAILDIR2);
+	g_assert (xpath != NULL);
+
+	/* g_print ("(%s)\n", xpath); */
+	
  	for (i = 0; i != G_N_ELEMENTS(queries); ++i) 
 		g_assert_cmpuint (run_and_count_matches (xpath, queries[i].query),
 				  ==, queries[i].count);
+
+	g_free (xpath);	
+}
+
+
+static void
+test_mu_query_tags_02 (void)
+{
+	gchar *xpath;
+	int i;
+	
+	QResults queries[] = {
+		{ "x:paradise", 1},
+		{ "tag:@NextActions", 1},
+		{ "x:queensrÿche", 1},
+		{ "tag:lost OR tag:operation:mindcrime", 2},
+	};
+	
+	xpath = fill_database (MU_TESTMAILDIR2);
+	g_assert (xpath != NULL);
+
+	/* g_print ("(%s)\n", xpath); */
+	
+ 	for (i = 0; i != G_N_ELEMENTS(queries); ++i) {
+		/* g_print ("%s\n", queries[i].query); */
+		g_assert_cmpuint (run_and_count_matches (xpath, queries[i].query),
+				  ==, queries[i].count);
+	}
 
 	g_free (xpath);	
 }
@@ -393,6 +557,7 @@ main (int argc, char *argv[])
 	int rv;
 	
 	g_test_init (&argc, &argv, NULL);	
+			
 	g_test_add_func ("/mu-query/test-mu-query-01", test_mu_query_01);
 	g_test_add_func ("/mu-query/test-mu-query-02", test_mu_query_02); 
 	g_test_add_func ("/mu-query/test-mu-query-03", test_mu_query_03);
@@ -405,11 +570,21 @@ main (int argc, char *argv[])
 			 test_mu_query_wildcards);
 	g_test_add_func ("/mu-query/test-mu-query-sizes",
 			 test_mu_query_sizes);
-	g_test_add_func ("/mu-query/test-mu-query-dates",
-			 test_mu_query_dates);
+
+	g_test_add_func ("/mu-query/test-mu-query-dates-helsinki",
+			 test_mu_query_dates_helsinki); /* finland */
+	g_test_add_func ("/mu-query/test-mu-query-dates-sydney",
+			 test_mu_query_dates_sydney);
+	g_test_add_func ("/mu-query/test-mu-query-dates-la",
+			 test_mu_query_dates_la);
+
 	g_test_add_func ("/mu-query/test-mu-query-attach",
 			 test_mu_query_attach);
-
+	g_test_add_func ("/mu-query/test-mu-query-tags",
+			 test_mu_query_tags);
+	g_test_add_func ("/mu-query/test-mu-query-tags_02",
+			 test_mu_query_tags_02);
+	
 	g_log_set_handler (NULL,
 			   G_LOG_LEVEL_MASK | G_LOG_FLAG_FATAL| G_LOG_FLAG_RECURSION,
 			   (GLogFunc)black_hole, NULL);

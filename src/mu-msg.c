@@ -62,14 +62,14 @@ mu_msg_new_from_file (const char *path, const char *mdir, GError **err)
 		return NULL;
 	
 	self = msg_new ();
-	self->_file	= msgfile;
+	self->_file = msgfile;
 		
 	return self;
 }
 
 
 MuMsg*
-mu_msg_new_from_doc (const XapianDocument* doc, GError **err)
+mu_msg_new_from_doc (XapianDocument *doc, GError **err)
 {
 	MuMsg *self;
 	MuMsgDoc *msgdoc;
@@ -81,7 +81,7 @@ mu_msg_new_from_doc (const XapianDocument* doc, GError **err)
 		return NULL;
 
 	self = msg_new ();
-	self->_doc	= msgdoc;
+	self->_doc = msgdoc;
 			
 	return self;
 }
@@ -189,6 +189,42 @@ get_msg_file (MuMsg *self)
 }
 
 
+static const GSList*
+get_str_list_field (MuMsg *self, MuMsgFieldId mfid)
+{
+	gboolean do_free;
+	GSList *val;
+
+	/* first we try the cache */
+	if (mu_msg_cache_cached (self->_cache, mfid))
+		return mu_msg_cache_str_list (self->_cache, mfid);
+
+	/* if it's not in the cache but it is a value retrievable from
+	 * the doc backend, use that */
+	val = NULL;
+	if (self->_doc && mu_msg_field_xapian_value (mfid))
+		val = mu_msg_doc_get_str_list_field (self->_doc,
+						     mfid, &do_free);
+	else {
+		/* if we don't have a file object yet, we need to
+		 * create it from the file on disk */
+		if (!self->_file)
+			self->_file = get_msg_file (self);
+		if (!self->_file && !(self->_file = get_msg_file (self)))
+			return NULL;
+		val = mu_msg_file_get_str_list_field (self->_file, mfid,
+						      &do_free);
+	}
+		
+	/* if we get a string that needs freeing, we tell the cache to
+	 * mark the string as such, so it will be freed when the cache
+	 * is freed (or when the value is overwritten) */
+	return mu_msg_cache_set_str_list (self->_cache, mfid, val,
+					  do_free);
+}
+
+
+
 
 static const char*
 get_str_field (MuMsg *self, MuMsgFieldId mfid)
@@ -205,7 +241,7 @@ get_str_field (MuMsg *self, MuMsgFieldId mfid)
 	val = NULL;
 	if (self->_doc && mu_msg_field_xapian_value (mfid))
 		val = mu_msg_doc_get_str_field (self->_doc, mfid, &do_free);
-	else {
+	else if (mu_msg_field_gmime (mfid)) {
 		/* if we don't have a file object yet, we need to
 		 * create it from the file on disk */
 		if (!self->_file)
@@ -213,6 +249,9 @@ get_str_field (MuMsg *self, MuMsgFieldId mfid)
 		if (!self->_file && !(self->_file = get_msg_file (self)))
 			return NULL;
 		val = mu_msg_file_get_str_field (self->_file, mfid, &do_free);
+	} else {
+		g_warning ("%s: cannot retrieve field", __FUNCTION__);
+		return NULL;
 	}
 		
 	/* if we get a string that needs freeing, we tell the cache to
@@ -382,11 +421,19 @@ mu_msg_get_body_text (MuMsg *self)
 }
 
 
-const char*
-mu_msg_get_references_str (MuMsg *self)
+const GSList*
+mu_msg_get_references (MuMsg *self)
 {
 	g_return_val_if_fail (self, NULL);
-	return get_str_field (self, MU_MSG_FIELD_ID_REFS);
+	return get_str_list_field (self, MU_MSG_FIELD_ID_REFS);
+}
+
+
+const GSList*
+mu_msg_get_tags (MuMsg *self)
+{
+	g_return_val_if_fail (self, NULL);
+	return get_str_list_field (self, MU_MSG_FIELD_ID_TAGS);
 }
 
 
@@ -396,6 +443,16 @@ mu_msg_get_field_string (MuMsg *self, MuMsgFieldId mfid)
 	g_return_val_if_fail (self, NULL);
 	return get_str_field (self, mfid);
 }
+
+
+const GSList*
+mu_msg_get_field_string_list (MuMsg *self, MuMsgFieldId mfid)
+{
+	g_return_val_if_fail (self, NULL);
+	return get_str_list_field (self, mfid);
+}
+
+
 
 gint64
 mu_msg_get_field_numeric (MuMsg *self, MuMsgFieldId mfid)
@@ -464,25 +521,19 @@ fill_contact (MuMsgContact *self, InternetAddress *addr,
 
 
 static void
-address_list_foreach (InternetAddressList *addrlist,
-		      MuMsgContactType     ctype,
-		      MuMsgContactForeachFunc func, 
-		      gpointer user_data)
+address_list_foreach (InternetAddressList *addrlist, MuMsgContactType ctype,
+		      MuMsgContactForeachFunc func, gpointer user_data)
 {
 	int i;
-	
-	if (!addrlist)
-		return;
-	
-	for (i = 0; i != internet_address_list_length(addrlist); ++i) {
+		
+	for (i = 0; addrlist && i != internet_address_list_length(addrlist);
+	     ++i) {
 		
 		MuMsgContact contact;
 		if (!fill_contact(&contact,
 				  internet_address_list_get_address (addrlist, i),
-				  ctype)) {
-			MU_WRITE_LOG ("ignoring contact");
+				  ctype))
 			continue;
-		}
 		
 		if (!(func)(&contact, user_data))
 			break;
@@ -490,30 +541,25 @@ address_list_foreach (InternetAddressList *addrlist,
 }
 
 
-
 static void
-get_contacts_from (MuMsg *msg, MuMsgContactForeachFunc func, 
-		   gpointer user_data)
+addresses_foreach (const char* addrs, MuMsgContactType ctype,
+		   MuMsgContactForeachFunc func, gpointer user_data)
 {
-	InternetAddressList *lst;
-	
-	/* we go through this whole excercise of trying to get a *list*
-	 * of 'From:' address (usually there is only one...), because
-	 * internet_address_parse_string has the nice side-effect of
-	 * splitting in names and addresses for us */
-	lst = internet_address_list_parse_string (
-		g_mime_message_get_sender (msg->_file->_mime_msg));
+	InternetAddressList *addrlist;
 
-	if (lst) {
-		address_list_foreach (lst, MU_MSG_CONTACT_TYPE_FROM,
-				      func, user_data);
-		g_object_unref (G_OBJECT(lst));
-	} 
+	if (!addrs)
+		return;
+	
+	addrlist = internet_address_list_parse_string (addrs);
+	if (addrlist) {
+		address_list_foreach (addrlist, ctype, func, user_data);
+		g_object_unref (addrlist);
+	}
 }
 
 
 void
-mu_msg_contact_foreach (MuMsg *msg, MuMsgContactForeachFunc func, 
+msg_contact_foreach_file (MuMsg *msg, MuMsgContactForeachFunc func, 
 			gpointer user_data)
 {
 	int i;		
@@ -526,11 +572,10 @@ mu_msg_contact_foreach (MuMsg *msg, MuMsgContactForeachFunc func,
 		{GMIME_RECIPIENT_TYPE_BCC, MU_MSG_CONTACT_TYPE_BCC},
 	};
 
-	g_return_if_fail (func && msg);
-
-	/* first, get the from address(es) */
-	get_contacts_from (msg, func, user_data);
-
+	/* sender */
+	addresses_foreach (g_mime_message_get_sender (msg->_file->_mime_msg),
+			   MU_MSG_CONTACT_TYPE_FROM, func, user_data);
+	
 	/* get to, cc, bcc */
 	for (i = 0; i != G_N_ELEMENTS(ctypes); ++i) {
 		InternetAddressList *addrlist;
@@ -540,3 +585,231 @@ mu_msg_contact_foreach (MuMsg *msg, MuMsgContactForeachFunc func,
 	}
 }
 
+
+static void
+msg_contact_foreach_doc (MuMsg *msg, MuMsgContactForeachFunc func, 
+			 gpointer user_data)
+{
+	addresses_foreach (mu_msg_get_from (msg),
+			   MU_MSG_CONTACT_TYPE_FROM, func, user_data);
+	addresses_foreach (mu_msg_get_to (msg),
+			   MU_MSG_CONTACT_TYPE_TO, func, user_data);
+	addresses_foreach (mu_msg_get_cc (msg),
+			   MU_MSG_CONTACT_TYPE_CC, func, user_data);
+	addresses_foreach (mu_msg_get_bcc (msg),
+			   MU_MSG_CONTACT_TYPE_BCC, func, user_data);
+}
+
+
+void
+mu_msg_contact_foreach (MuMsg *msg, MuMsgContactForeachFunc func, 
+			gpointer user_data)
+{
+	g_return_if_fail (msg);
+	g_return_if_fail (func);
+
+	if (msg->_doc)
+		msg_contact_foreach_doc (msg, func, user_data);
+	else if (msg->_file)
+		msg_contact_foreach_file (msg, func, user_data);
+	else
+		g_return_if_reached ();
+}
+
+
+
+static int
+cmp_str (const char* s1, const char *s2)
+{
+	if (s1 == s2)
+		return 0;
+	else if (!s1)
+		return -1;
+	else if (!s2)
+		return 1;
+	
+	return g_utf8_collate (s1, s2);
+}
+
+
+static int
+cmp_subject (const char* s1, const char *s2)
+{
+	if (s1 == s2)
+		return 0;
+	else if (!s1)
+		return -1;
+	else if (!s2)
+		return 1;
+	
+	return g_utf8_collate (
+		mu_str_subject_normalize (s1),
+		mu_str_subject_normalize (s2));
+}
+
+
+int
+mu_msg_cmp (MuMsg *m1, MuMsg *m2, MuMsgFieldId mfid)
+{
+	g_return_val_if_fail (m1, 0);
+	g_return_val_if_fail (m2, 0);
+	g_return_val_if_fail (mu_msg_field_id_is_valid(mfid), 0);
+	
+	if (mfid == MU_MSG_FIELD_ID_SUBJECT) 
+		return cmp_subject (get_str_field (m1, mfid),
+				    get_str_field (m2, mfid));
+	
+	if (mu_msg_field_is_string (mfid)) 
+		return cmp_str (get_str_field (m1, mfid),
+				get_str_field (m2, mfid));
+
+	/* TODO: note, we cast (potentially > MAXINT to int) */
+	if (mu_msg_field_is_numeric (mfid)) 
+		return get_num_field(m1, mfid) - get_num_field(m2, mfid);
+	
+	return 0; /* TODO: handle lists */
+}
+
+
+
+
+enum _MaildirType {
+	MAILDIR_TYPE_CUR,
+	MAILDIR_TYPE_NEW,
+	MAILDIR_TYPE_OTHER
+};
+typedef enum _MaildirType MaildirType;
+
+static MaildirType
+get_maildir_type (const char *path)
+{
+	MaildirType mtype;
+	gchar *dirname;
+	
+	dirname = g_path_get_dirname (path);
+	/* g_path_get_dirname does not specify if the name includes
+	 * the closing '/'... if it does, remove it */
+	if (dirname[strlen(dirname) - 1 ] == G_DIR_SEPARATOR)
+		dirname[strlen(dirname) - 1] = '\0'; 
+
+	if (g_str_has_suffix (dirname, "cur"))
+		mtype = MAILDIR_TYPE_CUR;
+	else if (g_str_has_suffix (dirname, "new"))
+		mtype = MAILDIR_TYPE_CUR;
+	else
+		mtype = MAILDIR_TYPE_OTHER;
+
+	g_free (dirname);
+
+	return mtype;
+}
+
+
+char*
+get_new_fullpath (const char *oldpath, const char *targetmdir,
+		  MaildirType mtype)
+{
+	char *filename, *newfullpath;
+	const char* mdirsub;
+	
+	filename = g_path_get_basename (oldpath);
+	
+	if (mtype == MAILDIR_TYPE_CUR)
+		mdirsub = "cur";
+	else if (mtype == MAILDIR_TYPE_NEW)
+		mdirsub = "new";
+	else {
+		g_free (filename);
+		g_return_val_if_reached (NULL);
+		return NULL;
+	}
+
+	newfullpath = g_strdup_printf ("%s%c%s%c%s",
+				       targetmdir,
+				       G_DIR_SEPARATOR,
+				       mdirsub,
+				       G_DIR_SEPARATOR,
+				       filename);
+	g_free (filename);
+	return newfullpath;
+	
+}
+
+
+static gboolean
+msg_move (const char* oldpath, const char *newfullpath, GError **err)
+{
+	if (access (oldpath, R_OK) != 0) {
+		g_set_error (err, 0, MU_ERROR_FILE, "cannot read %s",
+			     oldpath);
+		return FALSE;
+	}
+
+
+	if (access (newfullpath, F_OK) == 0) {
+		g_set_error (err, 0, MU_ERROR_FILE, "%s already exists",
+			     newfullpath);
+		return FALSE;
+	}
+	
+	if (rename (oldpath, newfullpath) != 0) {
+		g_set_error (err, 0, MU_ERROR_FILE, "error moving %s to %s",
+			     oldpath, newfullpath);
+		return FALSE;
+	}
+
+	/* double check -- is the target really there? */
+	if (access (newfullpath, F_OK) != 0) {
+		g_set_error (err, 0, MU_ERROR_FILE, "can't find target (%s)",
+			     newfullpath);
+		return FALSE;
+	}
+	
+	if (access (oldpath, F_OK) == 0) {
+		g_set_error (err, 0, MU_ERROR_FILE, "source is still there (%s)",
+			     oldpath);
+		return FALSE;
+	}
+	
+	return TRUE;
+}
+
+/*
+ * move a msg to another maildir, trying to maintain 'integrity',
+ * ie. msg in 'new/' will go to new/, one in cur/ goes to cur/. be
+ * super-paranoid here...
+ */
+gboolean
+mu_msg_move_to_maildir (MuMsg *self, const char* targetmdir, GError **err)
+{
+	const char *oldpath;
+	MaildirType mtype;
+	char *newfullpath;
+	
+	g_return_val_if_fail (self, FALSE);
+	g_return_val_if_fail (targetmdir, FALSE);
+	g_return_val_if_fail (g_path_is_absolute(targetmdir), FALSE);
+	g_return_val_if_fail (mu_util_check_dir (targetmdir, TRUE, TRUE), FALSE);
+
+	oldpath = mu_msg_get_path (self);
+	
+	mtype = get_maildir_type (oldpath);
+	g_return_val_if_fail (mtype==MAILDIR_TYPE_CUR||mtype==MAILDIR_TYPE_NEW,
+			  FALSE);	
+	
+	newfullpath = get_new_fullpath (oldpath, targetmdir, mtype);
+	g_return_val_if_fail (newfullpath, FALSE);
+
+	if (!msg_move (oldpath, newfullpath, err))
+		goto error;
+	
+	/* update our path to new one... */
+	mu_msg_cache_set_str (self->_cache, MU_MSG_FIELD_ID_PATH, newfullpath,
+			      TRUE);
+	return TRUE;
+	
+error:
+	g_free (newfullpath);
+	return FALSE;
+
+}

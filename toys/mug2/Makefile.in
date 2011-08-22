@@ -52,7 +52,7 @@ CONFIG_CLEAN_VPATH_FILES =
 PROGRAMS = $(noinst_PROGRAMS)
 am_mug2_OBJECTS = mug.$(OBJEXT) mug-msg-list-view.$(OBJEXT) \
 	mug-msg-view.$(OBJEXT) mug-query-bar.$(OBJEXT) \
-	mug-shortcuts.$(OBJEXT)
+	mug-shortcuts.$(OBJEXT) dummy.$(OBJEXT)
 mug2_OBJECTS = $(am_mug2_OBJECTS)
 am__DEPENDENCIES_1 =
 mug2_DEPENDENCIES = ${top_builddir}/src/libmu.la \
@@ -182,6 +182,10 @@ GMIME_LIBS = @GMIME_LIBS@
 GREP = @GREP@
 GTK_CFLAGS = @GTK_CFLAGS@
 GTK_LIBS = @GTK_LIBS@
+GUILE_CFLAGS = @GUILE_CFLAGS@
+GUILE_CONFIG = @GUILE_CONFIG@
+GUILE_LIBS = @GUILE_LIBS@
+GUILE_SNARF = @GUILE_SNARF@
 INSTALL = @INSTALL@
 INSTALL_DATA = @INSTALL_DATA@
 INSTALL_PROGRAM = @INSTALL_PROGRAM@
@@ -299,7 +303,7 @@ AM_CXXFLAGS = -Wall -Wextra -Wno-unused-parameter
 # note, mug.cc is '.cc' only because libmu must explicitly
 # be linked as c++, not c.
 mug2_SOURCES = \
-	mug.cc					\
+	mug.c					\
 	mug-msg-list-view.c			\
 	mug-msg-list-view.h			\
 	mug-msg-view.h				\
@@ -307,7 +311,16 @@ mug2_SOURCES = \
 	mug-query-bar.h				\
 	mug-query-bar.c				\
 	mug-shortcuts.c				\
-	mug-shortcuts.h
+	mug-shortcuts.h				\
+	dummy.cc
+
+
+# we need to use dummy.cc to enforce c++ linking...
+BUILT_SOURCES = \
+	dummy.cc
+
+DISTCLEANFILES = \
+	$(BUILT_SOURCES)
 
 mug2_LDADD = \
 	${top_builddir}/src/libmu.la		\
@@ -317,7 +330,8 @@ mug2_LDADD = \
 EXTRA_DIST = \
 	mug.svg
 
-all: all-recursive
+all: $(BUILT_SOURCES)
+	$(MAKE) $(AM_MAKEFLAGS) all-recursive
 
 .SUFFIXES:
 .SUFFIXES: .c .cc .lo .o .obj
@@ -370,6 +384,7 @@ mostlyclean-compile:
 distclean-compile:
 	-rm -f *.tab.c
 
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dummy.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mug-msg-list-view.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mug-msg-view.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mug-query-bar.Po@am__quote@
@@ -624,11 +639,13 @@ distdir: $(DISTFILES)
 	  fi; \
 	done
 check-am: all-am
-check: check-recursive
+check: $(BUILT_SOURCES)
+	$(MAKE) $(AM_MAKEFLAGS) check-recursive
 all-am: Makefile $(PROGRAMS)
 installdirs: installdirs-recursive
 installdirs-am:
-install: install-recursive
+install: $(BUILT_SOURCES)
+	$(MAKE) $(AM_MAKEFLAGS) install-recursive
 install-exec: install-exec-recursive
 install-data: install-data-recursive
 uninstall: uninstall-recursive
@@ -649,10 +666,12 @@ clean-generic:
 distclean-generic:
 	-test -z "$(CONFIG_CLEAN_FILES)" || rm -f $(CONFIG_CLEAN_FILES)
 	-test . = "$(srcdir)" || test -z "$(CONFIG_CLEAN_VPATH_FILES)" || rm -f $(CONFIG_CLEAN_VPATH_FILES)
+	-test -z "$(DISTCLEANFILES)" || rm -f $(DISTCLEANFILES)
 
 maintainer-clean-generic:
 	@echo "This command is intended for maintainers to use"
 	@echo "it deletes files that may require special tools to rebuild."
+	-test -z "$(BUILT_SOURCES)" || rm -f $(BUILT_SOURCES)
 clean: clean-recursive
 
 clean-am: clean-generic clean-libtool clean-noinstPROGRAMS \
@@ -724,8 +743,9 @@ ps-am:
 
 uninstall-am:
 
-.MAKE: $(RECURSIVE_CLEAN_TARGETS) $(RECURSIVE_TARGETS) ctags-recursive \
-	install-am install-strip tags-recursive
+.MAKE: $(RECURSIVE_CLEAN_TARGETS) $(RECURSIVE_TARGETS) all check \
+	ctags-recursive install install-am install-strip \
+	tags-recursive
 
 .PHONY: $(RECURSIVE_CLEAN_TARGETS) $(RECURSIVE_TARGETS) CTAGS GTAGS \
 	all all-am check check-am clean clean-generic clean-libtool \
@@ -743,7 +763,15 @@ uninstall-am:
 	uninstall uninstall-am
 
 
+#
+# NOTE: we set the locale/tz to some well-know values, so the tests
+# (at least when running under 'make check') run in a predictable
+# environment. There are specific tests different timezone, though.
+#
+
 test: all $(TEST_PROGS)
+	 @export LC_ALL="en_US.utf8"
+	 @export TZ="Europe/Helsinki"
 	 @test -z "$(TEST_PROGS)" || gtester --verbose $(TEST_PROGS) || exit $$?; \
 	 test -z "$(SUBDIRS)" || \
 		for subdir in $(SUBDIRS); do \
@@ -752,6 +780,9 @@ test: all $(TEST_PROGS)
 		done
 
 .PHONY: test gprof
+
+dummy.cc:
+	touch dummy.cc
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.

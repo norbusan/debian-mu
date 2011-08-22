@@ -30,38 +30,6 @@
 
 G_BEGIN_DECLS
 
-/**
- * get a string for a given time_t
- * 
- * mu_str_date_s returns a ptr to a static buffer,
- * while mu_str_date returns dynamically allocated
- * memory that must be freed after use.
- *
- * @param frm the format of the string (in strftime(3) format) 
- * @param t the time as time_t
- * 
- * @return a string representation of the time; see above for what to
- * do with it. Lenght is max. 128 bytes, inc. the ending \0.  if the
- * format is too long, the value will be truncated. in practice this
- * should not happen.
- */
-const char* mu_str_date_s (const char* frm, time_t t) G_GNUC_CONST;
-char*       mu_str_date   (const char* frm, time_t t) G_GNUC_WARN_UNUSED_RESULT;
-
-
-/**
- * get a display string for a given time_t; if the given is less than
- * 24h from the current time, we display the time, otherwise the date,
- * using the preferred date/time for the current locale
- * 
- * mu_str_display_date_s returns a ptr to a static buffer,
- *
- * @param t the time as time_t
- * 
- * @return a string representation of the time/date
- */
-const char* mu_str_display_date_s (time_t t);
-
 
 /**
  * create a 'display contact' from an email header To/Cc/Bcc/From-type address
@@ -161,13 +129,14 @@ char* mu_str_normalize (const char *str, gboolean downcase)
  */
 char* mu_str_normalize_in_place (char *str, gboolean downcase);
 
+
 /**
  * escape the string for use with xapian matching. in practice, if the
  * string contains an '@', replace '@', single-'.' with '_'. Also,
  * replace ':' with '_', if it's not following a xapian-prefix (such
  * as 'subject:', 't:' etc, as defined in mu-msg-fields.[ch]).
- * changing is done in-place (by changing the argument string). in
- * any case, the string will be downcased.
+ * changing is done in-place (by changing the argument string). in any
+ * case, the string will be downcased.
  *
  * works for ascii strings, like e-mail addresses and message-id.
  * 
@@ -192,32 +161,15 @@ char* mu_str_ascii_xapian_escape_in_place (char *query);
 char* mu_str_ascii_xapian_escape (const char *query)
         G_GNUC_WARN_UNUSED_RESULT;
 
-/**
- * 
- * parse strings like 1h, 3w, 2m to mean '1 hour before now', '3 weeks
- * before now' and '2 * 30 days before now'
- * 
- * the format is <n>(h|d|w|m|y), where <n> is an integer > 0, and
- * h=hour, d=day, w=week, m=30 days, year=365 days. function returns
- * *now* minus this value as time_t (UTC)
- *
- * if the number cannot be parsed, return (time_t)-1
- * 
- * @param str a str
- * 
- * @return the time_t of the point in time indicated by 'now' minus
- * the value, or (time_t)-1 otherwise
- */
-time_t mu_str_date_parse_hdwmy (const char* str);
-
 
 
 /**
  * parse a byte size; a size is a number, with optionally a
- * unit. Units recognized are K (1000) and M (1000*1000). Only the
- * first letter is checked and the function is not case-sensitive, so
- * 1000Kb, 3M will work equally well.  Note, for kB, MB etc., we then
- * follow the SI standards, not 2^10 etc.
+ * unit. Units recognized are b/B (bytes) k/K (1000) and m/M
+ * (1000*1000). Only the first letter is checked and the function is
+ * not case-sensitive, so 1000Kb, 3M will work equally well.  Note,
+ * for kB, MB etc., we then follow the SI standards, not 2^10 etc. The
+ * 'b' may be omitted.
  *
  * practical sizes for email messages are in terms of Mb; even in
  * extreme cases it should be under 100 Mb. Function return
@@ -225,9 +177,9 @@ time_t mu_str_date_parse_hdwmy (const char* str);
  * 
  * @param str a string with a size, such a "100", "100Kb", "1Mb"
  * 
- * @return the corresponding time_t value (as a guint64)
+ * @return the corresponding size in bytes, or -1 in case of error
  */
-guint64 mu_str_size_parse_kmg (const char* str);
+gint64 mu_str_size_parse_bkm (const char* str);
 
 /**
  * create a full path from a path + a filename. function is _not_
@@ -253,6 +205,31 @@ char* mu_str_escape_c_literal (const gchar* str)
         G_GNUC_WARN_UNUSED_RESULT;
 
 
+
+/**
+ * turn a string into plain ascii by replacing each non-ascii
+ * character with a dot ('.'). replacement is done in-place.
+ * 
+ * @param buf a buffer to asciify
+ * 
+ * @return the buf ptr (as to allow for function composition)
+ */
+char* mu_str_asciify_in_place (char *buf);
+
+
+/**
+ * convert a string in a certain charset into utf8
+ * 
+ * @param buffer a buffer to convert
+ * @param charset source character set.
+ * 
+ * @return a UTF8 string (which you need to g_free when done with it),
+ * or NULL in case of error
+ */
+gchar* mu_str_convert_to_utf8 (const char* buffer, const char *charset);
+
+
+
 /**
  * macro to check whether the string is empty, ie. if it's NULL or
  * it's length is 0
@@ -263,6 +240,48 @@ char* mu_str_escape_c_literal (const gchar* str)
  */
 #define mu_str_is_empty(S) ((!(S)||!(*S))?TRUE:FALSE)
 
+
+/**
+ * convert a GSList of strings to a #sepa-separated list
+ * 
+ * @param lst a GSList
+ * @param the separator character
+ * 
+ * @return a newly allocated string
+ */
+char* mu_str_from_list (const GSList *lst, char sepa);
+
+
+/**
+ * convert a #se0pa-separated list of strings in to a GSList
+ * 
+ * @param str a #sepa-separated list of strings
+ * @param the separator character
+ * @param remove leading/trailing whitespace from the string
+ *
+ * @return a newly allocated GSList (free with mu_str_free_list)
+ */
+GSList* mu_str_to_list (const char *str, char sepa, gboolean strip);
+
+
+/**
+ * free a GSList consisting of allocated strings
+ * 
+ * @param lst a GSList
+ */
+void mu_str_free_list (GSList *lst);
+
+
+
+/**
+ * strip the subject of Re:, Fwd: etc.
+ * 
+ * @param str a subject string
+ * 
+ * @return a new string -- this is pointing somewhere inside the @str;
+ * no copy is made, don't free
+ */
+const gchar* mu_str_subject_normalize (const gchar* str);
 
 
 /**

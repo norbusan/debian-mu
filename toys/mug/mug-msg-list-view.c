@@ -1,3 +1,4 @@
+/* -*-mode: c; tab-width: 8; indent-tabs-mode: t; c-basic-offset: 8 -*-*/
 /*
 ** Copyright (C) 2008-2011 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 **
@@ -20,7 +21,7 @@
 #include "mug-msg-list-view.h"
 #include "mu-query.h"
 #include "mu-str.h"
-/* include other impl specific header files */
+#include "mu-date.h"
 
 /* 'private'/'protected' functions */
 static void mug_msg_list_view_class_init (MugMsgListViewClass * klass);
@@ -334,8 +335,8 @@ run_query (const char *xpath, const char *query, MugMsgListView * self)
 		return NULL;
 	}
 
-	iter =
-	    mu_query_run (xapian, query, MU_MSG_FIELD_ID_DATE, TRUE, 0, &err);
+	iter = mu_query_run (xapian, query, FALSE, MU_MSG_FIELD_ID_DATE,
+			     TRUE, &err);
 	mu_query_destroy (xapian);
 	if (!iter) {
 		g_warning ("Error: %s", err->message);
@@ -358,7 +359,7 @@ add_row (GtkListStore * store, MuMsg *msg)
 	time_t timeval;
 
 	timeval = mu_msg_get_date (msg);
-	datestr = timeval == 0 ? "-" : mu_str_display_date_s (timeval);
+	datestr = timeval == 0 ? "-" : mu_date_display_s (timeval);
 	from = empty_or_display_contact (mu_msg_get_from (msg));
 	to = empty_or_display_contact (mu_msg_get_to (msg));
 	flagstr = mu_msg_flags_str_s (mu_msg_get_flags (msg));
@@ -403,6 +404,7 @@ update_model (GtkListStore * store, const char *xpath, const char *query,
 
 	return count;
 }
+
 
 int
 mug_msg_list_view_query (MugMsgListView * self, const char *query)

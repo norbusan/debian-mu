@@ -23,7 +23,14 @@ else
 widgets=
 endif
 
-SUBDIRS=m4 man src $(widgets) contrib toys
+if HAVE_GUILE
+guile=libmuguile
+else
+guile=
+endif
+
+SUBDIRS=m4 man src $(widgets) $(guile) contrib toys
+
 
 ACLOCAL_AMFLAGS=-I m4
 
@@ -53,6 +60,7 @@ cc10:
 line33:
 	@$(PMCCABE) -c `find -name '*.c' -o -name '*.cc'`	\
 	 | grep -v mu-str-normalize.c				\
+	 | grep -v config_options_group_find			\
 	 | grep -v tests					\
          | awk '($$5 > 33)'
 
@@ -63,7 +71,7 @@ fixme:
 # check whether we can run make distcheck from the repo version
 gitcheck:
 	cd `mktemp -d`; \
-	git clone git://gitorious.org/mu/mu-ng.git ; \
+	git clone git://gitorious.org/mu/mu.git ; \
 	cd mu-ng ; \
 	autoreconf -i ;\
 	./configure ; \

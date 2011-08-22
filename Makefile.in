@@ -74,7 +74,7 @@ AM_RECURSIVE_TARGETS = $(RECURSIVE_TARGETS:-recursive=) \
 	distdir dist dist-all distcheck
 ETAGS = etags
 CTAGS = ctags
-DIST_SUBDIRS = m4 man src widgets contrib toys
+DIST_SUBDIRS = m4 man src widgets libmuguile contrib toys
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
 distdir = $(PACKAGE)-$(VERSION)
 top_distdir = $(distdir)
@@ -148,6 +148,10 @@ GMIME_LIBS = @GMIME_LIBS@
 GREP = @GREP@
 GTK_CFLAGS = @GTK_CFLAGS@
 GTK_LIBS = @GTK_LIBS@
+GUILE_CFLAGS = @GUILE_CFLAGS@
+GUILE_CONFIG = @GUILE_CONFIG@
+GUILE_LIBS = @GUILE_LIBS@
+GUILE_SNARF = @GUILE_SNARF@
 INSTALL = @INSTALL@
 INSTALL_DATA = @INSTALL_DATA@
 INSTALL_PROGRAM = @INSTALL_PROGRAM@
@@ -253,7 +257,9 @@ TEST_PROGS =
 
 # only build widgets if we have webkit
 @BUILD_WIDGETS_TRUE@widgets = widgets
-SUBDIRS = m4 man src $(widgets) contrib toys
+@HAVE_GUILE_FALSE@guile = 
+@HAVE_GUILE_TRUE@guile = libmuguile
+SUBDIRS = m4 man src $(widgets) $(guile) contrib toys
 ACLOCAL_AMFLAGS = -I m4
 EXTRA_DIST = \
 	TODO		\
@@ -756,7 +762,15 @@ uninstall-am:
 	ps ps-am tags tags-recursive uninstall uninstall-am
 
 
+#
+# NOTE: we set the locale/tz to some well-know values, so the tests
+# (at least when running under 'make check') run in a predictable
+# environment. There are specific tests different timezone, though.
+#
+
 test: all $(TEST_PROGS)
+	 @export LC_ALL="en_US.utf8"
+	 @export TZ="Europe/Helsinki"
 	 @test -z "$(TEST_PROGS)" || gtester --verbose $(TEST_PROGS) || exit $$?; \
 	 test -z "$(SUBDIRS)" || \
 		for subdir in $(SUBDIRS); do \
@@ -792,6 +806,7 @@ cc10:
 line33:
 	@$(PMCCABE) -c `find -name '*.c' -o -name '*.cc'`	\
 	 | grep -v mu-str-normalize.c				\
+	 | grep -v config_options_group_find			\
 	 | grep -v tests					\
          | awk '($$5 > 33)'
 
@@ -802,7 +817,7 @@ fixme:
 # check whether we can run make distcheck from the repo version
 gitcheck:
 	cd `mktemp -d`; \
-	git clone git://gitorious.org/mu/mu-ng.git ; \
+	git clone git://gitorious.org/mu/mu.git ; \
 	cd mu-ng ; \
 	autoreconf -i ;\
 	./configure ; \

@@ -34,31 +34,6 @@
 #include "src/mu-str.h"
 #include "src/mu-msg-prio.h"
 
-static void
-test_mu_str_date_01 (void)
-{
-	struct tm *tmbuf;
-	char buf[64];
-	gchar *tmp;
-	time_t some_time;
-		
-	some_time = 1234567890;
-	tmbuf = localtime (&some_time);
-	strftime (buf, 64, "%x", tmbuf);
-
-	/*  $ date -ud@1234567890; Fri Feb 13 23:31:30 UTC 2009 */
-	g_assert_cmpstr (mu_str_date_s ("%x", some_time), ==, buf);
-
-	/* date -ud@987654321 Thu Apr 19 04:25:21 UTC 2001 */
-	some_time = 987654321;
-	tmbuf = localtime (&some_time);
-	strftime (buf, 64, "%c", tmbuf);
-	tmp = mu_str_date ("%c", some_time);
-	
-	g_assert_cmpstr (tmp, ==, buf);
-	g_free (tmp);
-		
-}
 
 
 static void
@@ -224,35 +199,99 @@ test_mu_str_display_contact (void)
 }
 
 
+static void
+assert_cmplst (GSList *lst, const char *items[])
+{
+	int i;
+
+	if (!lst) 
+		g_assert (!items);
+	
+	for (i = 0; lst; lst = g_slist_next(lst), ++i) 
+		g_assert_cmpstr ((char*)lst->data,==,items[i]);
+
+	g_assert (items[i] == NULL);
+}
+
+
+static GSList*
+create_list (const char *items[])
+{
+	GSList *lst;
+
+	lst = NULL;
+	while (items && *items) {
+		lst = g_slist_prepend (lst, g_strdup(*items));
+		++items;
+	}
+
+	return g_slist_reverse (lst);
+	
+}
 
 static void
-test_mu_str_date_parse_hdwmy (void)
+test_mu_str_from_list (void)
 {
-	time_t diff;
+	{
+		const char *strs[] = {"aap", "noot", "mies", NULL};
+		GSList *lst = create_list (strs);
+		gchar  *str = mu_str_from_list (lst, ',');
+		g_assert_cmpstr ("aap,noot,mies", ==, str);
+		mu_str_free_list (lst);
+		g_free (str);
+	}
 
-	diff = time(NULL) - mu_str_date_parse_hdwmy ("3h");
-	g_assert (diff > 0);
-	g_assert_cmpuint (3 * 60 * 60 - diff, <=, 1);
+	{
+		const char *strs[] = {"aap", "no,ot", "mies", NULL};
+		GSList *lst = create_list (strs);
+		gchar  *str = mu_str_from_list (lst, ',');
+		g_assert_cmpstr ("aap,no,ot,mies", ==, str);
+		mu_str_free_list (lst);
+		g_free (str);
+	}
 
-	diff = time(NULL) - mu_str_date_parse_hdwmy ("5y");
-	g_assert (diff > 0);
-	g_assert_cmpuint (5 * 365 * 24 * 60 * 60 - diff, <=, 1);
+	{
+		const char *strs[] = {NULL};
+		GSList *lst = create_list (strs);
+		gchar  *str = mu_str_from_list (lst,'@');
+		g_assert_cmpstr (NULL, ==, str);
+		mu_str_free_list (lst);
+		g_free (str);
+	}
 	
-	diff = time(NULL) - mu_str_date_parse_hdwmy ("3m");
-	g_assert (diff > 0);
-	g_assert_cmpuint (3 * 30 * 24 * 60 * 60 - diff, <=, 1);
 
-	diff = time(NULL) - mu_str_date_parse_hdwmy ("21d");
-	g_assert (diff > 0);
-	g_assert_cmpuint (21 * 24 * 60 * 60 - diff, <=, 1);
-	
-	diff = time(NULL) - mu_str_date_parse_hdwmy ("2w");
-	g_assert (diff > 0);
-	g_assert_cmpuint (2 * 7 * 24 * 60 * 60 - diff, <=, 1);
-	
-	
-	g_assert_cmpint (mu_str_date_parse_hdwmy("-1y"),==, (time_t)-1);  
 }
+
+
+static void
+test_mu_str_to_list (void)
+{
+	{
+		const char *items[]= {"foo", "bar ", "cuux", NULL};
+		GSList *lst = mu_str_to_list ("foo@bar @cuux",'@', FALSE);
+		assert_cmplst (lst, items);
+		mu_str_free_list (lst);
+	}
+
+	{
+		GSList *lst = mu_str_to_list (NULL,'x',FALSE);
+		g_assert (lst == NULL);
+		mu_str_free_list (lst);
+	}
+}
+
+static void
+test_mu_str_to_list_strip (void)
+{
+	{
+		const char *items[]= {"foo", "bar", "cuux", NULL};
+		GSList *lst = mu_str_to_list ("foo@bar @cuux",'@', TRUE);
+		assert_cmplst (lst, items);
+		mu_str_free_list (lst);
+	}
+}
+
+
 
 
 static void
@@ -329,6 +368,28 @@ test_mu_str_guess_nick (void)
 
 
 
+static void
+test_mu_str_subject_normalize (void)
+{
+	int i;
+		
+	struct {
+		char *src, *exp;
+	} tests[] = {
+		{ "test123", "test123" },
+		{ "Re:test123", "test123" },
+		{ "Re: Fwd: test123", "test123" },
+		{ "Re[3]: Fwd: test123", "test123" },
+		{ "operation: mindcrime", "mindcrime" }, /*...*/
+		{ "", "" }
+	};
+				
+	for (i = 0; i != G_N_ELEMENTS(tests); ++i)
+		g_assert_cmpstr (mu_str_subject_normalize (tests[i].src), ==,
+				 tests[i].exp);
+}
+
+
 
 
 
@@ -337,9 +398,6 @@ main (int argc, char *argv[])
 {
 	g_test_init (&argc, &argv, NULL);
 
-	/* mu_str_date */
-	g_test_add_func ("/mu-str/mu-str-date",
-			 test_mu_str_date_01);
 
 	/* mu_str_size */
 	g_test_add_func ("/mu-str/mu-str-size-01",
@@ -365,17 +423,24 @@ main (int argc, char *argv[])
 	g_test_add_func ("/mu-str/mu-str-display_contact",
 			 test_mu_str_display_contact);			 
 	
-
-	g_test_add_func ("/mu-str/mu-str_date_parse_hdwmy",
-			 test_mu_str_date_parse_hdwmy);
-
-	g_test_add_func ("/mu-str/mu-str_guess_first_name",
-			 test_mu_str_guess_first_name);
-	g_test_add_func ("/mu-str/mu-str_guess_last_name",
-			 test_mu_str_guess_last_name);
-	g_test_add_func ("/mu-str/mu-str_guess_nick",
-			 test_mu_str_guess_nick);
+	g_test_add_func ("/mu-str/mu-str-from-list",
+			 test_mu_str_from_list);
+	g_test_add_func ("/mu-str/mu-str-to-list",
+			 test_mu_str_to_list);
+	g_test_add_func ("/mu-str/mu-str-to-list-strip",
+			 test_mu_str_to_list_strip);
 	
+	g_test_add_func ("/mu-str/mu_str_guess_first_name",
+			 test_mu_str_guess_first_name);
+	g_test_add_func ("/mu-str/mu_str_guess_last_name",
+			 test_mu_str_guess_last_name);
+	g_test_add_func ("/mu-str/mu_str_guess_nick",
+			 test_mu_str_guess_nick);
+
+	g_test_add_func ("/mu-str/mu_str_subject_normalize",
+			 test_mu_str_subject_normalize);
+
+
 	/* FIXME: add tests for mu_str_flags; but note the
 	 * function simply calls mu_msg_field_str */
 		

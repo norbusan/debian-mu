@@ -85,10 +85,13 @@ test_mu_cfind_bbdb (void)
 	const char* frm;
 	struct tm *tmtoday;
 	time_t now;
-
+	const char *old_tz;
+	
 	muhome = fill_contacts_cache ();
 	g_assert (muhome != NULL);
-
+	
+	old_tz = set_tz ("Europe/Helsinki");
+	
 	cmdline = g_strdup_printf ("%s cfind --muhome=%s --format=bbdb "
 				   "'testmu\\.xxx?'",
 				   MU_PROGRAM, muhome);
@@ -120,6 +123,8 @@ test_mu_cfind_bbdb (void)
 	g_free (output);
 	g_free (erroutput);
 	g_free (expected);
+
+	set_tz (old_tz);
 }
 
 
@@ -191,6 +196,7 @@ test_mu_cfind_mutt_ab (void)
 					     NULL, NULL));
 	g_assert_cmpstr (output,
 			 ==,
+			 "Matching addresses in the mu database:\n"
 			 "hk@testmu.xxx\tHelmut Kröger\t\n"	
 			 "testmu@testmu.xx\tMü\t\n");
 	g_free (cmdline);
@@ -260,14 +266,14 @@ test_mu_cfind_csv (void)
 }
 
 
-
-
 int
 main (int argc, char *argv[])
 {
 	int rv;
 	g_test_init (&argc, &argv, NULL);
 
+	setenv ("LC_ALL", "en_US.utf8", 1);
+	
 	g_test_add_func ("/mu-cmd-cfind/test-mu-cfind-plain", test_mu_cfind_plain);
 	g_test_add_func ("/mu-cmd-cfind/test-mu-cfind-bbdb",  test_mu_cfind_bbdb);
 	g_test_add_func ("/mu-cmd-cfind/test-mu-cfind-wl",  test_mu_cfind_wl);

@@ -1,5 +1,4 @@
 /* -*-mode: c; tab-width: 8; indent-tabs-mode: t; c-basic-offset: 8 -*-*/
-
 /*
 ** Copyright (C) 2010-2011 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 **
@@ -31,9 +30,12 @@
 #include "mu-cmd.h"
 #include "mu-util.h"
 #include "mu-str.h"
+#include "mu-date.h"
 #include "mu-maildir.h"
 #include "mu-contacts.h"
 #include "mu-runtime.h"
+
+#define VIEW_TERMINATOR '\f' /* form-feed */
 
 
 static void
@@ -64,20 +66,49 @@ get_attach_str (MuMsg *msg)
 	return attach;
 }	
 
+#define color_maybe(C)	do{ if (color) fputs ((C),stdout);}while(0)
 
 static void
 print_field (const char* field, const char *val, gboolean color)
 {
 	if (!val)
 		return;
+	
+	color_maybe (MU_COLOR_MAGENTA);
+	mu_util_fputs_encoded (field, stdout);
+	color_maybe (MU_COLOR_DEFAULT);
+	fputs (": ", stdout);
+	
+	if (val) {
+		color_maybe (MU_COLOR_GREEN);
+		mu_util_fputs_encoded (val, stdout);
+	}
 
-	g_print ("%s%s%s: %s%s%s\n",
-		 color ? MU_COLOR_MAGENTA : "",
-		 field,
-		 color ? MU_COLOR_DEFAULT : "",
-		 color ? MU_COLOR_GREEN : "",
-		 val ? val : "",
-		 color ? MU_COLOR_DEFAULT : "");
+	color_maybe (MU_COLOR_DEFAULT);
+	fputs ("\n", stdout);
+}
+
+
+static void
+body_or_summary (MuMsg *msg, gboolean summary, gboolean color)
+{
+	const char* field;
+	const int SUMMARY_LEN = 5;
+	
+	field = mu_msg_get_body_text (msg);
+	if (!field)
+		return; /* no body -- nothing more to do */
+	
+	if (summary) {
+		gchar *summ;
+		summ = mu_str_summarize (field, SUMMARY_LEN);
+		print_field ("Summary", summ, color);
+		g_free (summ);
+	} else {
+		color_maybe (MU_COLOR_YELLOW);
+		mu_util_print_encoded ("\n%s\n", field);
+		color_maybe (MU_COLOR_DEFAULT);
+	}
 }
 
 
@@ -86,11 +117,10 @@ static gboolean
 view_msg (MuMsg *msg, const gchar *fields, gboolean summary,
 	  gboolean color)
 {
-	const char *field;
 	gchar *attachs;
 	time_t date;
-	const int SUMMARY_LEN = 5;
-
+	const GSList *lst;
+	
 	print_field ("From", mu_msg_get_from (msg), color);
 	print_field ("To",   mu_msg_get_to (msg), color);
 	print_field ("Cc",   mu_msg_get_cc (msg), color);
@@ -98,27 +128,53 @@ view_msg (MuMsg *msg, const gchar *fields, gboolean summary,
 	print_field ("Subject",  mu_msg_get_subject (msg), color);
 	
 	if ((date = mu_msg_get_date (msg))) 
-		print_field ("Date", mu_str_date_s ("%c", date),
+		print_field ("Date", mu_date_str_s ("%c", date),
 			     color);
 
+	if ((lst = mu_msg_get_tags (msg))) {
+		gchar *tags;
+		tags = mu_str_from_list (lst,',');
+		print_field ("Tags", tags, color);
+		g_free (tags);
+	}
+	
 	if ((attachs = get_attach_str (msg))) {
 		print_field ("Attachments", attachs, color);
 		g_free (attachs);
 	}
-	
-	if (!(field = mu_msg_get_body_text (msg)))
-		return TRUE; /* no body -- nothing more to do */
-	
-	if (summary) {
-		gchar *summ;
-		summ = mu_str_summarize (field, SUMMARY_LEN);
-		print_field ("Summary", summ, color);
-		g_free (summ);
-	} else
-		g_print ("\n%s\n", field);
+
+	body_or_summary (msg, summary, color);
 
 	return TRUE;
 }
+
+
+static MuExitCode
+handle_msg (const char *fname, MuConfig *opts)
+{
+	GError *err;
+	MuMsg *msg;
+	MuExitCode rv;
+	
+	err = NULL;
+	msg = mu_msg_new_from_file (fname, NULL, &err);
+
+	if (!msg) {
+		g_warning ("error: %s", err->message);
+		g_error_free (err);
+		return MU_EXITCODE_ERROR;
+	}
+
+	if (view_msg (msg, NULL, opts->summary, opts->color))
+		rv = MU_EXITCODE_OK;
+	else
+		rv = MU_EXITCODE_ERROR;
+	
+	mu_msg_unref (msg);
+
+	return rv;
+}
+
 
 MuExitCode
 mu_cmd_view (MuConfig *opts)
@@ -135,21 +191,16 @@ mu_cmd_view (MuConfig *opts)
 		return MU_EXITCODE_ERROR;
 	}
 	
-	;
-	for (i = 1, rv = MU_EXITCODE_OK;
-	     opts->params[i] && rv == MU_EXITCODE_OK; ++i) {
-		GError *err = NULL;
-		MuMsg  *msg = mu_msg_new_from_file (opts->params[i], NULL, &err);
-		if (!msg) {
-			g_warning ("error: %s", err->message);
-			g_error_free (err);
-			return MU_EXITCODE_ERROR;
-		}
-		if (!view_msg (msg, NULL, opts->summary, opts->color))
-			rv = MU_EXITCODE_ERROR;
-		
-		mu_msg_unref (msg);
+	for (i = 1; opts->params[i]; ++i) {
+
+		rv = handle_msg (opts->params[i], opts);
+		if (rv != MU_EXITCODE_OK)
+			break;
+		/* add a separator between two messages? */
+		if (opts->terminator)
+			g_print ("%c", VIEW_TERMINATOR);
 	}
+	
 	return rv;
 }
 

@@ -93,6 +93,10 @@ GMIME_LIBS = @GMIME_LIBS@
 GREP = @GREP@
 GTK_CFLAGS = @GTK_CFLAGS@
 GTK_LIBS = @GTK_LIBS@
+GUILE_CFLAGS = @GUILE_CFLAGS@
+GUILE_CONFIG = @GUILE_CONFIG@
+GUILE_LIBS = @GUILE_LIBS@
+GUILE_SNARF = @GUILE_SNARF@
 INSTALL = @INSTALL@
 INSTALL_DATA = @INSTALL_DATA@
 INSTALL_PROGRAM = @INSTALL_PROGRAM@
@@ -386,7 +390,15 @@ uninstall-am:
 	mostlyclean-libtool pdf pdf-am ps ps-am uninstall uninstall-am
 
 
+#
+# NOTE: we set the locale/tz to some well-know values, so the tests
+# (at least when running under 'make check') run in a predictable
+# environment. There are specific tests different timezone, though.
+#
+
 test: all $(TEST_PROGS)
+	 @export LC_ALL="en_US.utf8"
+	 @export TZ="Europe/Helsinki"
 	 @test -z "$(TEST_PROGS)" || gtester --verbose $(TEST_PROGS) || exit $$?; \
 	 test -z "$(SUBDIRS)" || \
 		for subdir in $(SUBDIRS); do \

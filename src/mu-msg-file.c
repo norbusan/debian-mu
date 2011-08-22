@@ -224,7 +224,12 @@ get_recipient (MuMsgFile *self, GMimeRecipientType rtype)
 
 	/* FALSE --> don't encode */
 	recip = (char*)internet_address_list_to_string (recips, FALSE);
-	
+
+	if (recip && !g_utf8_validate (recip, -1, NULL)) {
+		g_debug ("invalid recipient in %s\n", self->_path);
+		mu_str_asciify_in_place (recip); /* ugly... */
+	}
+		
 	if (mu_str_is_empty(recip)) {
 		g_free (recip);
 		return NULL;
@@ -428,17 +433,6 @@ get_prio (MuMsgFile *self)
 }
 
 
-/* static const char*      */
-/* get_header (MuMsgFile *self, const char* header) */
-/* { */
-/* 	g_return_val_if_fail (msg, NULL); */
-/* 	g_return_val_if_fail (header, NULL); */
-
-/* 	return g_mime_object_get_header (GMIME_OBJECT(self->_mime_msg),  */
-/* 					 header); */
-/* } */
-
-
 struct _GetBodyData {
 	GMimeObject *_txt_part, *_html_part;
 	gboolean _want_html;
@@ -495,41 +489,6 @@ get_body_cb (GMimeObject *parent, GMimeObject *part, GetBodyData *data)
 }	
 
 
-/* turn \0-terminated buf into ascii (which is a utf8 subset); convert
- *   any non-ascii into '.'
- */
-static void
-asciify (char *buf)
-{
-	char *c;
-	for (c = buf; c && *c; ++c)
-		if (!isascii(*c))
-			c[0] = '.';
-}
-
-
-
-static gchar*
-text_to_utf8 (const char* buffer, const char *charset)
-{
-	GError *err;
-	gchar * utf8;
-
-	err = NULL;
-	utf8 = g_convert_with_fallback (buffer, -1, "UTF-8",
-					charset, (gchar*)".", 
-					NULL, NULL, &err);
-	if (!utf8) {
-		MU_WRITE_LOG ("%s: conversion failed from %s: %s",
-			      __FUNCTION__, charset,
-			      err ? err->message : "");
-		if (err)
-			g_error_free (err);
-	}
-	
-	return utf8;
-}
-
 
 /* NOTE: buffer will be *freed* or returned unchanged */
 static char*
@@ -554,7 +513,7 @@ convert_to_utf8 (GMimePart *part, char *buffer)
 	
 	/* of course, the charset specified may be incorrect... */
 	if (charset) {
-		char *utf8 = text_to_utf8 (buffer, charset);
+		char *utf8 = mu_str_convert_to_utf8 (buffer, charset);
 		if (utf8) {
 			g_free (buffer);
 			return utf8;
@@ -562,9 +521,8 @@ convert_to_utf8 (GMimePart *part, char *buffer)
 	}
 
 	/* hmmm.... no charset at all, or conversion failed; ugly
-	 *  hack: replace all non-ascii chars with '.'
-	 *  instead... TODO: come up with something better */
-	asciify (buffer);
+	 *  hack: replace all non-ascii chars with '.' */
+	mu_str_asciify_in_place (buffer);
 	return buffer;
 }
 
@@ -673,88 +631,88 @@ get_body (MuMsgFile *self, gboolean want_html)
 }
 
 
+
+static gboolean
+contains (GSList *lst, const char *str)
+{
+	for (; lst; lst = g_slist_next(lst))
+		if (g_strcmp0 ((char*)lst->data, str) == 0)
+			return TRUE;
+	return FALSE;
+}
+
+
 static GSList*
-get_msgids_from_header (MuMsgFile *self, const char* header)
+get_references  (MuMsgFile *self)
 {
 	GSList *msgids;
 	const char *str;
-
-	msgids = NULL;
-	str = g_mime_object_get_header (GMIME_OBJECT(self->_mime_msg),
-					header);
+	unsigned u;
+	const char *headers[] = { "References", "In-reply-to", NULL };
 	
-	/* get stuff from the 'references' header */
-	if (str) {
+	for (msgids = NULL, u = 0; headers[u]; ++u) {
+
 		const GMimeReferences *cur;
 		GMimeReferences *mime_refs;
+		
+		str = g_mime_object_get_header (GMIME_OBJECT(self->_mime_msg),
+						headers[u]);
+		if (!str)
+			continue;
+		
 		mime_refs = g_mime_references_decode (str);
 		for (cur = mime_refs; cur; cur = g_mime_references_get_next(cur)) {
 			const char* msgid;
 			msgid = g_mime_references_get_message_id (cur);
-			if (msgid)
+			/* don't include duplicates */
+			if (msgid && !contains (msgids, msgid))
 				msgids = g_slist_prepend (msgids, g_strdup (msgid));
 		}
+
 		g_mime_references_free (mime_refs);
 	}
-
+	
 	return g_slist_reverse (msgids);
 }
 
 
 static GSList*
-get_references (MuMsgFile *self)
+get_tags (MuMsgFile *self)
 {
-	GSList *refs, *inreply;
+	GMimeObject *obj;
 	
-	g_return_val_if_fail (self, NULL);
+	obj = GMIME_OBJECT(self->_mime_msg);
 
-	refs = get_msgids_from_header (self, "References");
-	
-	/* now, add in-reply-to:, we only take the first one if there
-	 * are more */
-	inreply = get_msgids_from_header (self, "In-reply-to");
-	if (inreply) {
-		refs = g_slist_prepend (refs, g_strdup ((gchar*)inreply->data));
-		g_slist_foreach (inreply, (GFunc)g_free, NULL);
-		g_slist_free (inreply);
-	}
-				 
-	/* put in proper order */
-	return g_slist_reverse (refs);
+	return mu_str_to_list (g_mime_object_get_header
+			       (obj, "X-Label"), ',', TRUE);	
 }
 
-static char*
-get_references_str (MuMsgFile *self)
+
+/* wrongly encoded messages my cause GMime to return invalid
+ * UTF8... we double check, and ensure our output is always correct
+ * utf8 */
+gchar *
+maybe_cleanup (const char* str, const char *path, gboolean *do_free)
 {
-	GSList *refs;
-	gchar *refsstr;
+	if (!str || G_LIKELY(g_utf8_validate(str, -1, NULL)))
+		return (char*)str;
 
-	g_return_val_if_fail (self, NULL);
-
-	refsstr = NULL;
-	refs = get_references (self);
-	if (refs) {
-		const GSList *cur;
-		for (cur = refs; cur; cur = g_slist_next(cur)) {
-			char *tmp;
-			tmp = g_strdup_printf ("%s%s%s",
-					       refsstr ? refsstr : "",
-					       refsstr ? "," : "",
-					       (gchar*)cur->data);
-			g_free (refsstr);
-			refsstr = tmp;
-		}
-	}			
-
-	g_slist_foreach (refs, (GFunc)g_free, NULL);
-	g_slist_free (refs);
+	g_debug ("invalid utf8 in %s", path);
 	
-	return refsstr;
+	if (*do_free)
+		return mu_str_asciify_in_place ((char*)str);
+	else {
+		gchar *ascii;
+		ascii = mu_str_asciify_in_place(g_strdup (str));
+		*do_free = TRUE;
+		return ascii;
+	}
 }
 
 
 char*
-mu_msg_file_get_str_field (MuMsgFile *self, MuMsgFieldId mfid, gboolean *do_free)
+mu_msg_file_get_str_field (MuMsgFile *self, MuMsgFieldId mfid,
+			   gboolean *do_free)
 {
 	g_return_val_if_fail (self, NULL);
 	g_return_val_if_fail (mu_msg_field_is_string(mfid), NULL);
@@ -776,13 +734,16 @@ mu_msg_file_get_str_field (MuMsgFile *self, MuMsgFieldId mfid, gboolean *do_free
 		return get_recipient (self, GMIME_RECIPIENT_TYPE_CC);
 
 	case MU_MSG_FIELD_ID_FROM:
-		return (char*)g_mime_message_get_sender (self->_mime_msg);
-		
-	case MU_MSG_FIELD_ID_PATH:
-		return self->_path;
+		return (char*)maybe_cleanup
+			(g_mime_message_get_sender (self->_mime_msg),
+			 self->_path, do_free);
+
+	case MU_MSG_FIELD_ID_PATH: return self->_path;
 		
 	case MU_MSG_FIELD_ID_SUBJECT:
-		return (char*)g_mime_message_get_subject (self->_mime_msg);
+		return (char*)maybe_cleanup
+			(g_mime_message_get_subject (self->_mime_msg),
+			 self->_path, do_free);
 
 	case MU_MSG_FIELD_ID_TO: *do_free = TRUE;
 		return get_recipient (self, GMIME_RECIPIENT_TYPE_TO);
@@ -790,16 +751,33 @@ mu_msg_file_get_str_field (MuMsgFile *self, MuMsgFieldId mfid, gboolean *do_free
 	case MU_MSG_FIELD_ID_MSGID:
 		return (char*)g_mime_message_get_message_id (self->_mime_msg);
 
-	case MU_MSG_FIELD_ID_MAILDIR:
-		return self->_maildir;
+	case MU_MSG_FIELD_ID_MAILDIR: return self->_maildir;
 		
-	case MU_MSG_FIELD_ID_REFS: *do_free = TRUE;
-		return get_references_str (self);
+	default: g_return_val_if_reached (NULL);
+	}
+}
+
+
+GSList*
+mu_msg_file_get_str_list_field (MuMsgFile *self, MuMsgFieldId mfid,
+				gboolean *do_free)
+{
+	g_return_val_if_fail (self, NULL);
+	g_return_val_if_fail (mu_msg_field_is_string_list(mfid), NULL);
 	
+	switch (mfid) {
+		
+	case MU_MSG_FIELD_ID_REFS:
+		*do_free = TRUE;
+		return get_references (self);
+	case MU_MSG_FIELD_ID_TAGS:
+		*do_free = TRUE;
+		return get_tags (self);
 	default:
 		g_return_val_if_reached (NULL);
 	}
 }
+
 
 gint64
 mu_msg_file_get_num_field (MuMsgFile *self, const MuMsgFieldId mfid)

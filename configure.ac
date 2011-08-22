@@ -14,14 +14,13 @@
 ## along with this program; if not, write to the Free Software Foundation,
 ## Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.  
 
-AC_INIT([mu],[0.9.6],[http://code.google.com/p/mu0/issues/list],[mu])
+AC_INIT([mu],[0.9.7-pre],[http://code.google.com/p/mu0/issues/list],[mu])
 AC_CONFIG_HEADERS([config.h])
 AC_CONFIG_SRCDIR([src/mu.cc])
 # libtoolize wants to put some stuff in here; if you have an old
 # autotools/libtool setup. you can try to comment this out
 AC_CONFIG_MACRO_DIR([m4])
 AM_INIT_AUTOMAKE([dist-bzip2])
-
 
 # silent build if we have a new enough automake
 m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES([yes])])
@@ -147,14 +146,20 @@ AC_SUBST(XAPIAN_LIBS)
 # note that MU_XAPIAN_DB_VERSION does not necessarily follow MU
 # versioning, as we hopefully don't have updates for each version;
 # also, this has nothing to do with Xapian's software version
-AC_DEFINE(MU_XAPIAN_DB_VERSION,["9.6"], ['Schema' version of the database])
+AC_DEFINE(MU_XAPIAN_DB_VERSION,["9.7"], ['Schema' version of the database])
 
+
+#
+# we need gtk (2 or 3) for some of the graphical tools
+#
 AC_ARG_WITH([gui],
    [AS_HELP_STRING([--with-gui=gtk2|gtk3|none])],
    [gui=$withval],[gui=auto])
 
-AS_IF([test "x$gui" != "xgtk2" -a "x$gui" != "xgtk3" -a "x$gui" != "xnone" -a "x$gui" != "xauto"],
-      AC_MSG_ERROR([the argument for --with-gui= must be either gtk2|gtk3|auto|none ($gui)]))
+AS_IF([test "x$gui" != "xgtk2" -a "x$gui" != "xgtk3" -a "x$gui" != "xnone" \
+	    -a "x$gui" != "xauto"],
+      AC_MSG_ERROR([the argument for --with-gui= must be either \
+      			gtk2|gtk3|auto|none ($gui)]))
       
 # check for gtk3
 AS_IF([test "x$gui" = "xgtk3"],[
@@ -175,11 +180,12 @@ AS_IF([test "x$gui" != "xnone" -a "x$have_gtk3" != "xyes"],[
   gtk_version="`pkg-config --modversion gtk+-2.0`"	
 ])
 # only an error if we explicitly asked for it
-AS_IF([test "x$have_gtk2" = "xno" -a "x$gui" != "auto"],
+AS_IF([test "x$have_gtk2" = "xno" -a "x$gui" != "xauto"],
    AC_MSG_ERROR([GTK+ 2.x not found]))
 
 AM_CONDITIONAL(HAVE_GTK,[test "x$have_gtk2" = "xyes" -o "x$have_gtk3" = "xyes" ])
-AS_IF([test "x$have_gtk2" = "xyes" -o "x$have_gtk3" = "xyes"],[buildgui=yes],[buildgui=no])
+AS_IF([test "x$have_gtk2" = "xyes" -o "x$have_gtk3" = "xyes"],[buildgui=yes],
+	    [buildgui=no])
 
 # webkit? needed for the fancy web widget
 AS_IF([test "x$buildgui" = "xyes"],[
@@ -204,6 +210,39 @@ AM_CONDITIONAL(HAVE_GIO, [test "x$have_gio" = "xyes"])
 # should we build the widgets/ dir?
 AM_CONDITIONAL(BUILD_WIDGETS, [test "x$have_webkit" = "xyes" -a "x$have_gio" = "xyes"])
 
+
+###############################################################################
+# check for guile & guile-snarf
+AC_PATH_PROG(GUILE_CONFIG, [guile-config], [], [$PATH])
+AS_IF([test "x$GUILE_CONFIG" != "x"],
+  [GUILE_CFLAGS=`$GUILE_CONFIG compile`; GUILE_LIBS=`$GUILE_CONFIG link`])
+AC_SUBST(GUILE_LIBS)
+AC_SUBST(GUILE_CFLAGS)
+
+AC_PATH_PROG(GUILE_SNARF, [guile-snarf], [], [$PATH])
+AS_IF([test "x$GUILE_SNARF" != "x"],[
+    AC_DEFINE_UNQUOTED([GUILE_SNARF], ["$GUILE_SNARF"],[Path to guile-snarf])],[
+    AC_MSG_WARN([cannot find guile-snarf])])
+
+AS_IF([test "x$GUILE_CONFIG" != "x"],
+ [GUILE_VERSION="`$GUILE_CONFIG --version 2>&1 | sed 's/.*version //'`";
+  GUILE_MAJOR_VERSION="`echo "$GUILE_VERSION" | sed 's/\..*//'`"])
+
+AS_IF([test "x$GUILE_MAJOR_VERSION" = "x0" -o "x$GUILE_MAJOR_VERSION" = "x1"],
+    [AC_DEFINE_UNQUOTED([HAVE_PRE2_GUILE],[1],[have pre-2.x guile])])
+
+# for now, we require guile 2.x
+AM_CONDITIONAL(HAVE_GUILE,[test "$xGUILE_CONFIG" != "x" \
+                           -a "x$GUILE_SNARF" != "x" \
+			   -a "x$GUILE_MAJOR_VERSION" != "0"])	 
+
+AS_IF([test "x$GUILE_MAJOR_VERSION" = "x0" -o "x$GUILE_MAJOR_VERSION" = "x1"],
+      [AC_MSG_WARN([Only guile >= 2.x is supported]);
+       guile_too_old="yes"])
+###############################################################################
+
+
+       
 # check for xdg-open
 AS_IF([test "x$buildgui"="xyes"],[
   AC_PATH_PROG(XDGOPEN, [xdg-open], [], [$PATH])
@@ -217,20 +256,22 @@ AC_PATH_PROG([PMCCABE],[pmccabe],[pmccabe],[no])
 AS_IF([test "x$PMCCABE" = "xno"],[
    have_pmccabe="no"	    
    AC_MSG_WARN([
-   *** Developers: you don't seem to have the 'pmccabe' tool installed.
+   *** Developers: you do not seem to have the pmccabe tool installed.
    *** Please install it if you want to run the automated code checks])
-],[
-   have_pmccabe="yes"
-])
+],[have_pmccabe="yes"])
+
+#toys/procmule/Makefile
 
 AC_CONFIG_FILES([
 Makefile
 src/Makefile
 src/tests/Makefile
 widgets/Makefile
+libmuguile/Makefile
 toys/Makefile
 toys/mug/Makefile
 toys/mug2/Makefile
+toys/muile/Makefile
 man/Makefile
 m4/Makefile
 contrib/Makefile
@@ -264,6 +305,10 @@ if test "x$have_webkit" = "xyes"; then
 echo "Webkit version                       : $webkit_version"
 fi
 
+if test "x$GUILE_CONFIG" != "x"; then
+echo "Guile version                        : $GUILE_VERSION"
+fi
+
 echo
 echo "Build unit tests (glib >= 2.22)      : $have_gtest"
 echo "Build 'mug' toy-ui (requires GTK+)   : $buildgui"
@@ -284,7 +329,15 @@ echo "The demo UIs are in toys/mug and toys/mug2"
      fi
 fi
 
+if test "x$GUILE_MAJOR_VERSION" = "x1"; then
+   echo
+   echo "NOTE: If you have troubles with linking the guile-related stuff, it"
+   echo "might help to move .la-files out of the way"
+   echo
+   echo "See e.g: http://blog.flameeyes.eu/2008/04/14/what-about-those-la-files"
+fi
 
 echo
 echo "type 'make' to build mu, or 'make check' to run the unit tests."
 echo "use 'make V=1' to show the detailed output during the build"
+

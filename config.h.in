@@ -1,5 +1,8 @@
 /* config.h.in.  Generated from configure.ac by autoheader.  */
 
+/* Path to guile-snarf */
+#undef GUILE_SNARF
+
 /* Define to 1 if you have the <dirent.h> header file, and it defines `DIR'.
    */
 #undef HAVE_DIRENT_H
@@ -21,6 +24,9 @@
 
 /* Define to 1 if you have the <ndir.h> header file, and it defines `DIR'. */
 #undef HAVE_NDIR_H
+
+/* have pre-2.x guile */
+#undef HAVE_PRE2_GUILE
 
 /* Define to 1 if you have the `realpath' function. */
 #undef HAVE_REALPATH
