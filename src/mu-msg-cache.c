@@ -17,15 +17,17 @@
 **
 */
 
-#include <mu-msg-flags.h>
-#include <mu-msg-prio.h>
-
+#include "mu-msg-flags.h"
+#include "mu-msg-prio.h"
 #include "mu-msg-cache.h"
+#include "mu-str.h"
 
 struct _MuMsgCache {
 
 	/* all string properties */
 	char *_str[MU_MSG_STRING_FIELD_ID_NUM];
+
+	GSList         *_refs, *_tags;
 	
 	time_t		_timestamp, _date;
 	size_t		_size;
@@ -48,26 +50,36 @@ struct _MuMsgCache {
 #define reset_allocated(C,MFID) ((C)->_allocated &= ~(1 << (MFID)))
 #define reset_cached(C,MFID)    ((C)->_cached    &= ~(1 << (MFID)))
 
-MuMsgCache*
-mu_msg_cache_new (void)
+
+static void
+cache_clear (MuMsgCache *self)
 {
 	int i;
-	MuMsgCache *self;
 	
-	self = g_slice_new (MuMsgCache);
-		
 	for (i = 0; i != MU_MSG_STRING_FIELD_ID_NUM; ++i)
 		self->_str[i] = NULL;
-
+	
 	self->_timestamp = (time_t)-1;
 	self->_size      = (size_t)-1;
 	self->_flags     = MU_MSG_FLAG_NONE;
 	self->_prio	 = MU_MSG_PRIO_NONE;
 	self->_date	 = (time_t)-1;
+
+	self->_refs = self->_tags = NULL;
 	
 	self->_cached	 = 0;
 	self->_allocated = 0;
+}
 
+
+MuMsgCache*
+mu_msg_cache_new (void)
+{
+	MuMsgCache *self;
+	
+	self = g_slice_new0 (MuMsgCache);
+	cache_clear (self);		
+	
 	return self;
 }
 
@@ -76,7 +88,7 @@ void
 mu_msg_cache_destroy (MuMsgCache *self)
 {
 	int i;
-
+	
 	if (!self)
 		return;
 	
@@ -86,6 +98,9 @@ mu_msg_cache_destroy (MuMsgCache *self)
 		if (is_allocated(self, i))
 			g_free (self->_str[i]);
 
+	mu_str_free_list (self->_tags);
+	mu_str_free_list (self->_refs);
+	
 	g_slice_free (MuMsgCache, self);
 }
 	
@@ -122,6 +137,55 @@ mu_msg_cache_str (MuMsgCache *cache, MuMsgFieldId mfid)
 }
  
 
+
+const GSList*
+mu_msg_cache_set_str_list (MuMsgCache *self, MuMsgFieldId mfid,
+			   GSList *lst, gboolean do_free)
+{
+	g_return_val_if_fail(self, NULL);
+	g_return_val_if_fail(mu_msg_field_is_string_list(mfid), NULL);
+		
+	switch (mfid) {
+	case MU_MSG_FIELD_ID_REFS:
+		if (is_allocated(self, mfid))
+			mu_str_free_list (self->_refs);
+		self->_refs = lst;
+		break;
+		
+	case MU_MSG_FIELD_ID_TAGS:
+		if (is_allocated(self, mfid))
+			mu_str_free_list (self->_tags);
+		self->_tags = lst;
+		break;
+	default:
+		g_return_val_if_reached(NULL);
+		return NULL;
+	}
+	
+	set_cached (self, mfid);
+
+	if (do_free)
+		set_allocated (self, mfid);
+	else
+		reset_allocated (self, mfid);
+	
+	return lst;
+}
+
+
+const GSList*
+mu_msg_cache_str_list (MuMsgCache *self, MuMsgFieldId mfid)
+{
+	g_return_val_if_fail (mu_msg_field_is_string_list(mfid), NULL);
+
+	switch (mfid) {
+	case MU_MSG_FIELD_ID_REFS:
+		return self->_refs;
+	default:
+		g_return_val_if_reached(NULL);
+		return NULL;
+	}
+}
 
 
 gint64

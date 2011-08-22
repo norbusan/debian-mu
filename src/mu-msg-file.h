@@ -64,19 +64,40 @@ const char* mu_msg_file_get_header (MuMsgFile *self, const char *header);
  * get a string value for this message
  * 
  * @param self a valid MuMsgFile
- * @param msfid the message field id to get (must be string-based one) *
+ * @param msfid the message field id to get (must be of type string)
  * @param do_free receives TRUE or FALSE, conveying if this string
  * should be owned & freed (TRUE) or not by caller. In case 'FALSE',
  * this function should be treated as if it were returning a const
  * char*, and note that in that case the string is only valid as long
  * as the MuMsgFile is alive, ie. before mu_msg_file_destroy
  * 
- * @return a const string, or NULL
+ * @return a string, or NULL
  */
 char* mu_msg_file_get_str_field (MuMsgFile *self,
 				 MuMsgFieldId msfid,
 				 gboolean *do_free)
 	                         G_GNUC_WARN_UNUSED_RESULT;
+
+
+/**
+ * get a string-list value for this message
+ * 
+ * @param self a valid MuMsgFile
+ * @param msfid the message field id to get (must be of type string-list)
+ * @param do_free receives TRUE or FALSE, conveying if this string
+ * should be owned & freed (TRUE) or not by caller. In case 'FALSE',
+ * this function should be treated as if it were returning a const
+ * GSList*, and note that in that case the string is only valid as long
+ * as the MuMsgFile is alive, ie. before mu_msg_file_destroy
+ * 
+ * @return a GSList*, or NULL
+ */
+GSList* mu_msg_file_get_str_list_field (MuMsgFile *self,
+					MuMsgFieldId msfid,
+					gboolean *do_free)
+					G_GNUC_WARN_UNUSED_RESULT;
+
+
 
 /**
  * get a numeric value for this message -- the return value should be
@@ -85,9 +106,9 @@ char* mu_msg_file_get_str_field (MuMsgFile *self,
  * @param self a valid MuMsgFile
  * @param msfid the message field id to get (must be string-based one)
  * 
- * @return the numeric value, or -1
+ * @return the numeric value, or -1 in case of error
  */
-gint64 mu_msg_file_get_num_field (MuMsgFile *self, MuMsgFieldId msfid);
+gint64 mu_msg_file_get_num_field (MuMsgFile *self, MuMsgFieldId mfid);
 
 
 #endif /*__MU_MSG_FILE_H__*/

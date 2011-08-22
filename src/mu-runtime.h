@@ -29,11 +29,13 @@ G_BEGIN_DECLS
  * initialize the mu runtime system; initializes logging and other
  * systems. To uninitialize, use mu_runtime_uninit
  * 
- * @param muhome path where to find the mu home directory (typicaly, ~/.mu)
+ * @param muhome path where to find the mu home directory (typicaly, ~/.mu) 
+ * @param name of the main program, ie. 'mu', 'mug' or
+ * 'procmule'. this influences the name of the e.g. the logfile
  * 
  * @return TRUE if succeeded, FALSE in case of error
  */
-gboolean mu_runtime_init              (const char* muhome);
+gboolean mu_runtime_init (const char *muhome, const char *name);
 
 
 /**
@@ -44,10 +46,13 @@ gboolean mu_runtime_init              (const char* muhome);
  * 
  * @param ptr to the param count (typically, argc)
  * @param ptr to the params (typically, argv)
+ * @param name of the main program, ie. 'mu', 'mug' or
+ * 'procmule'. this influences the name of the e.g. the logfile
  * 
  * @return TRUE if succeeded, FALSE in case of error
  */
-gboolean mu_runtime_init_from_cmdline (int *pargc, char ***pargv);
+gboolean mu_runtime_init_from_cmdline (int *pargc, char ***pargv,
+				       const char *name);
 
 
 /**
@@ -76,45 +81,6 @@ typedef enum _MuRuntimePath MuRuntimePath;
  * case of error.
  */
 const char* mu_runtime_path   (MuRuntimePath path);
-
-
-/**
- * get the mu home directory (typically, ~/.mu); this can only be
- * called after mu_runtime_init and before mu_runtime_uninit
- * 
- * @return mu home directory as a string which should be not be
- * modified, or NULL in case of error.
- */
-const char* mu_runtime_mu_home_dir     (void);
-
-/**
- * get the xapian directory (typically, ~/.mu/xapian/); this can only
- * be called after mu_runtime_init and before mu_runtime_uninit
- * 
- * @return the xapian directory as a string which should be not be
- * modified, or NULL in case of error.
- */
-const char* mu_runtime_xapian_dir      (void);
-
-
-/**
- * get the mu bookmarks file (typically, ~/.mu/bookmarks); this can
- * only be called after mu_runtime_init and before mu_runtime_uninit
- * 
- * @return the bookmarks file as a string which should be not be
- * modified, or NULL in case of error.
- */
-const char* mu_runtime_bookmarks_file  (void);
-
-/**
- * get the mu contacts cache file name (typically,
- * ~/.mu/contacts.cache); this can only be called after
- * mu_runtime_init and before mu_runtime_uninit
- * 
- * @return the contacts cache file name as a string which should be not be
- * modified, or NULL in case of error.
- */
-const char* mu_runtime_contacts_cache_file  (void);
 
 
 /**

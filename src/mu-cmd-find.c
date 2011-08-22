@@ -31,6 +31,8 @@
 #include <signal.h>
 
 #include "mu-msg.h"
+#include "mu-str.h"
+#include "mu-date.h"
 #include "mu-maildir.h"
 #include "mu-index.h"
 #include "mu-query.h"
@@ -38,10 +40,10 @@
 #include "mu-bookmarks.h"
 #include "mu-runtime.h"
 
+
 #include "mu-util.h"
 #include "mu-cmd.h"
-#include "mu-output.h"
-
+#include "mu-threader.h"
 
 enum _OutputFormat {
 	FORMAT_JSON,
@@ -50,10 +52,19 @@ enum _OutputFormat {
 	FORMAT_SEXP,
 	FORMAT_XML,
 	FORMAT_XQUERY,
-
+	
 	FORMAT_NONE
 };
 typedef enum _OutputFormat OutputFormat;
+
+static gboolean output_links (MuMsgIter *iter, const char* linksdir,
+				      gboolean clearlinks, size_t *count);
+static gboolean output_sexp (MuMsgIter *iter, size_t *count);
+static gboolean output_json (MuMsgIter *iter, size_t *count);
+static gboolean output_xml (MuMsgIter *iter, size_t *count);
+static gboolean output_plain (MuMsgIter *iter, const char *fields,
+			      gboolean summary,gboolean threads,
+			      gboolean color, size_t *count);
 
 static OutputFormat
 get_output_format (const char *formatstr)
@@ -89,12 +100,13 @@ upgrade_warning (void)
 
 
 static gboolean
-print_xapian_query (MuQuery *xapian, const gchar *query)
+print_xapian_query (MuQuery *xapian, const gchar *query, size_t *count)
 {
 	char *querystr;
 	GError *err;
 	
-	err = NULL;
+	err    = NULL;
+	
 	querystr = mu_query_as_string (xapian, query, &err);
 	if (!querystr) {
 		g_warning ("error: %s", err->message);
@@ -105,6 +117,7 @@ print_xapian_query (MuQuery *xapian, const gchar *query)
 	g_print ("%s\n", querystr);
 	g_free (querystr);
 
+	*count = 1;
 	return TRUE;
 }
 
@@ -129,23 +142,23 @@ sort_field_from_string (const char* fieldstr)
 
 
 static gboolean
-run_query_format (MuMsgIter *iter, MuConfig *opts,
-		  OutputFormat format, size_t *count)
+output_query_results (MuMsgIter *iter, MuConfig *opts,
+		     OutputFormat format, size_t *count)
 {
 	switch (format) {
 
 	case FORMAT_LINKS:
-		return mu_output_links (iter, opts->linksdir, opts->clearlinks,
-					count);
+		return output_links (iter, opts->linksdir, opts->clearlinks,
+				     count);
 	case FORMAT_PLAIN: 
-		return mu_output_plain (iter, opts->fields, opts->summary,
-					opts->color, count);
+		return output_plain (iter, opts->fields, opts->summary,
+				     opts->threads, opts->color, count);
 	case FORMAT_XML:
-		return mu_output_xml (iter, count);
+		return output_xml (iter, count);
 	case FORMAT_JSON:
-		return mu_output_json (iter, count);
+		return output_json (iter, count);
 	case FORMAT_SEXP:
-		return mu_output_sexp (iter, count);	
+		return output_sexp (iter, count);	
 	default:
 		g_assert_not_reached ();
 		return FALSE;
@@ -153,14 +166,12 @@ run_query_format (MuMsgIter *iter, MuConfig *opts,
 }
 
 
-static gboolean
-run_query (MuQuery *xapian, const gchar *query, MuConfig *opts,
-	   OutputFormat format, size_t *count)
+static MuMsgIter*
+run_query (MuQuery *xapian, const gchar *query, MuConfig *opts, size_t *count)
 {
 	GError *err;
 	MuMsgIter *iter;
 	MuMsgFieldId sortid;
-	gboolean rv;
 	
 	sortid = MU_MSG_FIELD_ID_NONE;
 	if (opts->sortfield) {
@@ -170,15 +181,31 @@ run_query (MuQuery *xapian, const gchar *query, MuConfig *opts,
 	}
 
 	err  = NULL;
-	iter = mu_query_run (xapian, query, sortid,
-			     opts->descending ? FALSE : TRUE, 0, &err);
+	iter = mu_query_run (xapian, query, opts->threads, sortid, 
+			     opts->descending ? FALSE : TRUE,
+			     &err);
 	if (!iter) {
 		g_warning ("error: %s", err->message);
 		g_error_free (err);
-		return FALSE;
+		return NULL;
 	}
 
-	rv = run_query_format (iter, opts, format, count);
+	return iter;
+}
+	
+
+static gboolean
+process_query (MuQuery *xapian, const gchar *query, MuConfig *opts,
+	       OutputFormat format, size_t *count)
+{
+	MuMsgIter *iter;
+	gboolean rv;
+	
+	iter = run_query (xapian, query, opts, count);
+	if (!iter)
+		return FALSE;
+		
+	rv = output_query_results (iter, opts, format, count);
 		
 	if (rv && count && *count == 0)
 		g_warning ("no matching messages found");
@@ -187,6 +214,67 @@ run_query (MuQuery *xapian, const gchar *query, MuConfig *opts,
 
 	return rv;
 }
+
+
+static gboolean
+exec_cmd (const char *path, const char *cmd)
+{
+	gint status;
+	GError *err;
+	char *cmdline, *escpath;
+	gboolean rv;
+	
+	if (access (path, R_OK) != 0) {
+		g_warning ("cannot read %s: %s", path, strerror(errno));
+		return FALSE;
+	}
+
+	escpath = g_strescape (path, NULL);
+	
+	cmdline = g_strdup_printf ("%s %s", cmd, escpath);
+	err = NULL;
+	rv = g_spawn_command_line_sync (cmdline, NULL, NULL,
+					&status, &err);
+	g_free (cmdline);
+	g_free (escpath);
+
+	if (!rv) {
+		g_warning ("command returned %d on %s: %s\n",
+			   status, path, err->message);
+		g_error_free (err);
+		return FALSE;
+	}
+
+	return TRUE;
+}
+
+
+static gboolean
+exec_cmd_on_query (MuQuery *xapian, const gchar *query, MuConfig *opts,
+		   size_t *count)
+{
+	MuMsgIter *iter;
+	gboolean rv;
+	
+	if (!(iter = run_query (xapian, query, opts, count)))
+		return FALSE;
+
+	for (rv = TRUE, *count = 0; !mu_msg_iter_is_done (iter);
+	     mu_msg_iter_next(iter)) {
+		rv = exec_cmd (mu_msg_get_path (mu_msg_iter_get_msg (iter, NULL)),
+			       opts->exec);
+		if (rv)
+			++*count;
+	}
+		
+	if (rv && count && *count == 0)
+		g_warning ("no matching messages found");
+	
+	mu_msg_iter_destroy (iter);
+
+	return rv;
+}
+
 
 
 
@@ -328,7 +416,499 @@ get_query_obj (void)
 
 	return mquery;
 }
+
+/* create a linksdir if it not exist yet; if it already existed,
+ * remove old links if opts->clearlinks was specified */
+static gboolean
+create_linksdir_maybe (const char *linksdir, gboolean clearlinks)
+{
+	GError *err;
 	
+	err = NULL;
+	if (access (linksdir, F_OK) != 0) {
+		if (!mu_maildir_mkdir (linksdir, 0700, TRUE, &err))
+			goto fail;
+	} else if (clearlinks)
+		if (!mu_maildir_clear_links (linksdir, &err))
+			goto fail;
+
+	return TRUE;
+	
+fail:
+	if (err) {
+		g_warning ("%s", err->message ? err->message : "unknown error");
+		g_error_free (err);
+	}
+
+	return FALSE;	
+}
+
+static gboolean
+link_message (const char *src, const char *destdir)
+{
+	GError *err;
+	
+	if (access (src, R_OK) != 0) {
+		if (errno == ENOENT)
+			g_warning ("cannot find source message %s", src);
+		else 
+			g_warning ("cannot read source message %s: %s", src,
+				   strerror (errno));
+		return FALSE;
+	}
+
+	err = NULL;
+	if (!mu_maildir_link (src, destdir, &err)) {
+		if (err) {
+			g_warning ("%s", err->message ?
+				   err->message : "unknown error");
+			g_error_free (err);
+		}
+		return FALSE;	
+	}
+	
+	return TRUE;
+}
+
+
+
+static gboolean
+output_links (MuMsgIter *iter, const char* linksdir,
+	      gboolean clearlinks, size_t *count)
+{
+	size_t mycount;
+	gboolean errseen;
+	MuMsgIter *myiter;
+	
+	g_return_val_if_fail (iter, FALSE);
+	g_return_val_if_fail (linksdir, FALSE);	
+
+	/* note: we create the linksdir even if there are no search results */
+	if (!create_linksdir_maybe (linksdir, clearlinks))
+		return FALSE;
+	
+	for (myiter = iter, errseen = FALSE, mycount = 0;
+	     !mu_msg_iter_is_done (myiter);
+	     mu_msg_iter_next (myiter), ++mycount) {
+
+		MuMsg *msg;
+		const char* path;
+	
+		msg = mu_msg_iter_get_msg (iter, NULL); /* don't unref */
+		if (!msg)
+			return FALSE;
+
+		path = mu_msg_get_field_string (msg, MU_MSG_FIELD_ID_PATH);
+		if (!path)
+			return FALSE;
+		
+		if (!link_message (path, linksdir))
+			errseen = TRUE;
+	}
+
+	if (errseen) 
+		g_warning ("error linking some of the messages; maybe the "
+			   "database needs to be updated");
+
+	if (count)
+		*count = mycount;
+		
+	return TRUE;
+}
+
+
+
+static void
+ansi_color_maybe (MuMsgFieldId mfid, gboolean color)
+{
+	const char* ansi;
+
+	if (!color)
+		return; /* nothing to do */
+	
+	switch (mfid) {
+
+	case MU_MSG_FIELD_ID_FROM:
+		ansi = MU_COLOR_CYAN; break;
+
+	case MU_MSG_FIELD_ID_TO:
+	case MU_MSG_FIELD_ID_CC:
+	case MU_MSG_FIELD_ID_BCC:
+		ansi = MU_COLOR_BLUE; break;
+
+	case MU_MSG_FIELD_ID_SUBJECT:
+		ansi = MU_COLOR_GREEN; break;
+		
+	case MU_MSG_FIELD_ID_DATE:
+		ansi = MU_COLOR_MAGENTA; break;
+
+	default:
+		if (mu_msg_field_type(mfid) == MU_MSG_FIELD_TYPE_STRING)
+			ansi = MU_COLOR_YELLOW;
+		else
+			ansi = MU_COLOR_RED;
+	}
+
+	fputs (ansi, stdout);
+}
+
+
+static void
+ansi_reset_maybe (MuMsgFieldId mfid, gboolean color)
+{
+	if (!color)
+		return; /* nothing to do */
+	
+	fputs (MU_COLOR_DEFAULT, stdout);
+	
+}
+
+
+static const char*
+display_field (MuMsgIter *iter, MuMsgFieldId mfid)
+{
+	gint64 val;
+	MuMsg *msg;
+	
+	msg = mu_msg_iter_get_msg (iter, NULL); /* don't unref */
+	if (!msg)
+		return NULL;
+	
+	switch (mu_msg_field_type(mfid)) {
+	case MU_MSG_FIELD_TYPE_STRING: {
+		const gchar *str;
+		str = mu_msg_get_field_string (msg, mfid);
+		return str ? str : "";
+	}		
+	case MU_MSG_FIELD_TYPE_INT:
+	
+		if (mfid == MU_MSG_FIELD_ID_PRIO) {
+			val = mu_msg_get_field_numeric (msg, mfid);
+			return mu_msg_prio_name ((MuMsgPrio)val);
+ 		} else if (mfid == MU_MSG_FIELD_ID_FLAGS) {
+			val = mu_msg_get_field_numeric (msg, mfid);
+			return mu_str_flags_s ((MuMsgFlags)val);
+		} else  /* as string */
+			return mu_msg_get_field_string (msg, mfid);
+		
+	case MU_MSG_FIELD_TYPE_TIME_T: 
+		val = mu_msg_get_field_numeric (msg, mfid);
+		return mu_date_str_s ("%c", (time_t)val);
+
+	case MU_MSG_FIELD_TYPE_BYTESIZE: 
+		val = mu_msg_get_field_numeric (msg, mfid);
+		return mu_str_size_s ((unsigned)val);
+	default:
+		g_return_val_if_reached (NULL);
+	}
+}
+
+
+static void
+print_summary (MuMsgIter *iter)
+{
+	GError *err;
+	char *summ;
+	MuMsg *msg;
+	const guint SUMMARY_LEN = 5; /* summary based on first 5
+				      * lines */	
+	err = NULL;
+	msg = mu_msg_iter_get_msg (iter, &err); /* don't unref */
+	if (!msg) {
+		g_warning ("error get message: %s", err->message);
+		g_error_free (err);
+		return;
+	}
+
+	summ = mu_str_summarize (mu_msg_get_body_text(msg), SUMMARY_LEN);
+	g_print ("Summary: %s\n", summ ? summ : "<none>");
+	g_free (summ);
+}
+
+
+static void
+thread_indent (MuMsgIter *iter)
+{
+	const MuMsgIterThreadInfo *ti;
+	const char* threadpath;
+	int i;
+	gboolean is_root, first_child, empty_parent, is_dup;
+		
+	ti = mu_msg_iter_get_thread_info (iter);
+	if (!ti) {
+		g_warning ("cannot get thread-info for %s",
+			   mu_msg_get_subject(mu_msg_iter_get_msg(iter, NULL)));
+		return;
+	}
+		
+	threadpath = ti->threadpath;
+	/* fputs (threadpath, stdout); */
+	/* fputs ("  ", stdout); */
+
+	is_root      = ti->prop & MU_MSG_ITER_THREAD_PROP_ROOT;
+	first_child  = ti->prop & MU_MSG_ITER_THREAD_PROP_FIRST_CHILD;
+	empty_parent = ti->prop & MU_MSG_ITER_THREAD_PROP_EMPTY_PARENT;
+	is_dup       = ti->prop & MU_MSG_ITER_THREAD_PROP_DUP;
+	
+	/* FIXME: count the colons... */
+	for (i = 0; *threadpath; ++threadpath)
+		i += (*threadpath == ':') ? 1 : 0;
+	
+	/* indent */
+	while (i --> 0)
+		fputs ("  ", stdout);
+	
+	if (!is_root) {
+		fputs (first_child ? "`" : "|", stdout);
+		fputs (empty_parent ? "*> " : is_dup ? "=> " : "-> ", stdout);
+	}
+}
+
+
+
+static size_t
+output_plain_fields (MuMsgIter *iter, const char *fields, gboolean color,
+		     gboolean threads)
+{
+	const char* myfields;
+	size_t len;
+
+	/* we reuse the color (whatever that may be)
+	 * for message-priority for threads, too */
+	ansi_color_maybe (MU_MSG_FIELD_ID_PRIO, color);
+	if (threads)
+		thread_indent (iter);
+		
+	for (myfields = fields, len = 0; *myfields; ++myfields) {
+
+		MuMsgFieldId mfid;
+		mfid =	mu_msg_field_id_from_shortcut (*myfields, FALSE);
+
+		if (mfid == MU_MSG_FIELD_ID_NONE ||
+		    (!mu_msg_field_xapian_value (mfid) &&
+		     !mu_msg_field_xapian_contact (mfid)))
+			len += printf ("%c", *myfields);
+
+		else {
+			ansi_color_maybe (mfid, color);
+				len += mu_util_fputs_encoded
+					(display_field (iter, mfid), stdout);
+				ansi_reset_maybe (mfid, color);
+		}
+	}
+
+	return len;
+}
+
+static gboolean
+output_plain (MuMsgIter *iter, const char *fields, gboolean summary,
+	      gboolean threads, gboolean color, size_t *count)
+{
+	MuMsgIter *myiter;
+	size_t mycount;
+	
+	g_return_val_if_fail (iter, FALSE);
+	g_return_val_if_fail (fields, FALSE);
+	
+	for (myiter = iter, mycount = 0; !mu_msg_iter_is_done (myiter);
+	     mu_msg_iter_next (myiter), ++mycount) {
+		
+		size_t len;
+
+		len = output_plain_fields (iter, fields, color, threads);
+		
+		g_print (len > 0 ? "\n" : "");
+		if (summary)
+			print_summary (myiter);
+		
+	}
+
+	if (count)
+		*count = mycount;
+	
+	return TRUE;
+}
+
+static void
+print_attr_xml (const char* elm, const char *str)
+{
+	gchar *esc;
+	
+	if (mu_str_is_empty(str))
+		return; /* empty: don't include */
+
+	esc = g_markup_escape_text (str, -1);	
+	g_print ("\t\t<%s>%s</%s>\n", elm, esc, elm);
+	g_free (esc);
+}
+
+static gboolean
+output_xml (MuMsgIter *iter, size_t *count)
+{
+	MuMsgIter *myiter;
+	size_t mycount;
+	
+	g_return_val_if_fail (iter, FALSE);
+
+	g_print ("<?xml version=\"1.0\" encoding=\"UTF-8\" ?>\n");
+	g_print ("<messages>\n");
+	
+	for (myiter = iter, mycount = 0; !mu_msg_iter_is_done (myiter);
+	     mu_msg_iter_next (myiter), ++mycount) {
+
+		MuMsg *msg;
+		
+		msg = mu_msg_iter_get_msg (iter, NULL); /* don't unref */
+		if (!msg)
+			return FALSE;
+
+		g_print ("\t<message>\n");
+		print_attr_xml ("from", mu_msg_get_from (msg));
+		print_attr_xml ("to", mu_msg_get_to (msg));
+		print_attr_xml ("cc", mu_msg_get_cc (msg));
+		print_attr_xml ("subject", mu_msg_get_subject (msg));
+		g_print ("\t\t<date>%u</date>\n",
+			 (unsigned) mu_msg_get_date (msg));
+		g_print ("\t\t<size>%u</size>\n",
+			 (unsigned) mu_msg_get_size (msg));
+		print_attr_xml ("msgid", mu_msg_get_msgid (msg));
+		print_attr_xml ("path", mu_msg_get_path (msg));
+		print_attr_xml ("maildir", mu_msg_get_maildir (msg));
+		g_print ("\t</message>\n");
+	}
+
+	g_print ("</messages>\n");
+		
+	if (count)
+		*count = mycount;
+	
+	return TRUE;
+}
+
+
+static void
+print_attr_json (const char* elm, const char *str, gboolean comma)
+{
+	gchar *esc;
+	
+	if (!str || strlen(str) == 0)
+		return; /* empty: don't include */
+	
+	esc = mu_str_escape_c_literal (str);
+	g_print ("\t\t\t\"%s\":\"%s\"%s\n", elm, esc, comma ? "," : "");
+	g_free (esc);
+}
+
+
+static gboolean
+output_json (MuMsgIter *iter, size_t *count)
+{
+	MuMsgIter *myiter;
+	size_t mycount;
+	
+	g_return_val_if_fail (iter, FALSE);
+	
+	g_print ("{\n\t\"messages\":\n\t[\n");
+	
+	for (myiter = iter, mycount = 0; !mu_msg_iter_is_done (myiter);
+	     mu_msg_iter_next (myiter), ++mycount) {
+
+		MuMsg *msg;
+
+		if (!(msg = mu_msg_iter_get_msg (iter, NULL)))
+			return FALSE;
+		
+		if (mycount != 0)
+			g_print (",\n");
+				
+		g_print ("\t\t{\n");
+		print_attr_json ("from", mu_msg_get_from (msg), TRUE);
+		print_attr_json ("to", mu_msg_get_to (msg),TRUE);
+		print_attr_json ("cc", mu_msg_get_cc (msg),TRUE);
+		print_attr_json ("subject", mu_msg_get_subject (msg), TRUE);
+		g_print ("\t\t\t\"date\":%u,\n",
+			 (unsigned) mu_msg_get_date (msg));
+		g_print ("\t\t\t\"size\":%u,\n",
+			 (unsigned) mu_msg_get_size (msg));
+		print_attr_json ("msgid", mu_msg_get_msgid (msg),TRUE);
+		print_attr_json ("path", mu_msg_get_path (msg),TRUE);
+		print_attr_json ("maildir", mu_msg_get_maildir (msg), FALSE);
+		g_print ("\t\t}");
+	}
+	g_print ("\t]\n}\n");
+		
+	if (count)
+		*count = mycount;
+	
+	return TRUE;
+}
+
+
+static void
+print_attr_sexp (const char* elm, const char *str, gboolean nl)
+{
+	gchar *esc;
+	
+	if (!str || strlen(str) == 0)
+		return; /* empty: don't include */
+
+	esc = mu_str_escape_c_literal (str);
+	
+	g_print ("    :%s \"%s\"%s", elm, esc, nl ? "\n" : "");
+	g_free (esc);
+}
+
+
+
+static gboolean
+output_sexp (MuMsgIter *iter, size_t *count)
+{
+	MuMsgIter *myiter;
+	size_t mycount;
+		g_return_val_if_fail (iter, FALSE);
+
+	
+	for (myiter = iter, mycount = 0; !mu_msg_iter_is_done (myiter);
+	     mu_msg_iter_next (myiter), ++mycount) {
+
+		unsigned date, date_high, date_low;
+		
+		MuMsg *msg;
+		if (!(msg = mu_msg_iter_get_msg (iter, NULL))) /* don't unref */
+			return FALSE;
+		
+		if (mycount != 0)
+			g_print ("\n");
+
+		/* emacs likes it's date in a particular way... */
+		date = (unsigned) mu_msg_get_date (msg);
+		date_high = date >> 16;
+		date_low  = date & 0xffff;
+		
+		g_print ("(%u\n", (unsigned)mycount);
+		print_attr_sexp ("from", mu_msg_get_from (msg),TRUE);
+		print_attr_sexp ("to", mu_msg_get_to (msg),TRUE);
+		print_attr_sexp ("cc", mu_msg_get_cc (msg),TRUE);
+		print_attr_sexp ("subject", mu_msg_get_subject (msg),TRUE);
+		g_print ("    :date %u\n", date);
+		g_print ("    :date-high %u\n", date_high);
+		g_print ("    :date-low %u\n", date_low);
+		g_print ("    :size %u\n", (unsigned) mu_msg_get_size (msg));
+		print_attr_sexp ("msgid", mu_msg_get_msgid (msg),TRUE);
+		print_attr_sexp ("path", mu_msg_get_path (msg),TRUE);
+		print_attr_sexp ("maildir", mu_msg_get_maildir (msg),FALSE);
+		g_print (")\n;;eom");
+	}
+
+	fputs ("\n", stdout);
+	
+	if (count)
+		*count = mycount;
+	
+	return TRUE;
+}
+
+
 
 MuExitCode
 mu_cmd_find (MuConfig *opts)
@@ -336,7 +916,7 @@ mu_cmd_find (MuConfig *opts)
 	MuQuery *xapian;
 	gboolean rv;
 	gchar *query;
-	size_t count;
+	size_t count = 0;
 	OutputFormat format;
 	
 	g_return_val_if_fail (opts, FALSE);
@@ -344,29 +924,26 @@ mu_cmd_find (MuConfig *opts)
 	
 	if (!query_params_valid (opts) || !format_params_valid(opts))
 		return MU_EXITCODE_ERROR;
-
+	
 	format = get_output_format (opts->formatstr);
-	
-	xapian = get_query_obj ();
-	if (!xapian)
+	xapian = get_query_obj();
+	query  = get_query (opts);
+
+	if (!xapian ||!query)
 		return MU_EXITCODE_ERROR;
 	
-	/* first param is 'query', search params are after that */
-	query = get_query (opts);
-	if (!query) 
-		return MU_EXITCODE_ERROR;
-	
-	if (format == FORMAT_XQUERY) 
-		rv = print_xapian_query (xapian, query);
+	if (format == FORMAT_XQUERY)
+		rv = print_xapian_query (xapian, query, &count);
+	else if (opts->exec)
+		rv = exec_cmd_on_query (xapian, query, opts, &count);
 	else
-		rv = run_query (xapian, query, opts, format, &count);
+		rv = process_query (xapian, query, opts, format, &count);
 
 	mu_query_destroy (xapian);
 	g_free (query);
 
 	if (!rv)
 		return MU_EXITCODE_ERROR;
-	else
-		return (count == 0) ?
-			MU_EXITCODE_NO_MATCHES : MU_EXITCODE_OK;
+
+	return count == 0 ? MU_EXITCODE_NO_MATCHES : MU_EXITCODE_OK;
 }

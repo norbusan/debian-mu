@@ -44,11 +44,16 @@ typedef struct _MuMsgIter MuMsgIter;
  * @param enq a Xapian::Enquire* cast to XapianEnquire* (because this
  * is C, not C++),providing access to search results
  * @param batchsize how many results to retrieve at once
+ * @param threads whether to calculate threads
+ * @param sorting field when using threads; note, when 'threads' is
+ * FALSE, this should be MU_MSG_FIELD_ID_NONE
  * 
  * @return a new MuMsgIter, or NULL in case of error
  */
 MuMsgIter *mu_msg_iter_new (XapianEnquire *enq,
-			    size_t batchsize) G_GNUC_WARN_UNUSED_RESULT;
+			    size_t batchsize,
+			    gboolean threads,
+			    MuMsgFieldId threadsortfield) G_GNUC_WARN_UNUSED_RESULT;
 
 /**
  * get the next message (which you got from
@@ -61,6 +66,16 @@ MuMsgIter *mu_msg_iter_new (XapianEnquire *enq,
  */
 gboolean         mu_msg_iter_next              (MuMsgIter *iter);
 
+
+
+/**
+ * reset the iterator to the beginning
+ * 
+ * @param iter a valid MuMsgIter iterator
+ * 
+ * @return TRUE if it succeeded, FALSE otherwise
+ */
+gboolean mu_msg_iter_reset (MuMsgIter *iter);
 
 /**
  * does this iterator point past the end of the list?
@@ -107,18 +122,39 @@ MuMsg* mu_msg_iter_get_msg (MuMsgIter *iter, GError **err)
 unsigned int     mu_msg_iter_get_docid         (MuMsgIter *iter);
 
 
+/**
+ * calculate the message threads
+ * 
+ * @param iter a valid MuMsgIter iterator 
+ * 
+ * @return TRUE if it worked, FALSE otherwsie.
+ */
+gboolean mu_msg_iter_calculate_threads (MuMsgIter *iter);
+
+
+enum _MuMsgIterThreadProp {
+	MU_MSG_ITER_THREAD_PROP_ROOT           = 1 << 0,
+	MU_MSG_ITER_THREAD_PROP_FIRST_CHILD    = 1 << 1,
+	MU_MSG_ITER_THREAD_PROP_EMPTY_PARENT   = 1 << 2,
+	MU_MSG_ITER_THREAD_PROP_DUP            = 1 << 3
+};
+typedef guint8 MuMsgIterThreadProp;
+
+struct _MuMsgIterThreadInfo {
+	gchar *threadpath;
+	MuMsgIterThreadProp prop;
+};
+typedef struct _MuMsgIterThreadInfo MuMsgIterThreadInfo;
 
 /**
- * get the index for this iterator (ie. somewhere between [0..n-1],
- * with being the number of matches, and increasing 1 for each
- * iter_next)
+ * get a the MuMsgThreaderInfo struct for this message; this only
+ * works when you created the mu-msg-iter with threading enabled
  * 
- * @param iter a valid MuMsgIter 
+ * @param iter a valid MuMsgIter iterator 
  * 
- * @return the index or (unsigned int)-1 in case of error
-
+ * @return an info struct
  */
-unsigned int      mu_msg_iter_get_index        (MuMsgIter *iter);
+const MuMsgIterThreadInfo* mu_msg_iter_get_thread_info (MuMsgIter *iter);
 
 /**
  * get some message field

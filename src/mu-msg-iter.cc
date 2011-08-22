@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: t; c-basic-offset: 8 -*-
+/* -*- mode: c++; tab-width: 8; indent-tabs-mode: t; c-basic-offset: 8 -*-
 ** 
 ** Copyright (C) 2008-2011 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 **
@@ -22,51 +22,93 @@
 #include <iostream>
 #include <string.h>
 #include <errno.h>
+#include <algorithm>
 #include <xapian.h>
+#include <string>
 
 #include "mu-util.h"
 #include "mu-msg.h"
 #include "mu-msg-iter.h"
+#include "mu-threader.h"
 
-static gboolean update_msg (MuMsgIter *iter);
+/* just a guess... */
+#define MAX_FETCH_SIZE 10000
+
+class ThreadKeyMaker: public Xapian::KeyMaker {
+public:
+	ThreadKeyMaker (GHashTable *threadinfo): _threadinfo(threadinfo) {}
+	virtual std::string operator()(const Xapian::Document &doc) const  {
+		MuMsgIterThreadInfo *ti;
+		ti = (MuMsgIterThreadInfo*)g_hash_table_lookup
+			(_threadinfo,
+			 GUINT_TO_POINTER(doc.get_docid()));		
+		return std::string (ti && ti->threadpath ? ti->threadpath : "");
+	}
+private:
+	GHashTable *_threadinfo;	
+};
+
 
 struct _MuMsgIter {
+	_MuMsgIter (Xapian::Enquire &enq, size_t maxnum,
+		    gboolean threads, MuMsgFieldId sortfield):
+		_enq(enq), _msg(0), _threadhash (0) {
+		
+		_matches = _enq.get_mset (0, maxnum);
 
-		_MuMsgIter (const Xapian::Enquire &enq, size_t batchsize):
-			_enq(enq), _batchsize(batchsize), _offset(0), _msg(0) {
-			
-			_matches = _enq.get_mset (0, _batchsize);
-			_cursor	 = _matches.begin();
-			_is_null = _matches.empty();
-			
-			if (!_matches.empty())
-				update_msg (this);
+		if (threads && !_matches.empty()) { 
+
+			_matches.fetch();
+			_threadhash = mu_threader_calculate
+				(this, _matches.size(), sortfield);
+
+			ThreadKeyMaker keymaker(_threadhash);
+
+			enq.set_sort_by_key (&keymaker, false);
+			_matches = _enq.get_mset (0, maxnum);
 		}
 
-		~_MuMsgIter () {
-			if (_msg)
-				mu_msg_unref (_msg);
-		}
+		_cursor	 = _matches.begin();
+
+		/* this seems to make search slightly faster, some
+		 * non-scientific testing suggests. 5-10% or so */ 
+		if (_matches.size() <= MAX_FETCH_SIZE)
+			_matches.fetch ();
+	}
 	
-		const Xapian::Enquire          _enq;
-		Xapian::MSet                   _matches;
-		Xapian::MSet::const_iterator   _cursor;
-		size_t                         _batchsize, _offset;
-		bool                           _is_null;
+	~_MuMsgIter () {
+		if (_msg)
+			mu_msg_unref (_msg);
 
-		Xapian::Document _doc;
-		MuMsg *_msg;
+		if (_threadhash)
+			g_hash_table_destroy (_threadhash);
+	}
+	
+	const Xapian::Enquire		_enq;
+	Xapian::MSet			_matches;
+	Xapian::MSet::const_iterator	_cursor;
+		
+	MuMsg		*_msg;
+	GHashTable      *_threadhash;
 };
 
 
 
 MuMsgIter*
-mu_msg_iter_new (XapianEnquire *enq, size_t batchsize)
+mu_msg_iter_new (XapianEnquire *enq, size_t maxnum, gboolean threads,
+		 MuMsgFieldId sortfield)
 {
 	g_return_val_if_fail (enq, NULL);
+	/* sortfield should be set to .._NONE when we're not threading */
+	g_return_val_if_fail (threads || sortfield == MU_MSG_FIELD_ID_NONE,
+			      NULL);
+	g_return_val_if_fail (mu_msg_field_id_is_valid (sortfield) ||
+			      sortfield == MU_MSG_FIELD_ID_NONE,
+			      FALSE);
 	
 	try {
-		return new MuMsgIter ((const Xapian::Enquire&)*enq, batchsize);
+		return new MuMsgIter ((Xapian::Enquire&)*enq, maxnum, threads,
+				      sortfield);
 		
 	} MU_XAPIAN_CATCH_BLOCK_RETURN(NULL);
 }
@@ -77,71 +119,44 @@ mu_msg_iter_destroy (MuMsgIter *iter)
 {
 	try { delete iter; } MU_XAPIAN_CATCH_BLOCK;
 }
-
-
+	
 MuMsg*
 mu_msg_iter_get_msg (MuMsgIter *iter, GError **err)
 {
+	Xapian::Document *docp;
+	
 	g_return_val_if_fail (iter, NULL);
 	g_return_val_if_fail (!mu_msg_iter_is_done(iter), NULL);
-	g_return_val_if_fail (iter->_msg, NULL);
 	
+	/* get a new MuMsg based on the current doc */
+	if (iter->_msg) {
+		mu_msg_unref (iter->_msg);
+		iter->_msg = NULL;
+	}
+
+	docp = new Xapian::Document(iter->_cursor.get_document());
+	iter->_msg = mu_msg_new_from_doc ((XapianDocument*)docp, err);
+	if (!iter->_msg) {
+		g_warning ("%s: failed to create MuMsg",__FUNCTION__);
+		return NULL;
+	}
+
 	return iter->_msg;
 }
 
-
-static gboolean
-message_is_readable (MuMsgIter *iter)
+gboolean
+mu_msg_iter_reset (MuMsgIter *iter)
 {
-	Xapian::Document doc (iter->_cursor.get_document());
-	const std::string path(doc.get_value(MU_MSG_FIELD_ID_PATH));
-	
-	if (access (path.c_str(), R_OK) != 0) {
-		g_debug ("cannot read %s: %s", path.c_str(),
-			 strerror(errno));
-		return FALSE;
-	}
+	g_return_val_if_fail (iter, FALSE);
 
-	return TRUE;
-}
-		
-static MuMsgIter*
-get_next_batch (MuMsgIter *iter)
-{	
-	iter->_matches = iter->_enq.get_mset (iter->_offset, iter->_batchsize);
-	if (iter->_matches.empty()) {
-		iter->_cursor = iter->_matches.end();
-		iter->_is_null = true;
-	} else {
+	try {
 		iter->_cursor = iter->_matches.begin();
-		iter->_is_null = false;
-	}
-	
-	return iter;
-}
-
-
-static gboolean
-update_msg (MuMsgIter *iter)
-{
-	GError *err;
-	
-	/* get a new MuMsg based on the current doc */
-	if (iter->_msg) 
-		mu_msg_unref (iter->_msg);
-	
-	iter->_doc = iter->_cursor.get_document();
-	err = NULL;
-	iter->_msg = mu_msg_new_from_doc ((XapianDocument*)&iter->_doc, &err);
-	if (!iter->_msg) {
-		g_warning ("%s: failed to create MuMsg: %s",
-			   __FUNCTION__, err->message ? err->message : "?");
-		g_error_free (err);
-		return FALSE;
-	}
+		
+	} MU_XAPIAN_CATCH_BLOCK_RETURN (FALSE);
 
 	return TRUE;
 }
+
 
 
 gboolean
@@ -153,26 +168,10 @@ mu_msg_iter_next (MuMsgIter *iter)
 		return FALSE;
 	
 	try {
-		++iter->_offset;
-		if (++iter->_cursor == iter->_matches.end())
-			iter = get_next_batch (iter);
-		if (iter->_cursor == iter->_matches.end())
-			return FALSE; /* no more matches */
-		
-		/* the message may not be readable / existing, e.g.,
-		 * because of the database not being fully up to
-		 * date. in that case, we ignore the message. it
-		 * might be nice to auto-delete these messages from
-		 * the db, but that might screw up the search;
-		 * also, we only have read-only access to the db
-		 * here */
-		/* TODO: only mark it as such, let clients handle
-		 * it */
-		if (!message_is_readable (iter))
-			return mu_msg_iter_next (iter);
-		
+		++iter->_cursor;
+		return iter->_cursor == iter->_matches.end() ? FALSE:TRUE;
 		/* try to get a new MuMsg based on the current doc */
-		return update_msg (iter);
+		//return update_msg (iter);
 		
 	} MU_XAPIAN_CATCH_BLOCK_RETURN(FALSE);
 }
@@ -181,7 +180,12 @@ mu_msg_iter_next (MuMsgIter *iter)
 gboolean
 mu_msg_iter_is_done (MuMsgIter *iter)
 {
-	return iter ? iter->_is_null : TRUE;
+	g_return_val_if_fail (iter, TRUE);
+
+	try {
+		return iter->_cursor == iter->_matches.end() ? TRUE : FALSE;
+
+	} MU_XAPIAN_CATCH_BLOCK_RETURN (TRUE);
 }
 
 
@@ -200,9 +204,6 @@ mu_msg_iter_get_field (MuMsgIter *iter, MuMsgFieldId mfid)
 	return get_field (iter, mfid);
 }
 
-
-
-
 static gint64
 get_field_numeric (MuMsgIter *iter, MuMsgFieldId mfid)
 {
@@ -219,16 +220,6 @@ mu_msg_iter_get_field_numeric (MuMsgIter *iter, MuMsgFieldId mfid)
 	return get_field_numeric (iter, mfid);
 }
 
-
-unsigned int
-mu_msg_iter_get_index (MuMsgIter *iter)
-{
-	g_return_val_if_fail (iter, (unsigned int)-1);
-
-	return iter->_offset;
-}
-
-
 /* hmmm.... is it impossible to get a 0 docid, or just very improbable? */
 unsigned int
 mu_msg_iter_get_docid (MuMsgIter *iter)
@@ -239,6 +230,30 @@ mu_msg_iter_get_docid (MuMsgIter *iter)
 		return iter->_cursor.get_document().get_docid();
 
 	} MU_XAPIAN_CATCH_BLOCK_RETURN (0);
+}
+
+
+const MuMsgIterThreadInfo*
+mu_msg_iter_get_thread_info (MuMsgIter *iter)
+{
+	g_return_val_if_fail (!mu_msg_iter_is_done(iter), NULL);
+	g_return_val_if_fail (iter->_threadhash, NULL);
+
+	try {
+		const MuMsgIterThreadInfo *ti;
+		unsigned int docid;
+		
+		docid = mu_msg_iter_get_docid (iter);
+		ti    = (const MuMsgIterThreadInfo*)g_hash_table_lookup
+			(iter->_threadhash,
+			 GUINT_TO_POINTER(docid));
+
+		if (!ti)
+			g_printerr ("no ti for %u\n", docid);
+		
+		return ti;
+				
+	} MU_XAPIAN_CATCH_BLOCK_RETURN (NULL);
 }
 
 

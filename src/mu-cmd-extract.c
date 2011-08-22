@@ -296,29 +296,31 @@ save_parts (const char *path, const char *filename, MuConfig *opts)
 	return rv;
 }
 
+#define color_maybe(C)	do{ if (color) fputs ((C),stdout);}while(0)
 
 static void
 each_part_show (MuMsg *msg, MuMsgPart *part, gboolean color)
 {
-	g_print ("  %u %s%s%s %s%s/%s%s [%s%s%s]\n",
-		 part->index,
+	/* index */
+	g_print ("  %u ", part->index);
 
-		 /* filename */
-		 color && part->file_name ? MU_COLOR_GREEN : "",
-		 part->file_name ? part->file_name : "<none>",
-		 color ? MU_COLOR_DEFAULT : "",
+	/* filename */
+	color_maybe (MU_COLOR_GREEN);
+	mu_util_fputs_encoded (part->file_name ? part->file_name : "<none>",
+			       stdout);
+	/* content-type */
+	color_maybe (MU_COLOR_BLUE);
+	mu_util_print_encoded (
+		" %s/%s ",
+		part->type ? part->type : "<none>",
+		part->subtype ? part->subtype : "<none>");
 
-		 /* content type */
-		 color ? MU_COLOR_BLUE : "",
-		 part->type ? part->type : "",
-		 part->subtype ? part->subtype : "",
-		 color ? MU_COLOR_DEFAULT : "",
-
-		 /* disposition */
-		 color && part->disposition ? MU_COLOR_MAGENTA : "",
-		 part->disposition ? part->disposition : "<none>",
-		 color ? MU_COLOR_DEFAULT : ""
-		);
+	/* disposition */
+	color_maybe (MU_COLOR_MAGENTA);
+	mu_util_print_encoded (
+		"[%s]",	part->disposition ? part->disposition : "<none>");
+	color_maybe (MU_COLOR_DEFAULT);
+	fputs ("\n", stdout);
 }
 
 

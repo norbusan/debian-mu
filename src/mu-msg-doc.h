@@ -33,13 +33,14 @@ typedef struct _MuMsgDoc MuMsgDoc;
  * 
  * @param doc a Xapian::Document* (you'll need to cast the
  * Xapian::Document* to XapianDocument*, because only C (not C++) is
- * allowed in this header file.
+ * allowed in this header file. MuMsgDoc takes _ownership_ of this pointer;
+ * don't touch it afterwards
  * @param err receives error info, or NULL
  * 
  * @return a new MuMsgDoc instance (free with mu_msg_doc_destroy), or
  * NULL in case of error.
  */
-MuMsgDoc* mu_msg_doc_new (const XapianDocument *doc, GError **err)
+MuMsgDoc* mu_msg_doc_new (XapianDocument *doc, GError **err)
 	G_GNUC_MALLOC G_GNUC_WARN_UNUSED_RESULT;
 
 /**
@@ -65,8 +66,26 @@ void mu_msg_doc_destroy (MuMsgDoc *self);
  * 
  * @return a string for the given field (see do_free), or NULL in case of error
  */
-gchar* mu_msg_doc_get_str_field (MuMsgDoc *self, MuMsgFieldId mfid, gboolean *do_free)
+gchar* mu_msg_doc_get_str_field (MuMsgDoc *self, MuMsgFieldId mfid,
+				 gboolean *do_free)
           G_GNUC_WARN_UNUSED_RESULT;
+
+/**
+ * get a string-list parameter from the msgdoc
+ * 
+ * @param self a MuMsgDoc instance
+ * @param mfid a MuMsgFieldId for a string-list field
+ * @param do_free receives either TRUE or FALSE, where TRUE means that
+ * the caller owns the string, and has to free it (mu_str_free_list) when done
+ * with it; FALSE means that the MuMsgDoc owns the list, and it is
+ * only valid as long as the MuMsgDoc is valid (ie., before
+ * mu_msg_doc_destroy).
+ * 
+ * @return a list for the given field (see do_free), or NULL in case of error
+ */
+GSList* mu_msg_doc_get_str_list_field (MuMsgDoc *self, MuMsgFieldId mfid,
+				       gboolean *do_free) G_GNUC_WARN_UNUSED_RESULT;
+
 
 /**
  * 

@@ -46,13 +46,41 @@ get_recip (GMimeMessage *msg, GMimeRecipientType rtype)
         return recep;
 }
 
+static gchar*
+get_refs_str (GMimeMessage *msg)
+{
+	const gchar *str;
+	const GMimeReferences *cur;
+	GMimeReferences *mime_refs;
+	gchar *rv;
+	
+	str = g_mime_object_get_header (GMIME_OBJECT(msg),
+					"References");
+	if (!str)
+		return NULL;
+		
+	mime_refs = g_mime_references_decode (str);
+	for (rv = NULL, cur = mime_refs; cur;
+	     cur = g_mime_references_get_next(cur)) {
+			
+		const char* msgid;
+		msgid = g_mime_references_get_message_id (cur);
+		rv = g_strdup_printf ("%s%s%s",
+				      rv ? rv : "",
+				      rv ? "," : "",
+				      msgid);
+	}
+	g_mime_references_free (mime_refs);
+
+	return rv;
+}
 
 static gboolean
 test_message (GMimeMessage *msg)
 {
 	gchar *val;
 	const gchar *str;
-	
+		
 	g_print ("From   : %s\n", g_mime_message_get_sender (msg));
 
 	val = get_recip (msg, GMIME_RECIPIENT_TYPE_TO);
@@ -72,6 +100,14 @@ test_message (GMimeMessage *msg)
 	
 	str = g_mime_message_get_message_id (msg);
 	g_print ("Msg-id : %s\n", str ? str : "<none>");
+
+	{
+		gchar *refsstr;
+		refsstr = get_refs_str (msg);
+		g_print ("Refs   : %s\n", refsstr ? refsstr : "<none>");
+		g_free (refsstr);
+	}
+	 
 	
 	return TRUE;
 }

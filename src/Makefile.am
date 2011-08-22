@@ -56,8 +56,12 @@ libmu_la_SOURCES=			\
 	mu-cmd.h			\
 	mu-config.c			\
 	mu-config.h			\
-	mu-contacts.h			\
 	mu-contacts.c			\
+	mu-contacts.h			\
+	mu-container.c			\
+	mu-container.h			\
+	mu-date.c			\
+	mu-date.h			\
 	mu-index.c			\
 	mu-index.h			\
 	mu-log.c			\
@@ -84,8 +88,6 @@ libmu_la_SOURCES=			\
 	mu-msg.c			\
 	mu-msg.h			\
 	mu-msg.h			\
-	mu-output.c			\
-	mu-output.h			\
 	mu-query.cc			\
 	mu-query.h			\
 	mu-runtime.c			\
@@ -95,6 +97,8 @@ libmu_la_SOURCES=			\
 	mu-str-normalize.c		\
 	mu-str.c			\
 	mu-str.h			\
+	mu-threader.c			\
+	mu-threader.h			\
 	mu-util-db.cc			\
 	mu-util.c			\
 	mu-util.h

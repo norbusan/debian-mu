@@ -41,6 +41,9 @@ DIST_COMMON = $(srcdir)/Makefile.am $(srcdir)/Makefile.in \
 
 # for mug2, we need webkit
 @BUILD_WIDGETS_TRUE@am__append_2 = mug2
+
+# for muile, we need guile
+@HAVE_GUILE_TRUE@am__append_3 = muile
 subdir = toys
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/m4/libtool.m4 \
@@ -75,7 +78,7 @@ AM_RECURSIVE_TARGETS = $(RECURSIVE_TARGETS:-recursive=) \
 	distdir
 ETAGS = etags
 CTAGS = ctags
-DIST_SUBDIRS = mug mug2
+DIST_SUBDIRS = mug mug2 muile
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
 am__relativize = \
   dir0=`pwd`; \
@@ -139,6 +142,10 @@ GMIME_LIBS = @GMIME_LIBS@
 GREP = @GREP@
 GTK_CFLAGS = @GTK_CFLAGS@
 GTK_LIBS = @GTK_LIBS@
+GUILE_CFLAGS = @GUILE_CFLAGS@
+GUILE_CONFIG = @GUILE_CONFIG@
+GUILE_LIBS = @GUILE_LIBS@
+GUILE_SNARF = @GUILE_SNARF@
 INSTALL = @INSTALL@
 INSTALL_DATA = @INSTALL_DATA@
 INSTALL_PROGRAM = @INSTALL_PROGRAM@
@@ -240,7 +247,7 @@ top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 TEST_PROGS = 
-SUBDIRS = $(am__append_1) $(am__append_2)
+SUBDIRS = $(am__append_1) $(am__append_2) $(am__append_3)
 all: all-recursive
 
 .SUFFIXES:
@@ -588,7 +595,15 @@ uninstall-am:
 	uninstall uninstall-am
 
 
+#
+# NOTE: we set the locale/tz to some well-know values, so the tests
+# (at least when running under 'make check') run in a predictable
+# environment. There are specific tests different timezone, though.
+#
+
 test: all $(TEST_PROGS)
+	 @export LC_ALL="en_US.utf8"
+	 @export TZ="Europe/Helsinki"
 	 @test -z "$(TEST_PROGS)" || gtester --verbose $(TEST_PROGS) || exit $$?; \
 	 test -z "$(SUBDIRS)" || \
 		for subdir in $(SUBDIRS); do \
@@ -597,6 +612,13 @@ test: all $(TEST_PROGS)
 		done
 
 .PHONY: test gprof
+
+# for procmule, we need guile and gio
+#if HAVE_GUILE
+#if HAVE_GIO
+#SUBDIRS += procmule
+#endif
+#endif
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.

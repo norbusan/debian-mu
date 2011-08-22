@@ -94,15 +94,24 @@ struct _MuConfig {
 					 * default */
 	int		max_msg_size;   /* maximum size for message files */
 	
-	/* options for querying  (and view-> 'summary') */
+	/* options for querying 'find' (and view-> 'summary') */
 	char		*fields;	/* fields to show in output */	
 	char	        *sortfield;	/* field to sort by (string) */
 	gboolean	 descending;	/* sort descending? */
+	gboolean	 threads;       /* show message threads */
 	gboolean	 summary;	/* include a summary? */
 	char            *bookmark;	/* use bookmark */
 	char		*formatstr;     /* output type
 					 * (plain,links,xml,json,sexp) */
-		
+	char		*exec;		/* command to execute on the
+					 * files for the matched
+					 * messages */
+	
+	/* options for view */
+	gboolean         terminator;      /* add separator \f between
+					   * multiple messages in mu
+					   * view */
+	
 	/* output to a maildir with symlinks */
 	char            *linksdir;	/* maildir to output symlinks */
 	gboolean	 clearlinks;	/* clear a linksdir before filling */

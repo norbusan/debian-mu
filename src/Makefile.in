@@ -57,12 +57,12 @@ libmu_la_DEPENDENCIES = $(am__DEPENDENCIES_1) $(am__DEPENDENCIES_1) \
 	$(am__DEPENDENCIES_1)
 am_libmu_la_OBJECTS = mu-bookmarks.lo mu-cmd-cfind.lo \
 	mu-cmd-extract.lo mu-cmd-find.lo mu-cmd-index.lo mu-cmd.lo \
-	mu-config.lo mu-contacts.lo mu-index.lo mu-log.lo \
-	mu-maildir.lo mu-msg-cache.lo mu-msg-doc.lo mu-msg-fields.lo \
-	mu-msg-file.lo mu-msg-flags.lo mu-msg-iter.lo mu-msg-part.lo \
-	mu-msg-prio.lo mu-msg.lo mu-output.lo mu-query.lo \
-	mu-runtime.lo mu-store.lo mu-str-normalize.lo mu-str.lo \
-	mu-util-db.lo mu-util.lo
+	mu-config.lo mu-contacts.lo mu-container.lo mu-date.lo \
+	mu-index.lo mu-log.lo mu-maildir.lo mu-msg-cache.lo \
+	mu-msg-doc.lo mu-msg-fields.lo mu-msg-file.lo mu-msg-flags.lo \
+	mu-msg-iter.lo mu-msg-part.lo mu-msg-prio.lo mu-msg.lo \
+	mu-query.lo mu-runtime.lo mu-store.lo mu-str-normalize.lo \
+	mu-str.lo mu-threader.lo mu-util-db.lo mu-util.lo
 libmu_la_OBJECTS = $(am_libmu_la_OBJECTS)
 AM_V_lt = $(am__v_lt_$(V))
 am__v_lt_ = $(am__v_lt_$(AM_DEFAULT_VERBOSITY))
@@ -194,6 +194,10 @@ GMIME_LIBS = @GMIME_LIBS@
 GREP = @GREP@
 GTK_CFLAGS = @GTK_CFLAGS@
 GTK_LIBS = @GTK_LIBS@
+GUILE_CFLAGS = @GUILE_CFLAGS@
+GUILE_CONFIG = @GUILE_CONFIG@
+GUILE_LIBS = @GUILE_LIBS@
+GUILE_SNARF = @GUILE_SNARF@
 INSTALL = @INSTALL@
 INSTALL_DATA = @INSTALL_DATA@
 INSTALL_PROGRAM = @INSTALL_PROGRAM@
@@ -328,8 +332,12 @@ libmu_la_SOURCES = \
 	mu-cmd.h			\
 	mu-config.c			\
 	mu-config.h			\
-	mu-contacts.h			\
 	mu-contacts.c			\
+	mu-contacts.h			\
+	mu-container.c			\
+	mu-container.h			\
+	mu-date.c			\
+	mu-date.h			\
 	mu-index.c			\
 	mu-index.h			\
 	mu-log.c			\
@@ -356,8 +364,6 @@ libmu_la_SOURCES = \
 	mu-msg.c			\
 	mu-msg.h			\
 	mu-msg.h			\
-	mu-output.c			\
-	mu-output.h			\
 	mu-query.cc			\
 	mu-query.h			\
 	mu-runtime.c			\
@@ -367,6 +373,8 @@ libmu_la_SOURCES = \
 	mu-str-normalize.c		\
 	mu-str.c			\
 	mu-str.h			\
+	mu-threader.c			\
+	mu-threader.h			\
 	mu-util-db.cc			\
 	mu-util.c			\
 	mu-util.h
@@ -482,6 +490,8 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mu-cmd.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mu-config.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mu-contacts.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mu-container.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mu-date.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mu-index.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mu-log.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mu-maildir.Plo@am__quote@
@@ -494,12 +504,12 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mu-msg-part.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mu-msg-prio.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mu-msg.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mu-output.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mu-query.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mu-runtime.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mu-store.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mu-str-normalize.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mu-str.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mu-threader.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mu-util-db.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mu-util.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mu.Po@am__quote@
@@ -875,7 +885,15 @@ uninstall-am: uninstall-binPROGRAMS
 	uninstall-binPROGRAMS
 
 
+#
+# NOTE: we set the locale/tz to some well-know values, so the tests
+# (at least when running under 'make check') run in a predictable
+# environment. There are specific tests different timezone, though.
+#
+
 test: all $(TEST_PROGS)
+	 @export LC_ALL="en_US.utf8"
+	 @export TZ="Europe/Helsinki"
 	 @test -z "$(TEST_PROGS)" || gtester --verbose $(TEST_PROGS) || exit $$?; \
 	 test -z "$(SUBDIRS)" || \
 		for subdir in $(SUBDIRS); do \

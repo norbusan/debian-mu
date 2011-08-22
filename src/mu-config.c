@@ -162,6 +162,8 @@ config_options_group_find (MuConfig *opts)
 		 "fields to display in the output", NULL},
 		{"sortfield", 's', 0, G_OPTION_ARG_STRING, &opts->sortfield,
 		 "field to sort on", NULL},
+		{"threads", 't', 0, G_OPTION_ARG_NONE, &opts->threads,
+		 "show message threads", NULL},
 		{"bookmark", 'b', 0, G_OPTION_ARG_STRING, &opts->bookmark,
 		 "use a bookmarked query", NULL},
 		{"descending", 'z', 0, G_OPTION_ARG_NONE, &opts->descending,
@@ -174,7 +176,9 @@ config_options_group_find (MuConfig *opts)
 		 "clear old links before filling a linksdir (false)", NULL},
 		{"format", 'o', 0, G_OPTION_ARG_STRING, &opts->formatstr,
 		 "output format ('plain'(*), 'links', 'xml',"
-		 "'json', 'sexp', 'xquery')", NULL},				
+		 "'json', 'sexp', 'xquery')", NULL},
+		{"exec", 'e', 0, G_OPTION_ARG_STRING, &opts->exec,
+		 "execute command on each match message", NULL},
 		{NULL, 0, 0, 0, NULL, NULL, NULL}
 	};
 
@@ -241,10 +245,12 @@ config_options_group_view (MuConfig *opts)
 	GOptionEntry entries[] = {
 		{"summary", 0, 0, G_OPTION_ARG_NONE, &opts->summary,
 		 "only show a short summary of the message (false)", NULL},
+		{"terminate", 0, 0, G_OPTION_ARG_NONE, &opts->terminator,
+		 "terminate messages with ascii-0x07 (\\f, form-feed)", NULL},
 		{NULL, 0, 0, 0, NULL, NULL, NULL}
 	};
 		
-	og = g_option_group_new("cfind", "options for the 'cfind' command",
+	og = g_option_group_new("view", "options for the 'view' command",
 				"", NULL, NULL);
 	g_option_group_add_entries(og, entries);
 
@@ -380,7 +386,8 @@ parse_params (MuConfig *opts, int *argcp, char ***argvp)
 		g_error_free (err);
 		return FALSE;
 	}
-	return TRUE;}
+	return TRUE;
+}
 				
 
 MuConfig*
@@ -442,7 +449,7 @@ show_usage (gboolean noerror)
 static void
 show_version (void)
 {
-	g_print ("mu (mail indexer/searcher) " VERSION "\n"
+	g_print ("mu (mail indexer/searcher) version " VERSION "\n"
 		 "Copyright (C) 2008-2011 Dirk-Jan C. Binnema (GPLv3+)\n");
 }
 

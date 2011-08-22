@@ -1,5 +1,4 @@
 /* -*-mode: c++; tab-width: 8; indent-tabs-mode: t; c-basic-offset: 8-*- */
-
 /*
 ** Copyright (C) 2008-2011 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 **
@@ -33,6 +32,7 @@
 #include "mu-store.h"
 #include "mu-util.h"
 #include "mu-str.h"
+#include "mu-date.h"
 #include "mu-msg-flags.h"
 #include "mu-contacts.h"
 
@@ -312,21 +312,16 @@ mu_store_flush (MuStore *store)
 
 
 static void
-add_terms_values_date (Xapian::Document& doc, MuMsg *msg,
-		       MuMsgFieldId mfid)
+add_terms_values_date (Xapian::Document& doc, MuMsg *msg, MuMsgFieldId mfid)
 {
-	char datebuf[13]; /* YYYYMMDDHHMMSS */
-	static const std::string pfx (1, mu_msg_field_xapian_prefix(mfid));
-	gint64 num = mu_msg_get_field_numeric (msg, mfid);
+	time_t t;
+	const char *datestr;
 	
-	if (G_UNLIKELY(strftime(datebuf, sizeof(datebuf), "%Y%m%d%H%M",
-				localtime((const time_t*)&num)) == 0))
-		g_return_if_reached();
-	
-	const std::string numstr (Xapian::sortable_serialise((double)num));
-	doc.add_value ((Xapian::valueno)mfid, numstr);
-	doc.add_value ((Xapian::valueno)MU_MSG_PSEUDO_FIELD_ID_DATESTR,
-		       datebuf);
+	t = (time_t)mu_msg_get_field_numeric (msg, mfid);
+	if (t != 0) { 
+		datestr = mu_date_time_t_to_str_s (t, FALSE /*UTC*/);
+		doc.add_value ((Xapian::valueno)mfid, datestr);
+	}
 }
 
 
@@ -346,9 +341,36 @@ add_terms_values_number (Xapian::Document& doc, MuMsg *msg, MuMsgFieldId mfid)
 	} else if (mfid == MU_MSG_FIELD_ID_PRIO) {
 		doc.add_term (prefix(mfid) + std::string(1,
 			      mu_msg_prio_char((MuMsgPrio)num)));
-	} //else
-	// 	doc.add_term  (pfx + numstr);
+	} 
 }
+
+
+/* for string and string-list */
+static void
+add_terms_values_str (Xapian::Document& doc, char *val,
+		      MuMsgFieldId mfid)
+{
+	/* the value is what we'll display; the unchanged original */
+	if (mu_msg_field_xapian_value(mfid)) 			 
+		doc.add_value ((Xapian::valueno)mfid, val);
+	
+	/* now, let's create some search terms... */
+	if (mu_msg_field_normalize (mfid))
+		mu_str_normalize_in_place (val, TRUE);
+	if (mu_msg_field_xapian_escape (mfid))
+		mu_str_ascii_xapian_escape_in_place (val);
+	
+	if (mu_msg_field_xapian_index (mfid)) {
+		Xapian::TermGenerator termgen;
+		termgen.set_document (doc);
+		termgen.index_text_without_positions (val, 1, prefix(mfid));
+	}
+	
+	if (mu_msg_field_xapian_term(mfid))
+		doc.add_term (prefix(mfid) +
+			      std::string(val, 0, MU_STORE_MAX_TERM_LENGTH));
+}
+	
 
 static void
 add_terms_values_string (Xapian::Document& doc, MuMsg *msg,
@@ -365,30 +387,53 @@ add_terms_values_string (Xapian::Document& doc, MuMsg *msg,
 	len = strlen (orig);
 	val = (char*)(G_LIKELY(len < 1024)?g_alloca(len+1):g_malloc(len+1));
 	strcpy (val, orig);
-	
-	/* the value is what we'll display; the unchanged original */
-	if (mu_msg_field_xapian_value(mfid)) 			 
-		doc.add_value ((Xapian::valueno)mfid, val);
 
-	/* now, let's create some search terms... */
-	if (mu_msg_field_normalize (mfid))
-		mu_str_normalize_in_place (val, TRUE);
-	if (mu_msg_field_xapian_escape (mfid))
-		mu_str_ascii_xapian_escape_in_place (val);
-
-	if (mu_msg_field_xapian_index (mfid)) {
-		Xapian::TermGenerator termgen;
-		termgen.set_document (doc);
-		termgen.index_text_without_positions (val, 1, prefix(mfid));
-	}
-	
-	if (mu_msg_field_xapian_term(mfid))
-		doc.add_term (prefix(mfid) +
-			      std::string(val, 0, MU_STORE_MAX_TERM_LENGTH));
+	add_terms_values_str (doc, val, mfid);
 
 	if (!(G_LIKELY(len < 1024)))
 		g_free (val);
 }
+
+
+
+static void
+add_terms_values_string_list  (Xapian::Document& doc, MuMsg *msg,
+			       MuMsgFieldId mfid)
+{
+	const GSList *lst;
+
+	lst = mu_msg_get_field_string_list (msg, mfid);
+	
+	if (lst && mu_msg_field_xapian_value (mfid)) {
+		gchar *str;
+		str = mu_str_from_list (lst, ',');
+		if (str)
+			doc.add_value ((Xapian::valueno)mfid, str);
+		g_free (str);
+	}
+
+	if (lst && mu_msg_field_xapian_term (mfid)) {
+		while (lst) {
+			size_t len;
+			char *val;
+			/* try stack-allocation, it's much faster*/
+			len = strlen ((char*)lst->data);
+			if (G_LIKELY(len < 1024)) 
+				val =  (char*)g_alloca(len+1);
+			else
+				val  = (char*)g_malloc(len+1);
+			strcpy (val, (char*)lst->data);
+			
+			add_terms_values_str (doc, val, mfid);
+			
+			if (!(G_LIKELY(len < 1024)))
+				g_free (val);
+
+			lst = g_slist_next ((GSList*)lst);
+		}
+	}
+}
+
 
 struct PartData {
 	PartData (Xapian::Document& doc, MuMsgFieldId mfid):
@@ -483,10 +528,14 @@ add_terms_values (MuMsgFieldId mfid, MsgDoc* msgdoc)
 		if (mu_msg_field_is_numeric (mfid)) 
 			add_terms_values_number (*msgdoc->_doc, msgdoc->_msg,
 						 mfid);
-		else if (mu_msg_field_type (mfid) == MU_MSG_FIELD_TYPE_STRING)
+		else if (mu_msg_field_is_string (mfid))
 			add_terms_values_string (*msgdoc->_doc,
 						 msgdoc->_msg,
 						 mfid);
+		else if (mu_msg_field_is_string_list(mfid))
+			add_terms_values_string_list (*msgdoc->_doc,
+						      msgdoc->_msg,
+						      mfid);
 		else
 			g_return_if_reached ();
 	}

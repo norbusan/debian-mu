@@ -27,6 +27,7 @@
 #include "mu-cmd.h"
 #include "mu-util.h"
 #include "mu-str.h"
+#include "mu-date.h"
 #include "mu-contacts.h"
 #include "mu-runtime.h"
 
@@ -75,6 +76,9 @@ print_header (OutputFormat format)
 		g_print (";; -*-coding: utf-8-emacs;-*-\n"			 
 			 ";;; file-version: 6\n");
 		break;
+	case FORMAT_MUTT_AB:
+		g_print ("Matching addresses in the mu database:\n");
+		break;
 	default:
 		break;
 	}
@@ -89,8 +93,8 @@ each_contact_bbdb (const char *email, const char *name, time_t tstamp)
 
 	fname	  = mu_str_guess_first_name (name);
 	lname	  = mu_str_guess_last_name (name);
-	now	  = mu_str_date ("%Y-%m-%d", time(NULL));
-	timestamp = mu_str_date ("%Y-%m-%d", tstamp);
+	now	  = mu_date_str ("%Y-%m-%d", time(NULL));
+	timestamp = mu_date_str ("%Y-%m-%d", tstamp);
 			
 	g_print ("[\"%s\" \"%s\" nil nil nil nil (\"%s\") "
 		 "((creation-date . \"%s\") (time-stamp . \"%s\")) nil]\n",
@@ -110,8 +114,8 @@ each_contact_mutt_alias (const char *email, const char *name)
 		gchar *nick;
 
 		nick = mu_str_guess_nick (name);
-		
-		g_print ("alias %s %s <%s>\n", nick, name, email);
+		mu_util_print_encoded ("alias %s %s <%s>\n",
+				       nick, name, email);
 		
 		g_free (nick);
 	}
@@ -123,9 +127,9 @@ each_contact_wl (const char *email, const char *name)
 {
 	if (name) {
 		gchar *nick;
-		nick = mu_str_guess_nick (name);		
-		g_print ("%s \"%s\" \"%s\"\n", email, nick, name);
-		
+		nick = mu_str_guess_nick (name);
+		mu_util_print_encoded ("%s \"%s\" \"%s\"\n",
+				       email, nick, name);
 		g_free (nick);
 	}
 }
@@ -135,23 +139,24 @@ static void
 each_contact_org_contact (const char *email, const char *name)
 {
 	if (name)
-		g_print ("* %s\n:PROPERTIES:\n:EMAIL: %s\n:END:\n\n",
-			 name, email);
+		mu_util_print_encoded (
+			"* %s\n:PROPERTIES:\n:EMAIL: %s\n:END:\n\n",
+			name, email);
 }
 
 static void
 print_plain (const char *email, const char *name, gboolean color)
 {
-	if (name)
-		g_print ("%s%s%s ",
-			 color ? MU_COLOR_MAGENTA : "",
-			 name,
-			 color ? MU_COLOR_DEFAULT : "");
+	if (name) {
+		if (color) fputs (MU_COLOR_MAGENTA, stdout);
+		mu_util_fputs_encoded (name, stdout);
+		fputs (" ", stdout);
+	}
 
-	g_print ("%s%s%s\n",
-		 color ? MU_COLOR_GREEN : "",
-		 email,
-		 color ? MU_COLOR_DEFAULT : "");
+	if (color) fputs (MU_COLOR_GREEN, stdout);
+	mu_util_fputs_encoded (email, stdout);
+	if (color) fputs (MU_COLOR_DEFAULT, stdout);
+	fputs ("\n", stdout);
 }
 
 struct _ECData {
@@ -162,18 +167,19 @@ typedef struct _ECData ECData;
 
 
 static void
-each_contact (const char *email, const char *name, time_t tstamp, ECData *ecdata)
+each_contact (const char *email, const char *name, time_t tstamp,
+	      ECData *ecdata)
 {
 	switch (ecdata->format) {
 	case FORMAT_MUTT_ALIAS: each_contact_mutt_alias (email, name); break;
 	case FORMAT_MUTT_AB:
-		g_print ("%s\t%s\t\n", email, name ? name : ""); break;
+		mu_util_print_encoded ("%s\t%s\t\n",
+				       email, name ? name : ""); break;
 	case FORMAT_WL: each_contact_wl (email, name); break;
 	case FORMAT_ORG_CONTACT: each_contact_org_contact (email, name); break;
-	case FORMAT_BBDB: each_contact_bbdb (email, name, tstamp); break;
-	
+	case FORMAT_BBDB: each_contact_bbdb (email, name, tstamp); break;	
         case FORMAT_CSV:
-		g_print ("%s,%s\n", name ? name : "", email);
+		mu_util_print_encoded ("%s,%s\n", name ? name : "", email);
 		break;
 	default:
 		print_plain (email, name, ecdata->color);

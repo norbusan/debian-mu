@@ -59,14 +59,16 @@ typedef enum _FieldFlags	FieldFlags;
  * this struct describes the fields of an e-mail
  /*/
 struct _MuMsgField {
-	MuMsgFieldId    _id;		/* the id of the field */
-	MuMsgFieldType  _type;		/* the type of the field */
-	const char     *_name;		/* the name of the field */
-	const char     _shortcut;	/* the shortcut for use in
-					 * --fields and sorting */
-	const char     _xprefix;	/* the Xapian-prefix  */ 
-	FieldFlags      _flags;		/* the flags that tells us
-					 * what to do */
+	MuMsgFieldId      _id;	     /* the id of the field */
+	MuMsgFieldType    _type;     /* the type of the field */
+	const char       *_name;     /* the name of the field */
+	const char        _shortcut; /* the shortcut for use in
+				      * --fields and sorting */
+	const char        _xprefix;  /* the Xapian-prefix  */ 
+	FieldFlags        _flags;    /* the flags that tells us
+				      * what to do */
+
+
 };
 typedef struct _MuMsgField MuMsgField;
 
@@ -74,11 +76,10 @@ typedef struct _MuMsgField MuMsgField;
  * misinterpreted by the query-preprocesser which turns queries into
  * lowercase */
 static const MuMsgField FIELD_DATA[] = {
-	
 	{  
 		MU_MSG_FIELD_ID_ATTACH,
 		MU_MSG_FIELD_TYPE_STRING,
-		"attach" , 'a', 'A',  
+		"attach" , 'a', 'A',
 		FLAG_GMIME | FLAG_XAPIAN_TERM | FLAG_NORMALIZE |
 		FLAG_DONT_CACHE
 	},
@@ -156,7 +157,7 @@ static const MuMsgField FIELD_DATA[] = {
 	{ 
 		MU_MSG_FIELD_ID_PRIO,
 		MU_MSG_FIELD_TYPE_INT,
-		"prio", 'p', 'P',  
+		"prio", 'p', 'P',
 		FLAG_GMIME | FLAG_XAPIAN_TERM | FLAG_XAPIAN_VALUE |
 		FLAG_XAPIAN_PREFIX_ONLY 
 	},
@@ -195,17 +196,25 @@ static const MuMsgField FIELD_DATA[] = {
 	{ 
 		MU_MSG_FIELD_ID_TIMESTAMP,
 		MU_MSG_FIELD_TYPE_TIME_T,
-		"timestamp", 'x', 0,
+		"timestamp", 0, 0,
 		FLAG_GMIME 
 	},
 
 	{ 
 		MU_MSG_FIELD_ID_REFS,
-		MU_MSG_FIELD_TYPE_STRING,
-		"refs", 'r', 'R',
-		FLAG_GMIME | FLAG_XAPIAN_VALUE |
-		FLAG_XAPIAN_PREFIX_ONLY
+		MU_MSG_FIELD_TYPE_STRING_LIST,
+		NULL, 'r', 'R',
+		FLAG_GMIME | FLAG_XAPIAN_VALUE | FLAG_XAPIAN_PREFIX_ONLY
+	},
+
+	{ 
+		MU_MSG_FIELD_ID_TAGS,
+		MU_MSG_FIELD_TYPE_STRING_LIST,
+		"tag", 'x', 'X',
+		FLAG_GMIME | FLAG_XAPIAN_TERM | FLAG_XAPIAN_PREFIX_ONLY |
+		FLAG_NORMALIZE | FLAG_XAPIAN_ESCAPE 
 	}
+	
 };
 
 /* the MsgField data in an array, indexed by the MsgFieldId;
@@ -369,6 +378,7 @@ mu_msg_field_name (MuMsgFieldId id)
 	return mu_msg_field(id)->_name;
 }
 
+
 char
 mu_msg_field_shortcut (MuMsgFieldId id)
 {	
@@ -394,3 +404,4 @@ mu_msg_field_type (MuMsgFieldId id)
 			      MU_MSG_FIELD_TYPE_NONE);
 	return mu_msg_field(id)->_type;
 }
+
