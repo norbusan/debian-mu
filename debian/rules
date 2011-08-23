@@ -8,7 +8,7 @@ export DH_OPTIONS
 include /usr/share/quilt/quilt.make
 
 mu := $(CURDIR)/debian/maildir-utils
-mugtk := $(CURDIR)/debian/maildir-utils-gtk
+muextra := $(CURDIR)/debian/maildir-utils-extra
 
 
 CFLAGS := -g -Wall
@@ -43,10 +43,10 @@ install-stamp: build-stamp
 	dh_prep
 	dh_installdirs
 	$(MAKE) install prefix=$(mu)/usr
-	mkdir -p $(mugtk)/usr/bin
-	cp toys/mug2/mug2 $(mugtk)/usr/bin/mug
-	mkdir -p $(mugtk)/usr/share/pixmaps
-	cp toys/mug2/mug.svg $(mugtk)/usr/share/pixmaps/
+	mkdir -p $(muextra)/usr/bin
+	cp toys/mug2/mug2 $(muextra)/usr/bin/mug
+	mkdir -p $(muextra)/usr/share/pixmaps
+	cp toys/mug2/mug.svg $(muextra)/usr/share/pixmaps/
 	touch install-stamp
 
 binary-indep:
