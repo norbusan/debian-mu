@@ -1,10 +1,10 @@
 maildir-utils (0.9.6.99.1-1) unstable; urgency=low
 
-  * UNRELEASED
   * actually release 0.9.7-pre
   * fix typo in description of maildir-utils-gtk (Closes: #636850)
+  * make lintian happy by adding some recommended targets in debian/rules
 
- -- Norbert Preining <preining@debian.org>  Mon, 22 Aug 2011 13:28:24 +0900
+ -- Norbert Preining <preining@debian.org>  Tue, 23 Aug 2011 10:58:59 +0900
 
 maildir-utils (0.9.6-2) unstable; urgency=low
 
