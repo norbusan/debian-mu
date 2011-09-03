@@ -30,7 +30,7 @@ Architecture: any
 Depends: maildir-utils, xdg-utils, ${shlibs:Depends}, ${misc:Depends}
 Replaces: maildir-utils (<= 0.9.6-1), maildir-utils-gtk
 Conflicts: maildir-utils-gtk
-Description: Extra utillities for maildir-utils
+Description: Extra utilities for maildir-utils
  mu is a set of utilities to deal with Maildirs, specifically, 
  indexing and searching. This package provides extra utilities that are
  under heavy development, currently only a GUI for searching with mu.

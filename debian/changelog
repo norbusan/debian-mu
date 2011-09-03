@@ -1,3 +1,12 @@
+maildir-utils (0.9.7-1) unstable; urgency=low
+
+  * new upstream release
+    - don't enforce UTF-8 output, use locale (Closes: #534209)
+    - man pages changed/updated (Closes: #554011)
+  * fix typo in description (Closes: #638987)
+
+ -- Norbert Preining <preining@debian.org>  Sun, 04 Sep 2011 02:33:23 +0900
+
 maildir-utils (0.9.6.99.1-1) unstable; urgency=low
 
   * actually release 0.9.7-pre
