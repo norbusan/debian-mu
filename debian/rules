@@ -3,10 +3,6 @@
 #export DH_VERBOSE=1
 export DH_OPTIONS
 
-# not needed, but reminding me helps ...
-#export QUILT_PATCHES=./debian/patches
-include /usr/share/quilt/quilt.make
-
 mu := $(CURDIR)/debian/maildir-utils
 muextra := $(CURDIR)/debian/maildir-utils-extra
 
@@ -22,13 +18,13 @@ build: build-arch build-indep
 build-arch: build-stamp
 build-indep: build-stamp
 
-build-stamp: $(QUILT_STAMPFN)
+build-stamp:
 	dh_testdir
 	CFLAGS="$(CFLAGS)" ./configure --prefix=/usr
 	$(MAKE)
 	touch $@
 
-clean: unpatch
+clean:
 	dh_testdir
 	dh_testroot
 	[ ! -f Makefile ] || $(MAKE) distclean
