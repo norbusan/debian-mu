@@ -39,6 +39,8 @@ install-stamp: build-stamp
 	dh_prep
 	dh_installdirs
 	$(MAKE) install prefix=$(mu)/usr
+	# remove wrong info/dir
+	rm -f $(mu)/usr/share/info/dir*
 	mkdir -p $(muextra)/usr/bin
 	cp toys/mug2/mug2 $(muextra)/usr/bin/mug
 	mkdir -p $(muextra)/usr/share/pixmaps
