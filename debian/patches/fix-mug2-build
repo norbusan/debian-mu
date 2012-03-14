@@ -3,10 +3,10 @@
  toys/mug2/Makefile.in |    2 +-
  2 files changed, 2 insertions(+), 2 deletions(-)
 
-Index: maildir-utils.git/toys/mug2/Makefile.am
+Index: maildir-utils-0.9.8.2/toys/mug2/Makefile.am
 ===================================================================
---- maildir-utils.git.orig/toys/mug2/Makefile.am	2011-03-17 15:13:01.000000000 +0900
-+++ maildir-utils.git/toys/mug2/Makefile.am	2011-03-17 15:13:59.000000000 +0900
+--- maildir-utils-0.9.8.2.orig/toys/mug2/Makefile.am	2012-03-15 08:23:03.402423671 +0900
++++ maildir-utils-0.9.8.2/toys/mug2/Makefile.am	2012-03-15 08:23:09.190428485 +0900
 @@ -20,7 +20,7 @@
  SUBDIRS= .
  
@@ -16,11 +16,11 @@ Index: maildir-utils.git/toys/mug2/Makefile.am
  
  # don't use -Werror, as it might break on other compilers
  # use -Wno-unused-parameters, because some callbacks may not
-Index: maildir-utils.git/toys/mug2/Makefile.in
+Index: maildir-utils-0.9.8.2/toys/mug2/Makefile.in
 ===================================================================
---- maildir-utils.git.orig/toys/mug2/Makefile.in	2011-03-17 15:13:03.000000000 +0900
-+++ maildir-utils.git/toys/mug2/Makefile.in	2011-03-17 15:13:45.000000000 +0900
-@@ -287,7 +287,7 @@
+--- maildir-utils-0.9.8.2.orig/toys/mug2/Makefile.in	2012-03-15 08:23:03.402423671 +0900
++++ maildir-utils-0.9.8.2/toys/mug2/Makefile.in	2012-03-15 08:23:09.190428485 +0900
+@@ -293,7 +293,7 @@
  # enforce compiling this dir first before decending into tests/
  SUBDIRS = .
  INCLUDES = -I${top_srcdir} -I${top_srcdir}/src $(GTK_CFLAGS) $(WEBKIT_CFLAGS) -DICONDIR='"$(icondir)"' \
