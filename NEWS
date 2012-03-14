@@ -1,6 +1,34 @@
 * NEWS (user visible changes)
 
- * Release 0.9.7 <2011-09-03 Sat>
+** Release 0.9.8.1 (not yet released)
+
+*** mu
+   - show only leaf/rfc822 MIME-parts
+
+*** mu4e
+   - allow for shell commands with arguments in `mu4e-get-mail-command'.
+   - support marking messages as 'read' and 'unread'
+   - show the current query in the the mode-line (`global-mode-string').
+   - don't repeat 'Re:' / 'Fwd:'
+   - colorize cited message parts
+   - better handling of text-based, embedded message attachments
+   - for text-bodies, concatenate all text/plain parts
+   - make filladapt dep optional
+   - documentation improvements
+
+** Release 0.9.8 <2012-01-31>
+
+   - '--descending' has  been renamed into '--reverse'
+   - search for attachment MIME-type using 'mime:' or 'y:'
+   - search for text in text-attachments using 'embed:' or 'e:'
+   - searching for attachment file names now uses 'file:' (was: 'attach:')
+   - experimental emacs-based mail client -- "mu4e"
+   - added more unit tests
+   - improved guile binding - no special binary is needed anymore, it's
+     installable are works with the normal guile system; code has been
+     substantially improved. still 'experimental'
+
+** Release 0.9.7 <2011-09-03 Sat>
 
    - don't enforce UTF-8 output, use locale (fixes issue #11)
    - add mail threading to mu-find (using -t/--threads) (sorta fixes issue #13)
@@ -8,7 +36,7 @@
    - terminate mu view results with a form-feed marker (use --terminate) (fixes
      issue #41)
    - search X-Label: tags (fixes issue #40)
-   - added toys/muile, the mu guile shell, which allows for message stats etc.
+   - added toys/muile, the mu guile shells, which allows for message stats etc.
    - fix date handling (timezones)
 
 ** Release 0.9.6 <2011-05-28 Sat>
@@ -22,7 +50,7 @@
      wildcards
    - remove --xquery completely; use --output=xquery instead
    - fix progress info in 'mu index'
-   - display the references for a message using the 'r' character (mu find)
+   - display the references for a message using the 'r' character (xmu find)
    - remove --summary-len/-k, instead use --summary for mu view and mu find, and
    - support colorized output for some sub-commands (view, cfind and
      extract). Disabled by default, use --color to enable, or set env
@@ -39,7 +67,6 @@
    - add the 'cfind' command, to search/export contact information
    - add 'flag:unread' as a synonym for 'flag:new OR NOT flag:unseen'
    - updated documentation
-
 
 ** Release 0.9.3 <2011-02-13 Sun>
 

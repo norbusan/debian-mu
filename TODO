@@ -1,12 +1,17 @@
 * Future release
 
    - [ ] config system (config file) (?)
+   - [ ] don't make test mail files executable
+   - [ ] make 'make check' more useful for others
    - [ ] completion for zsh
    - [ ] follow symlinks when indexing
    - [ ] better 'usage' info
    - [ ] generalize mu_str_normalize for all unicode
    - [ ] check wmy (date) for begin-end
    - [ ] tagging rw
+
+
+* Releases already done (see NEWS for features)
 
 ** release 0.9.7 [100%]
 
@@ -16,8 +21,6 @@
    - [X] guile interface
    - [X] add version info to output of configure, mu.log
    - [X] use system locale in output
-
-* Releases already done (see NEWS for features)
 
 ** release 0.9.6 [100%]
 

@@ -1,6 +1,6 @@
 /* -*-mode: c; tab-width: 8; indent-tabs-mode: t; c-basic-offset: 8 -*-*/
 
-/* 
+/*
 ** Copyright (C) 2008-2011 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 **
 ** This program is free software; you can redistribute it and/or modify it
@@ -15,8 +15,8 @@
 **
 ** You should have received a copy of the GNU General Public License
 ** along with this program; if not, write to the Free Software Foundation,
-** Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.  
-**  
+** Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
+**
 */
 
 #ifdef HAVE_CONFIG_H
@@ -34,20 +34,21 @@
 #include "test-mu-common.h"
 #include "src/mu-query.h"
 #include "src/mu-str.h"
-
+#include "src/mu-store.h"
 
 static gchar*
 fill_database (const char *testdir)
 {
 	gchar *cmdline, *tmpdir, *xpath;
-	
+
 	tmpdir = test_mu_common_get_random_tmpdir();
 	cmdline = g_strdup_printf ("%s index --muhome=%s --maildir=%s"
 				   " --quiet",
 				   MU_PROGRAM, tmpdir, testdir);
 
-	/* g_printerr ("\n%s\n", cmdline); */
-	
+	if (g_test_verbose())
+		g_printerr ("\n%s\n", cmdline);
+
 	g_assert (g_spawn_command_line_sync (cmdline, NULL, NULL,
 					     NULL, NULL));
 	g_free (cmdline);
@@ -55,7 +56,7 @@ fill_database (const char *testdir)
 	xpath= g_strdup_printf ("%s%c%s", tmpdir,
 				G_DIR_SEPARATOR, "xapian");
 	g_free (tmpdir);
-	
+
 	return xpath;
 }
 
@@ -69,7 +70,8 @@ assert_no_dups (MuMsgIter *iter)
 
 	mu_msg_iter_reset (iter);
 	while (!mu_msg_iter_is_done(iter)) {
-		MuMsg *msg = mu_msg_iter_get_msg (iter, NULL);
+		MuMsg *msg;
+		msg = mu_msg_iter_get_msg_floating (iter);
 		/* make sure there are no duplicates */
 		g_assert (!g_hash_table_lookup (hash, mu_msg_get_path (msg)));
 		g_hash_table_insert (hash, g_strdup (mu_msg_get_path(msg)),
@@ -87,43 +89,51 @@ run_and_count_matches (const char *xpath, const char *query)
 {
 	MuQuery  *mquery;
 	MuMsgIter *iter;
+	MuStore *store;
 	guint count1, count2;
-	
-	mquery = mu_query_new (xpath, NULL);
+
+	store = mu_store_new_read_only (xpath, NULL);
+	g_assert (store);
+
+	mquery = mu_query_new (store, NULL);
 	g_assert (query);
 
-	/* g_printerr ("\n=>'%s'\n", query); */
+	mu_store_unref (store);
 
-	/* { /\* debug *\/ */
-	/* 	char *xs; */
-	/* 	g_print ("query : '%s'\n", query); */
-	/* 	xs = mu_query_as_string (mquery, query, NULL); */
-	/* 	g_print ("xquery: '%s'\n", xs); */
-	/* 	g_free (xs); */
-	/* } */
-	
+	if (g_test_verbose()) {
+		char *xs;
+		g_print ("\n==> query: %s\n", query);
+		xs = mu_query_preprocess (query);
+		g_print ("==> preproc: '%s'\n", xs);
+		g_free (xs);
+		xs = mu_query_as_string (mquery, query, NULL);
+		g_print ("==> xquery: '%s'\n", xs);
+		g_free (xs);
+	}
+
+
 	iter = mu_query_run (mquery, query, FALSE, MU_MSG_FIELD_ID_NONE,
-			     FALSE, NULL);
+			     FALSE, -1, NULL);
 	mu_query_destroy (mquery);
 	g_assert (iter);
 
 	assert_no_dups (iter);
-	
+
 	/* run query twice, to test mu_msg_iter_reset */
-	for (count1 = 0; !mu_msg_iter_is_done(iter); 
+	for (count1 = 0; !mu_msg_iter_is_done(iter);
 	     mu_msg_iter_next(iter), ++count1);
 
 	mu_msg_iter_reset (iter);
-	
+
 	assert_no_dups (iter);
-	
+
 	for (count2 = 0; !mu_msg_iter_is_done(iter);
 	     mu_msg_iter_next(iter), ++count2);
-	
+
 	mu_msg_iter_destroy (iter);
 
 	g_assert_cmpuint (count1, ==, count2);
-	
+
 	return count1;
 }
 
@@ -138,7 +148,7 @@ test_mu_query_01 (void)
 {
 	gchar *xpath;
 	int i;
-	
+
 	QResults queries[] = {
 		{ "basic",              3 },
 		{ "question",           5 },
@@ -154,11 +164,10 @@ test_mu_query_01 (void)
 		{ "",                   13 }
 	};
 
-	
 	xpath = fill_database (MU_TESTMAILDIR);
 	g_assert (xpath != NULL);
-	
- 	for (i = 0; i != G_N_ELEMENTS(queries); ++i) 
+
+ 	for (i = 0; i != G_N_ELEMENTS(queries); ++i)
 		g_assert_cmpuint (run_and_count_matches (xpath, queries[i].query),
 				  ==, queries[i].count);
 
@@ -170,10 +179,10 @@ test_mu_query_02 (void)
 {
 	const char* q;
 	gchar *xpath;
-	
+
 	xpath = fill_database (MU_TESTMAILDIR);
 	g_assert (xpath);
-	
+
 	q = "i:f7ccd24b0808061357t453f5962w8b61f9a453b684d0@mail.gmail.com";
 
 	g_assert_cmpuint (run_and_count_matches(xpath, q), ==, 1);
@@ -186,7 +195,7 @@ test_mu_query_03 (void)
 {
 	gchar *xpath;
 	int i;
-	
+
 	QResults queries[] = {
 		{ "ploughed", 1},
 		{ "i:3BE9E6535E3029448670913581E7A1A20D852173@"
@@ -197,19 +206,20 @@ test_mu_query_03 (void)
 		{ "s:gcc include search" , 1},
 		{ "s:search order" , 1},
 		{ "s:include" , 1},
-		
+
 		{ "s:lisp", 1},
 		{ "s:LISP", 1},
-		
-		{ "s:Learning LISP; Scheme vs elisp.", 1},
-		{ "subject:Re Learning LISP; Scheme vs elisp.", 1},
+
+		{ "s:\"Re: Learning LISP; Scheme vs elisp.\"", 1},
+		{ "subject:Re: Learning LISP; Scheme vs elisp.", 0},
+		{ "subject:\"Re: Learning LISP; Scheme vs elisp.\"", 1},
 		{ "to:help-gnu-emacs@gnu.org", 4},
 		{ "t:help-gnu-emacs", 0},
 	};
-	
+
 	xpath = fill_database (MU_TESTMAILDIR);
 	g_assert (xpath != NULL);
-	
+
  	for (i = 0; i != G_N_ELEMENTS(queries); ++i)
 		g_assert_cmpuint (run_and_count_matches (xpath, queries[i].query),
 				  ==, queries[i].count);
@@ -223,7 +233,7 @@ test_mu_query_04 (void)
 {
 	gchar *xpath;
 	int i;
-	
+
 	QResults queries[] = {
 		{ "frodo@example.com", 1}, /* does not match: see mu-find (1) */
 		{ "f:frodo@example.com", 1},
@@ -239,11 +249,11 @@ test_mu_query_04 (void)
 		{ "prio:l", 7},
 		{ "not prio:l", 6},
 	};
-	
+
 	xpath = fill_database (MU_TESTMAILDIR);
 	g_assert (xpath != NULL);
-	
- 	for (i = 0; i != G_N_ELEMENTS(queries); ++i) 
+
+ 	for (i = 0; i != G_N_ELEMENTS(queries); ++i)
 		g_assert_cmpuint (run_and_count_matches (xpath, queries[i].query),
 				  ==, queries[i].count);
 	g_free (xpath);
@@ -257,32 +267,38 @@ test_mu_query_accented_chars_01 (void)
 	MuQuery *query;
 	MuMsgIter *iter;
 	MuMsg *msg;
+	MuStore *store;
 	gchar *xpath;
 	GError *err;
 	gchar *summ;
-	
+
 	xpath = fill_database (MU_TESTMAILDIR);
 	g_assert (xpath != NULL);
 
-	query = mu_query_new (xpath, NULL);
+	store = mu_store_new_read_only (xpath, NULL);
+	g_assert (store);
+
+	query = mu_query_new (store, NULL);
+	mu_store_unref (store);
+
 	iter = mu_query_run (query, "fünkÿ", FALSE, MU_MSG_FIELD_ID_NONE,
-			     FALSE, NULL);
+			     FALSE, -1, NULL);
 	err = NULL;
-	msg = mu_msg_iter_get_msg (iter, &err); /* don't unref */
+	msg = mu_msg_iter_get_msg_floating (iter); /* don't unref */
 	if (!msg) {
 		g_warning ("error getting message: %s", err->message);
 		g_error_free (err);
 		g_assert_not_reached ();
 	}
-	
-	g_assert_cmpstr (mu_msg_get_subject(msg),==, 
+
+	g_assert_cmpstr (mu_msg_get_subject(msg),==,
 			 "Greetings from Lothlórien");
 	/* TODO: fix this again */
 
 	summ = mu_str_summarize (mu_msg_get_body_text(msg), 5);
 	g_assert_cmpstr (summ,==, "Let's write some fünkÿ text using umlauts. Foo.");
 	g_free (summ);
-	
+
 	mu_msg_iter_destroy (iter);
 	mu_query_destroy (query);
 	g_free (xpath);
@@ -293,21 +309,21 @@ test_mu_query_accented_chars_02 (void)
 {
 	gchar *xpath;
 	int i;
-	
+
 	QResults queries[] = {
 		{ "f:mü", 1},
 		{ "s:motörhead", 1},
 		{ "t:Helmut", 1},
-		{ "t:Kröger", 1}, 
+		{ "t:Kröger", 1},
 		{ "s:MotorHeäD", 1},
 		{ "queensryche", 1},
 		{ "Queensrÿche", 1},
 	};
-	
+
 	xpath = fill_database (MU_TESTMAILDIR);
 	g_assert (xpath != NULL);
-	
- 	for (i = 0; i != G_N_ELEMENTS(queries); ++i) 
+
+ 	for (i = 0; i != G_N_ELEMENTS(queries); ++i)
 		g_assert_cmpuint (run_and_count_matches (xpath, queries[i].query),
 				  ==, queries[i].count);
 	g_free (xpath);
@@ -320,7 +336,7 @@ test_mu_query_wildcards (void)
 {
 	gchar *xpath;
 	int i;
-	
+
 	QResults queries[] = {
 		{ "f:mü", 1},
 		{ "s:mo*", 1},
@@ -328,11 +344,11 @@ test_mu_query_wildcards (void)
 		{ "queensryche", 1},
 		{ "Queen*", 1},
 	};
-	
+
 	xpath = fill_database (MU_TESTMAILDIR);
 	g_assert (xpath != NULL);
-	
- 	for (i = 0; i != G_N_ELEMENTS(queries); ++i) 
+
+ 	for (i = 0; i != G_N_ELEMENTS(queries); ++i)
 		g_assert_cmpuint (run_and_count_matches (xpath, queries[i].query),
 				  ==, queries[i].count);
 	g_free (xpath);
@@ -347,7 +363,6 @@ test_mu_query_dates_helsinki (void)
 	int i;
 	const char *old_tz;
 
-	
 	QResults queries[] = {
 		{ "date:20080731..20080804", 5},
 		/* { "date:20080804..20080731", 5}, */
@@ -361,17 +376,17 @@ test_mu_query_dates_helsinki (void)
 	};
 
 	old_tz = set_tz ("Europe/Helsinki");
-	
+
 	xpath = fill_database (MU_TESTMAILDIR);
 	g_assert (xpath != NULL);
-	
- 	for (i = 0; i != G_N_ELEMENTS(queries); ++i) 
+
+ 	for (i = 0; i != G_N_ELEMENTS(queries); ++i)
 		g_assert_cmpuint (run_and_count_matches (xpath, queries[i].query),
 				  ==, queries[i].count);
 
 	g_free (xpath);
 	set_tz (old_tz);
-	
+
 }
 
 static void
@@ -381,7 +396,6 @@ test_mu_query_dates_sydney (void)
 	int i;
 	const char *old_tz;
 
-	
 	QResults queries[] = {
 		{ "date:20080731..20080804", 5},
 		/* { "date:20080804..20080731", 5}, */
@@ -395,17 +409,17 @@ test_mu_query_dates_sydney (void)
 	};
 
 	old_tz = set_tz ("Australia/Sydney");
-	
+
 	xpath = fill_database (MU_TESTMAILDIR);
 	g_assert (xpath != NULL);
-	
- 	for (i = 0; i != G_N_ELEMENTS(queries); ++i) 
+
+ 	for (i = 0; i != G_N_ELEMENTS(queries); ++i)
 		g_assert_cmpuint (run_and_count_matches (xpath, queries[i].query),
 				  ==, queries[i].count);
 
 	g_free (xpath);
 	set_tz (old_tz);
-	
+
 }
 
 static void
@@ -414,7 +428,7 @@ test_mu_query_dates_la (void)
 	gchar *xpath;
 	int i;
 	const char *old_tz;
-	
+
 	QResults queries[] = {
 		{ "date:20080731..20080804", 5},
 		/* { "date:20080804..20080731", 5}, */
@@ -426,13 +440,13 @@ test_mu_query_dates_la (void)
 		/* { "date:today..2008-08-11-08-03", 1}, */
 		{ "date:200808110801..now", 0}, /* does not match in LA */
  	};
-	
+
 	old_tz = set_tz ("America/Los_Angeles");
-	
+
 	xpath = fill_database (MU_TESTMAILDIR);
 	g_assert (xpath != NULL);
-	
- 	for (i = 0; i != G_N_ELEMENTS(queries); ++i) 
+
+ 	for (i = 0; i != G_N_ELEMENTS(queries); ++i)
 		g_assert_cmpuint (run_and_count_matches (xpath, queries[i].query),
 				  ==, queries[i].count);
 
@@ -448,22 +462,22 @@ test_mu_query_sizes (void)
 {
 	gchar *xpath;
 	int i;
-	
+
 	QResults queries[] = {
 		{ "size:0b..2m", 13},
 		{ "size:2k..4k", 2},
 		{ "size:2m..0b", 13}
 	};
-	
+
 	xpath = fill_database (MU_TESTMAILDIR);
 	g_assert (xpath != NULL);
-	
- 	for (i = 0; i != G_N_ELEMENTS(queries); ++i) 
+
+ 	for (i = 0; i != G_N_ELEMENTS(queries); ++i)
 		g_assert_cmpuint (run_and_count_matches (xpath, queries[i].query),
 				  ==, queries[i].count);
 
 	g_free (xpath);
-	
+
 }
 
 
@@ -472,24 +486,24 @@ test_mu_query_attach (void)
 {
 	gchar *xpath;
 	int i;
-	
+
 	QResults queries[] = {
-		{ "a:sittingbull.jpg", 1},
-		{ "'attach:sitting*'", 1},
-		{ "attach:custer", 0},
-		{ "attach:custer.jpg", 1}
+		{ "j:sittingbull.jpg", 1},
+		{ "'file:sitting*'", 1},
+		{ "file:custer", 0},
+		{ "file:custer.jpg", 1}
 	};
-	
+
 	xpath = fill_database (MU_TESTMAILDIR2);
 	g_assert (xpath != NULL);
 
 	/* g_print ("(%s)\n", xpath); */
-	
+
  	for (i = 0; i != G_N_ELEMENTS(queries); ++i)
 		g_assert_cmpuint (run_and_count_matches (xpath, queries[i].query),
 				  ==, queries[i].count);
 
-	g_free (xpath);	
+	g_free (xpath);
 }
 
 
@@ -498,7 +512,7 @@ test_mu_query_tags (void)
 {
 	gchar *xpath;
 	int i;
-	
+
 	QResults queries[] = {
 		{ "x:paradise", 1},
 		{ "tag:lost", 1},
@@ -507,17 +521,17 @@ test_mu_query_tags (void)
 		{ "tag:lost OR tag:horizon", 1},
 		{ "x:paradise,lost", 0},
 	};
-	
+
 	xpath = fill_database (MU_TESTMAILDIR2);
 	g_assert (xpath != NULL);
 
 	/* g_print ("(%s)\n", xpath); */
-	
- 	for (i = 0; i != G_N_ELEMENTS(queries); ++i) 
+
+ 	for (i = 0; i != G_N_ELEMENTS(queries); ++i)
 		g_assert_cmpuint (run_and_count_matches (xpath, queries[i].query),
 				  ==, queries[i].count);
 
-	g_free (xpath);	
+	g_free (xpath);
 }
 
 
@@ -526,26 +540,26 @@ test_mu_query_tags_02 (void)
 {
 	gchar *xpath;
 	int i;
-	
+
 	QResults queries[] = {
 		{ "x:paradise", 1},
 		{ "tag:@NextActions", 1},
 		{ "x:queensrÿche", 1},
-		{ "tag:lost OR tag:operation:mindcrime", 2},
+		{ "tag:lost OR tag:operation*", 2},
 	};
-	
+
 	xpath = fill_database (MU_TESTMAILDIR2);
 	g_assert (xpath != NULL);
 
 	/* g_print ("(%s)\n", xpath); */
-	
+
  	for (i = 0; i != G_N_ELEMENTS(queries); ++i) {
 		/* g_print ("%s\n", queries[i].query); */
 		g_assert_cmpuint (run_and_count_matches (xpath, queries[i].query),
 				  ==, queries[i].count);
 	}
 
-	g_free (xpath);	
+	g_free (xpath);
 }
 
 
@@ -555,11 +569,11 @@ int
 main (int argc, char *argv[])
 {
 	int rv;
-	
-	g_test_init (&argc, &argv, NULL);	
-			
+
+	g_test_init (&argc, &argv, NULL);
+
 	g_test_add_func ("/mu-query/test-mu-query-01", test_mu_query_01);
-	g_test_add_func ("/mu-query/test-mu-query-02", test_mu_query_02); 
+	g_test_add_func ("/mu-query/test-mu-query-02", test_mu_query_02);
 	g_test_add_func ("/mu-query/test-mu-query-03", test_mu_query_03);
 	g_test_add_func ("/mu-query/test-mu-query-04", test_mu_query_04);
 	g_test_add_func ("/mu-query/test-mu-query-accented-chars-1",
@@ -584,13 +598,13 @@ main (int argc, char *argv[])
 			 test_mu_query_tags);
 	g_test_add_func ("/mu-query/test-mu-query-tags_02",
 			 test_mu_query_tags_02);
-	
-	g_log_set_handler (NULL,
-			   G_LOG_LEVEL_MASK | G_LOG_FLAG_FATAL| G_LOG_FLAG_RECURSION,
-			   (GLogFunc)black_hole, NULL);
+
+	if (!g_test_verbose())
+	    g_log_set_handler (NULL,
+			       G_LOG_LEVEL_MASK | G_LOG_FLAG_FATAL| G_LOG_FLAG_RECURSION,
+			       (GLogFunc)black_hole, NULL);
 
 	rv = g_test_run ();
-	
+
 	return rv;
 }
-

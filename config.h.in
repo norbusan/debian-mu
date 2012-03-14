@@ -10,8 +10,17 @@
 /* Define to 1 if you have the <dlfcn.h> header file. */
 #undef HAVE_DLFCN_H
 
+/* Whether we have guile 2.0 */
+#undef HAVE_GUILE
+
 /* Define to 1 if you have the <inttypes.h> header file. */
 #undef HAVE_INTTYPES_H
+
+/* Define to 1 if you have the <langinfo.h> header file. */
+#undef HAVE_LANGINFO_H
+
+/* Define to 1 if you have the <locale.h> header file. */
+#undef HAVE_LOCALE_H
 
 /* Define to 1 if you have the `memcpy' function. */
 #undef HAVE_MEMCPY
@@ -24,9 +33,6 @@
 
 /* Define to 1 if you have the <ndir.h> header file, and it defines `DIR'. */
 #undef HAVE_NDIR_H
-
-/* have pre-2.x guile */
-#undef HAVE_PRE2_GUILE
 
 /* Define to 1 if you have the `realpath' function. */
 #undef HAVE_REALPATH
@@ -77,7 +83,7 @@
 #undef LT_OBJDIR
 
 /* 'Schema' version of the database */
-#undef MU_XAPIAN_DB_VERSION
+#undef MU_STORE_SCHEMA_VERSION
 
 /* Define to 1 if your C compiler doesn't accept -c and -o together. */
 #undef NO_MINUS_C_MINUS_O
@@ -108,9 +114,6 @@
 
 /* Version number of package */
 #undef VERSION
-
-/* Path to xdg-open */
-#undef XDGOPEN
 
 /* Number of bits in a file offset, on hosts where this is settable. */
 #undef _FILE_OFFSET_BITS

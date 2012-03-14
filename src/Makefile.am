@@ -1,4 +1,4 @@
-## Copyright (C) 2010 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+## Copyright (C) 2010-2012 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 ##
 ## This program is free software; you can redistribute it and/or modify
 ## it under the terms of the GNU General Public License as published by
@@ -16,7 +16,8 @@
 
 include $(top_srcdir)/gtest.mk
 
-# enforce compiling this dir first before decending into tests/
+# enforce compiling guile (optionally) first,then this dir first
+# before decending into tests/
 SUBDIRS= .
 
 if BUILD_TESTS
@@ -52,6 +53,7 @@ libmu_la_SOURCES=			\
 	mu-cmd-extract.c		\
 	mu-cmd-find.c			\
 	mu-cmd-index.c			\
+	mu-cmd-server.c			\
 	mu-cmd.c			\
 	mu-cmd.h			\
 	mu-config.c			\
@@ -62,6 +64,8 @@ libmu_la_SOURCES=			\
 	mu-container.h			\
 	mu-date.c			\
 	mu-date.h			\
+	mu-flags.h			\
+	mu-flags.c			\
 	mu-index.c			\
 	mu-index.h			\
 	mu-log.c			\
@@ -76,8 +80,6 @@ libmu_la_SOURCES=			\
 	mu-msg-fields.h			\
 	mu-msg-file.c			\
 	mu-msg-file.h			\
-	mu-msg-flags.c			\
-	mu-msg-flags.h			\
 	mu-msg-iter.cc			\
 	mu-msg-iter.h			\
 	mu-msg-part.c			\
@@ -85,6 +87,7 @@ libmu_la_SOURCES=			\
 	mu-msg-prio.c			\
 	mu-msg-prio.h			\
 	mu-msg-priv.h			\
+	mu-msg-sexp.c			\
 	mu-msg.c			\
 	mu-msg.h			\
 	mu-msg.h			\
@@ -94,12 +97,14 @@ libmu_la_SOURCES=			\
 	mu-runtime.h			\
 	mu-store.cc			\
 	mu-store.h			\
+	mu-store-read.cc		\
+	mu-store-write.cc		\
+	mu-store-priv.hh		\
 	mu-str-normalize.c		\
 	mu-str.c			\
 	mu-str.h			\
 	mu-threader.c			\
 	mu-threader.h			\
-	mu-util-db.cc			\
 	mu-util.c			\
 	mu-util.h
 

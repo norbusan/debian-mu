@@ -90,6 +90,10 @@ TEST_PROGS += test-mu-date
 test_mu_date_SOURCES= test-mu-date.c dummy.cc
 test_mu_date_LDADD=  libtestmucommon.la
 
+TEST_PROGS += test-mu-flags
+test_mu_flags_SOURCES= test-mu-flags.c dummy.cc
+test_mu_flags_LDADD=  libtestmucommon.la
+
 
 # TEST_PROGS += test-mu-msg-file
 # test_mu_msg_file_SOURCES= test-mu-msg-file.c dummy.cc
@@ -135,6 +139,9 @@ EXTRA_DIST=							\
 	testdir2/Foo/cur/arto.eml				\
 	testdir2/Foo/tmp/.noindex				\
 	testdir2/Foo/new/.noindex				\
+	testdir2/wom_bat/cur/atomic				\
+	testdir2/wom_bat/cur/rfc822.1				\
+	testdir2/wom_bat/cur/rfc822.2				\
 	testdir3/tree						\
 	testdir3/tree/new					\
 	testdir3/tree/new/.noindex				\
@@ -161,4 +168,3 @@ EXTRA_DIST=							\
 	testdir3/cycle/cur/cycle0.0				\
 	testdir3/cycle/tmp					\
 	testdir3/cycle/tmp/.noindex
-

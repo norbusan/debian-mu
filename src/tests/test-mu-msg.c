@@ -97,6 +97,9 @@ test_mu_msg_01 (void)
 
 
 
+
+
+
 static gboolean
 check_contact_02 (MuMsgContact *contact, int *idx)
 {
@@ -155,7 +158,7 @@ test_mu_msg_02 (void)
 	g_assert_cmpint (i,==,2);
 
 	g_assert_cmpuint (mu_msg_get_flags(msg),
-			  ==, MU_MSG_FLAG_SEEN);
+			  ==, MU_FLAG_SEEN);
 	
 	mu_msg_unref (msg);
 }
@@ -168,7 +171,6 @@ test_mu_msg_03 (void)
 	msg = mu_msg_new_from_file (MU_TESTMAILDIR
 				    "cur/1283599333.1840_11.cthulhu!2,",
 				    NULL, NULL);
-
 	g_assert_cmpstr (mu_msg_get_to(msg),
 			 ==, "Bilbo Baggins <bilbo@anotherexample.com>");
 	g_assert_cmpstr (mu_msg_get_subject(msg),
@@ -182,11 +184,9 @@ test_mu_msg_03 (void)
 	g_assert_cmpstr (mu_msg_get_body_text(msg),
 			 ==,
 			 "\nLet's write some fünkÿ text\nusing umlauts.\n\nFoo.\n");
-
 	g_assert_cmpuint (mu_msg_get_flags(msg),
-			  ==, MU_MSG_FLAG_UNREAD);
-
-	
+			  ==, MU_FLAG_UNREAD); /* not seen => unread */
+		
 	mu_msg_unref (msg);
 }
 
@@ -209,9 +209,9 @@ test_mu_msg_04 (void)
 			  ==, MU_MSG_PRIO_NORMAL);
 	g_assert_cmpuint (mu_msg_get_date(msg),
 			  ==, 0);
-
+	
 	g_assert_cmpuint (mu_msg_get_flags(msg),
-			  ==, MU_MSG_FLAG_HAS_ATTACH);
+			  ==, MU_FLAG_HAS_ATTACH|MU_FLAG_UNREAD);
 	
 	mu_msg_unref (msg);
 }
@@ -348,7 +348,8 @@ test_mu_msg_comp_unix_programmer (void)
 
 	refs = mu_str_from_list (mu_msg_get_references(msg), ',');
 	g_assert_cmpstr (refs, ==,
-			 "e9065dac-13c1-4103-9e31-6974ca232a89@t15g2000prt.googlegroups.com,"
+			 "e9065dac-13c1-4103-9e31-6974ca232a89@t15g2000prt"
+			 ".googlegroups.com,"
 			 "87hbblwelr.fsf@sapphire.mobileactivedefense.com,"
 			 "pql248-4va.ln1@wilbur.25thandClement.com,"
 			 "ikns6r$li3$1@Iltempo.Update.UU.SE,"

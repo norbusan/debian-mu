@@ -1,0 +1,207 @@
+* OUTDATED *
+
+* README
+
+** What is muile?
+
+  `muile' is a little experiment/toy using the equally experimental mu guile
+  bindings, to be found in libmuguile/ in the top-level source directory.
+
+  `guile'[1] is an interpreter/library for the Scheme programming language[2],
+  specifically meant for extending other programs. It is, in fact, the
+  official GNU language for doing so. 'muile' requires guile 2.x to get the full
+  support.
+
+  Older versions may not support e.g. the 'mu-stats.scm' things discussed below.
+
+  The combination of mu + guile is called `muile', and allows you to write
+  little Scheme-programs to query the mu-database, or inspect individual
+  messages. It is still in an experimental stage, but useful already.
+
+** How do I get it?
+
+   The git-version and the future 0.9.7 version of mu will automatically build
+   muile if you have guile. I've been using guile 2.x from git, but installing
+   the 'guile-1.8-dev' package (Ubuntu/Debian) should do the trick. (I only did
+   very minimal testing with guile 1.8 though).
+
+   Then, configure mu. The configure output should tell you about whether guile
+   was found (and where). If it's found, build mu, and toys/muile should be
+   created, as well.
+
+** What can I do with it?
+
+   Go to toys/muile and start muile. You'll end up with a guile-shell where you
+   can type scheme [1], it looks something like this (for guile 2.x):
+
+   ,----
+   | scheme@(guile-user)>
+   `----
+
+  Now, let's load a message (of course, replace with a message on your system):
+
+   ,----
+   | scheme@(guile-user)> (define msg (mu:msg:make-from-file "/home/djcb/Maildir/cur/12131e7b20a2:2,S"))
+   `----
+
+  This defines a variable 'msg', which holds some message on your file
+  system. It's now easy to inspect this message:
+
+   ,----
+   | scheme@(guile-user)> (define msg (mu:msg:make-from-file "/home/djcb/Maildir/cur/12131e7b20a2:2,S"))
+   `----
+
+   Now, we can inspect this message a bit:
+   ,----
+   | scheme@(guile-user)> (mu:msg:subject msg)
+   | $1 = "See me in bikini :-)"
+   | scheme@(guile-user)> (mu:msg:flags msg)
+   | $2 = (mu:attach mu:unread)
+   `----
+
+   and so on. Note, it's probably easiest to explore the various mu: methods
+   using autocompletion; to enable that make sure you have
+
+
+   ,----
+   | (use-modules (ice-9 readline))
+   | (activate-readline)
+   `----
+
+   in your ~/.guile configuration.
+
+** does this tool have some parameters?
+
+   Yes, there is --muhome to set a non-default place for the message database
+   (see the documentation on --muhome in the mu-find manpage).
+
+   And there is --msg=<path> where you specify some particular message file;
+   it will be available as 'mu:current-msg' in the guile (muile) environment. For
+   example:
+
+   ,----
+   | ./muile --msg=~/Maildir/inbox/cur/1311310172_1234:2,S
+   |  [...]
+   | scheme@(guile-user)> mu:current-msg
+   | $1 = #<msg /home/djcb/Maildir/inbox/cur/1311310172_1234:2,S>
+   | scheme@(guile-user)> (mu:msg:size mu:current-msg)
+   | $2 = 7206
+   `----
+
+** What about searching messages in the database?
+
+   That's easy, too - it does require a little more scheme knowledge. For
+   searching messages there is the mu:store:for-each function, which takes two
+   arguments; the first argument is a function that will be called for each
+   message found. The optional second argument is the search expression (following
+   'mu find' syntax); if don't provide the argument, all messages match.
+
+   So how does this work in practice? Let's see I want to see the subject and
+   sender for messages about milk:
+
+   ,----
+   | (mu:store:for-each (lambda(msg) (format #t "~s ~s\n" (mu:msg:from msg) (mu:msg:subject msg))) "milk")
+   `----
+
+   or slightly more readable:
+
+   ,----
+   | (mu:store:for-each
+   |   (lambda(msg)
+   |     (format #t "~s ~s\n" (mu:msg:from msg) (mu:msg:subject msg)))
+   |   "milk")
+   `----
+
+   As you can see, I provide an anonymous ('lambda') function which will be
+   called for each message matching 'milk'. Admittedly, this requires a bit of
+   Scheme-knowledge... but this time is good as any to learn this nice
+   language.
+
+
+** Can I do some statistics on my messages?
+
+   Yes you can. In fact, it's pretty easy. If you load (in the muile/ directory)
+   the file 'mu-stats.scm':
+
+   ,----
+   | (load "mu-stats.scm")
+   `----
+
+   you'll get a bunch of functions (with names starting with 'mu:stats') to make
+   this very easy. Let's see, suppose I want to see how many messages I get per
+   weekday:
+
+   ,----
+   | scheme@(guile-user)> (mu:stats:per-weekday)
+   | $1 = ((0 . 2255) (1 . 2788) (2 . 2868) (3 . 2599) (4 . 2629) (5 . 2287) (6 . 1851))
+   `----
+
+   Note, Sunday=0, Monday=1 and so on. Apparently, I get/send most of e-mail on
+   Tuesdays, and least on Saturday.
+
+   And note that mu:stats:per-weekdays takes an optional search expression
+   argument, to limit the results to messages matching that, e.g., to only
+   consider messages related to emacs during this year:
+
+   ,----
+   | scheme@(guile-user)> (mu:stats:per-weekday "emacs date:2011..now")
+   | $8 = ((0 . 54) (1 . 22) (2 . 46) (3 . 47) (4 . 39) (5 . 54) (6 . 50))
+   `----
+
+   There's also 'mu:stats:per-month', 'mu:stats:per-year', 'mu:stats:per-hour'.
+   I learnt that during 3-4am I sent/receive only about a third of what I sent
+   during 11-12pm.
+
+** What about getting the top-10 people in the To:-field?
+
+   Easy.
+
+   ,----
+   |  scheme@(guile-user)> (mu:stats:top-n-to)
+   |  $1 = ((("Abc" "myself@example.com") . 4465) (("Def" "somebodyelse@example.com") . 2114)
+   |     (and so on)
+   `----
+
+   I've changed the names a bit to protect the innocent, but what the function
+   does is return a list of pairs of
+
+       (<name> <email>) . <frequency>
+
+   descending in order of frequency. Note, 'mu:stats:top-n-to' takes two
+   optional arguments - first the 'n' in top-n (default is 10), and seconds as
+   search expression to limit the messages considered.
+
+   There are also the functions 'mu:stats:top-n-subject' and
+   'mu:stats:top-n-from' which do the same, mutatis mutandis, and it's quite
+   easy to add your own (see the mu-stats.scm for examples)
+
+** What about showing the results in a table?
+
+   Even easier. Try:
+
+   ,----
+   | (mu:stats:table (mu:stats:top-n-to))
+   `----
+
+   or
+
+   ,----
+   | (mu:stats:table (mu:stats:per-weekday))
+   `----
+
+   You can also export the table:
+
+   ,----
+   | (mu:stats:export (mu:stats:per-weekday))
+   `----
+
+   which will create a temporary file with the results, for further processing
+   in e.g. 'R' or 'gnuplot'.
+
+
+[1] http://www.gnu.org/s/guile/
+[2] http://en.wikipedia.org/wiki/Scheme_(programming_language)
+
+# Local Variables:
+# mode: org; org-startup-folded: nil
+# End:

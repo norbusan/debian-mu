@@ -1,4 +1,4 @@
-## Copyright (C) 2008-2010 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+## Copyright (C) 2008-2011 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 ##
 ## This program is free software; you can redistribute it and/or modify
 ## it under the terms of the GNU General Public License as published by
@@ -27,17 +27,3 @@ endif
 if BUILD_WIDGETS
 SUBDIRS += mug2
 endif
-
-# for muile, we need guile
-if HAVE_GUILE
-SUBDIRS += muile
-endif
-
-# for procmule, we need guile and gio
-#if HAVE_GUILE
-#if HAVE_GIO
-#SUBDIRS += procmule
-#endif
-#endif
-
-

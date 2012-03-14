@@ -1,6 +1,6 @@
-.TH MU 1 "May 2011" "User Manuals"
+.TH MU 1 "January 2012" "User Manuals"
 
-.SH NAME 
+.SH NAME
 
 mu \- a set of tools to deal with Maildirs and message files, in particular to
 index and search e-mail messages.
@@ -10,8 +10,6 @@ index and search e-mail messages.
 .B mu [options]
 
 .B mu index [options]
-
-.B mu cleanup [options]
 
 .B mu find [options] <search expression>
 
@@ -57,13 +55,6 @@ information in a database. See
 \.
 
 .TP
-\fBcleanup\fR
-for removing messages from the database for which there is no longer a
-corresponding message file in the file system. See
-.BR mu-cleanup(1)
-\.
-
-.TP
 \fBfind\fR
 for finding messages in your database, using certain search
 parameters. See
@@ -98,14 +89,13 @@ for extract MIME-parts (such as attachments) from messages. See
 
 .SH COLORS
 
-Some \fBmu\fR sub-commands support colorized output. By default, this is
-disabled, but you can use the \fI--color\fR/ option to enable it. Even that,
-colors will only shown when output goes to a sufficiently capable terminal
-(this roughly mirrors the \fI--color=auto\fR of the GNU-version of the
-\fBls\fR-command).
+Some \fBmu\fR sub-commands support colorized output. If you don't want this,
+you can use the \fI--nocolor\fR/ option to disable it. Even then, colors will
+only shown when output goes to a sufficiently capable terminal (this roughly
+mirrors the \fI--color=auto\fR of the GNU-version of the \fBls\fR-command).
 
-Instead of the \fI--color\fR/, you can also set the \fBMU_COLORS\fR
-environment variable to non-empty to enable colors.
+Instead of the \fI--color\fR/, you can also set the \fBMU_NOCOLOR\fR
+environment variable to non-empty to disable colors.
 
 Currently, \fBmu find\fR, \fBmu view\fR, \fBmu cfind\fR and \fBmu extract\fR
 support colors.
@@ -114,7 +104,7 @@ support colors.
 
 \fBmu\fR's output is in the current locale, with the exceptions of the output
 specifically meant for output to UTF8-encoded files. In practice, this means
-that the output of commands \fBindex\fR, \fBcleanup\fR, \fBview\fR,
+that the output of commands \fBindex\fR, \fBview\fR,
 \fBextract\fR is always encoded according to the current locale.
 
 The same is true for \fBfind\fR and \fBcfind\fR, with some exceptions, where
@@ -130,7 +120,7 @@ For \fBfind\fR the output is encoded according the locale for
 
 .SH DATABASE AND FILE
 
-Commands \fBmu index\fR, \fBfind\fR and \fBcleanup\fR work with the database,
+Commands \fBmu index\fR and \fBfind\fR and \fBcfind\fR work with the database,
 while the other ones work on invidual mail files. Hence, running \fview\fR,
 \fBmkdir\fR and \fBextract\fR does not require the mu database.
 
@@ -178,6 +168,44 @@ lists the various command line options, while \fB\-\-help\-index\fR,
 \fB\-\-help\-find\fR and \fB\-\-help\-all\fR list only the options for
 respectively the specified command or for all commands.
 
+.SH ERROR CODES
+
+The various mu subcommands typically exit with 0 (zero) upon success, and
+non-zero when some error occured. The table lists the various error codes.
+
+.nf
+exit code |  error
+----------+-------------------------------------------
+     1	  |  MU_ERROR
+     2	  |  MU_ERROR_IN_PARAMETERS
+     3	  |  MU_ERROR_INTERNAL
+     4	  |  MU_ERROR_NO_MATCHES
+	  |
+     11	  |  MU_ERROR_XAPIAN
+	  |
+     13	  |  MU_ERROR_XAPIAN_QUERY
+     14	  |  MU_ERROR_XAPIAN_DIR_NOT_ACCESSIBLE
+     15	  |  MU_ERROR_XAPIAN_NOT_UP_TO_DATE
+     16	  |  MU_ERROR_XAPIAN_MISSING_DATA
+     17	  |  MU_ERROR_XAPIAN_CORRUPTION
+     18	  |  MU_ERROR_XAPIAN_CANNOT_GET_WRITELOCK
+     30	  |  MU_ERROR_GMIME
+	  |
+     50	  |  MU_ERROR_CONTACTS
+     51	  |  MU_ERROR_CONTACTS_CANNOT_RETRIEVE
+	  |
+     70	  |  MU_ERROR_FILE
+     71	  |  MU_ERROR_FILE_INVALID_NAME
+     72	  |  MU_ERROR_FILE_CANNOT_LINK
+     73	  |  MU_ERROR_FILE_CANNOT_OPEN
+     74	  |  MU_ERROR_FILE_CANNOT_READ
+     75	  |  MU_ERROR_FILE_CANNOT_CREATE
+     76	  |  MU_ERROR_FILE_CANNOT_MKDIR
+     77	  |  MU_ERROR_FILE_STAT_FAILED
+     78	  |  MU_ERROR_FILE_READDIR_FAILED
+     79	  |  MU_ERROR_FILE_INVALID_SOURCE
+.fi
+
 .SH BUGS
 
 Please report bugs if you find them:
@@ -190,11 +218,10 @@ Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 .SH "SEE ALSO"
 
 .BR mu-index(1)
-.BR mu-cleanup(1)
 .BR mu-find(1)
 .BR mu-cfind(1)
 .BR mu-mkdir(1)
 .BR mu-view(1)
 .BR mu-extract(1)
 .BR mu-easy(1)
-.BR mu-bookmarks(5) 
+.BR mu-bookmarks(5)
