@@ -1,3 +1,10 @@
+maildir-utils (0.9.8.2-1) unstable; urgency=low
+
+  * several new upstream versions
+  * b-d on libgmime-2.6-dev (Closes: #664001, #664006)
+
+ -- Norbert Preining <preining@debian.org>  Thu, 15 Mar 2012 07:57:54 +0900
+
 maildir-utils (0.9.7-1) unstable; urgency=low
 
   * new upstream release
