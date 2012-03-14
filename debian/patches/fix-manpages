@@ -1,0 +1,230 @@
+---
+ man/mu-add.1     |    4 ++--
+ man/mu-cfind.1   |   14 +++++++-------
+ man/mu-easy.1    |    2 +-
+ man/mu-extract.1 |    4 ++--
+ man/mu-find.1    |    8 ++++----
+ man/mu-index.1   |    8 ++++----
+ man/mu-mkdir.1   |    4 ++--
+ man/mu-remove.1  |    4 ++--
+ man/mu-server.1  |    2 +-
+ man/mu-view.1    |    4 ++--
+ 10 files changed, 27 insertions(+), 27 deletions(-)
+
+Index: maildir-utils-0.9.8.2/man/mu-add.1
+===================================================================
+--- maildir-utils-0.9.8.2.orig/man/mu-add.1	2012-03-02 06:27:06.000000000 +0900
++++ maildir-utils-0.9.8.2/man/mu-add.1	2012-03-15 08:31:50.702865825 +0900
+@@ -1,8 +1,8 @@
+ .TH MU ADD 1 "October 2011" "User Manuals"
+ 
+-.SH NAME 
++.SH NAME
+ 
+-mu add\-  add one or more messages to the database 
++mu_add \-  add one or more messages to the database 
+ 
+ .SH SYNOPSIS
+ 
+Index: maildir-utils-0.9.8.2/man/mu-cfind.1
+===================================================================
+--- maildir-utils-0.9.8.2.orig/man/mu-cfind.1	2012-03-02 06:27:06.000000000 +0900
++++ maildir-utils-0.9.8.2/man/mu-cfind.1	2012-03-15 08:40:48.403552345 +0900
+@@ -1,8 +1,8 @@
+-.TH MU CFIND 1 "May 2011" "User Manuals"
++.TH MU-CFIND 1 "May 2011" "User Manuals"
+ 
+ .SH NAME 
+ 
+-mu cfind \- find contacts in the \fBmu\fR database and export them for use in
++mu_cfind \- find contacts in the \fBmu\fR database and export them for use in
+ other programs.
+ 
+ .SH SYNOPSIS
+@@ -67,22 +67,22 @@
+ contact was found. Anything else leads to a non-zero return value, for
+ example:
+ 
+-.sh
++.nf
+ | code | meaning                        |
+ |------+--------------------------------|
+ |    0 | ok                             |
+ |    1 | general error                  |
+ |    2 | no matches (for 'mu cfind')    |
+-.si
++.fi
+ 
+ .SH INTEGRATION WITH MUTT
+ 
+ You can use \fBmu cfind\fR as an external address book server for
+ \fBmutt\fR. For this to work, add the following to your \fImuttrc\fR:
+ 
+-.sh
+-set query_command = "mu cfind --format=mutt-ab '%s'"
+-.si
++.nf
++   set query_command = "mu cfind --format=mutt-ab '%s'"
++.fi
+ 
+ Now, in mutt, you can easily search for e-mail address using the
+ \fBquery\fR-command, which is (by default) accessible by pressing \fBQ\fR.
+Index: maildir-utils-0.9.8.2/man/mu-easy.1
+===================================================================
+--- maildir-utils-0.9.8.2.orig/man/mu-easy.1	2012-03-02 06:27:06.000000000 +0900
++++ maildir-utils-0.9.8.2/man/mu-easy.1	2012-03-15 08:32:52.482918126 +0900
+@@ -2,7 +2,7 @@
+ 
+ .SH NAME
+ 
+-mu easy \- a quick introduction to mu
++mu_easy \- a quick introduction to mu
+ 
+ .SH DESCRIPTION
+ 
+Index: maildir-utils-0.9.8.2/man/mu-extract.1
+===================================================================
+--- maildir-utils-0.9.8.2.orig/man/mu-extract.1	2012-03-02 06:27:06.000000000 +0900
++++ maildir-utils-0.9.8.2/man/mu-extract.1	2012-03-15 08:34:40.683052222 +0900
+@@ -1,8 +1,8 @@
+-.TH MU EXTRACT 1 "February 2012" "User Manuals"
++.TH MU-EXTRACT 1 "February 2012" "User Manuals"
+ 
+ .SH NAME
+ 
+-mu extract\- display and save message parts (attachments), and open them with
++mu_extract \- display and save message parts (attachments), and open them with
+ other tools.
+ 
+ .SH SYNOPSIS
+Index: maildir-utils-0.9.8.2/man/mu-find.1
+===================================================================
+--- maildir-utils-0.9.8.2.orig/man/mu-find.1	2012-03-02 06:27:06.000000000 +0900
++++ maildir-utils-0.9.8.2/man/mu-find.1	2012-03-15 08:42:54.867721996 +0900
+@@ -1,8 +1,8 @@
+-.TH MU FIND 1 "December 2011" "User Manuals"
++.TH MU-FIND 1 "December 2011" "User Manuals"
+ 
+ .SH NAME
+ 
+-mu find \- find e-mail messages in the \fBmu\fR database.
++mu_find \- find e-mail messages in the \fBmu\fR database.
+ 
+ .SH SYNOPSIS
+ 
+@@ -61,7 +61,7 @@
+ as filtering out unwanted results is usually preferrable over non matching
+ messages.
+ 
+-A wildcard search is a search where a \fB*\fR matches the last \fIn\R
++A wildcard search is a search where a \fB*\fR matches the last \fIn\fR
+ character(s) in some string. The string must always start with one or more
+ characters before the wildcards. Since version 0.9.6, \fBmu\fR also supports
+ wildcard searches for all fields except maildirs and paths. So, to get all
+@@ -408,7 +408,7 @@
+ file will be prepended to other search queries. See mu-bookmarks(1) for the
+ details of the bookmarks file.
+ 
+-.T
++.TP
+ \fB\-t\fR, \fB\-\-threads\fR
+ show messages in 'threaded' format -- that is, with indentation and arrows
+ showing the conversation threads in the list of matching messages.
+Index: maildir-utils-0.9.8.2/man/mu-index.1
+===================================================================
+--- maildir-utils-0.9.8.2.orig/man/mu-index.1	2012-03-02 06:27:06.000000000 +0900
++++ maildir-utils-0.9.8.2/man/mu-index.1	2012-03-15 08:44:09.987822222 +0900
+@@ -2,7 +2,7 @@
+ 
+ .SH NAME 
+ 
+-mu index \- index e-mail messages stored in Maildirs
++mu_index \- index e-mail messages stored in Maildirs
+ 
+ .SH SYNOPSIS
+ 
+@@ -117,7 +117,7 @@
+  $ sudo sh -c 'sync && echo 3 > /proc/sys/vm/drop_caches'
+  $ time mu index --quiet
+  66,65s user 6,05s system 27% cpu 4:24,20 total
+-.si
++.fi
+ (about 103 messages per second)
+ 
+ A second run, which is the more typical use case when there is a database
+@@ -127,7 +127,7 @@
+  $ sudo sh -c 'sync && echo 3 > /proc/sys/vm/drop_caches'
+  $ time mu index --quiet
+  0,48s user 0,76s system 10% cpu 11,796 total
+-.si
++.fi
+ (more than 2300 messages per second)
+ 
+ Note that each of test flushes the caches first; a more common use case might
+@@ -137,7 +137,7 @@
+ .nf
+  $ time mu index --quiet
+ 0,33s user 0,40s system 80% cpu 0,905 total
+-.si
++.fi
+ which is more than 30000 messages per second.
+ 
+ In general, \fBmu\fR has been getting faster with each release, even with
+Index: maildir-utils-0.9.8.2/man/mu-mkdir.1
+===================================================================
+--- maildir-utils-0.9.8.2.orig/man/mu-mkdir.1	2012-03-02 06:27:06.000000000 +0900
++++ maildir-utils-0.9.8.2/man/mu-mkdir.1	2012-03-15 08:35:03.363083335 +0900
+@@ -1,8 +1,8 @@
+-.TH MU MKDIR 1 "May 2011" "User Manuals"
++.TH MU-MKDIR 1 "May 2011" "User Manuals"
+ 
+ .SH NAME 
+ 
+-mu mkdir\-  create a new Maildir 
++mu_mkdir \-  create a new Maildir 
+ 
+ .SH SYNOPSIS
+ 
+Index: maildir-utils-0.9.8.2/man/mu-remove.1
+===================================================================
+--- maildir-utils-0.9.8.2.orig/man/mu-remove.1	2012-03-02 06:27:06.000000000 +0900
++++ maildir-utils-0.9.8.2/man/mu-remove.1	2012-03-15 08:35:07.095088474 +0900
+@@ -1,8 +1,8 @@
+-.TH MU REMOVE 1 "October 2011" "User Manuals"
++.TH MU-REMOVE 1 "October 2011" "User Manuals"
+ 
+ .SH NAME 
+ 
+-mu remove\-  remove one or more messages to the database 
++mu_remove \-  remove one or more messages to the database 
+ 
+ .SH SYNOPSIS
+ 
+Index: maildir-utils-0.9.8.2/man/mu-server.1
+===================================================================
+--- maildir-utils-0.9.8.2.orig/man/mu-server.1	2012-03-02 06:27:06.000000000 +0900
++++ maildir-utils-0.9.8.2/man/mu-server.1	2012-03-15 08:33:20.938942337 +0900
+@@ -2,7 +2,7 @@
+ 
+ .SH NAME
+ 
+-mu server \- the mu backend for the mu4e e-mail cleint
++mu_server \- the mu backend for the mu4e e-mail cleint
+ 
+ .SH DESCRIPTION
+ 
+Index: maildir-utils-0.9.8.2/man/mu-view.1
+===================================================================
+--- maildir-utils-0.9.8.2.orig/man/mu-view.1	2012-03-02 06:27:06.000000000 +0900
++++ maildir-utils-0.9.8.2/man/mu-view.1	2012-03-15 08:35:16.915101962 +0900
+@@ -1,8 +1,8 @@
+-.TH MU VIEW 1 "July 2011" "User Manuals"
++.TH MU-VIEW 1 "July 2011" "User Manuals"
+ 
+ .SH NAME 
+ 
+-mu view\- display an e-mail message file
++mu_view \- display an e-mail message file
+ 
+ .SH SYNOPSIS
+ 

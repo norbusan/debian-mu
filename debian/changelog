@@ -5,8 +5,9 @@ maildir-utils (0.9.8.2-1) unstable; urgency=low
   * bump standards version to 3.9.3, no changes necessary
   * switch to source format 3.0 (quilt): debian/control, debian/rules
   * maildir-utils depends on dpkg/install-info (lintian warning)
+  * fix man page lintian warnings
 
- -- Norbert Preining <preining@debian.org>  Thu, 15 Mar 2012 08:19:20 +0900
+ -- Norbert Preining <preining@debian.org>  Thu, 15 Mar 2012 08:45:56 +0900
 
 maildir-utils (0.9.7-1) unstable; urgency=low
 
