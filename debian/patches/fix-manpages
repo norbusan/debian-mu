@@ -1,5 +1,5 @@
 ---
- man/mu-add.1     |    4 ++--
+ man/mu-add.1     |    6 +++---
  man/mu-cfind.1   |   14 +++++++-------
  man/mu-easy.1    |    2 +-
  man/mu-extract.1 |    4 ++--
@@ -9,14 +9,15 @@
  man/mu-remove.1  |    4 ++--
  man/mu-server.1  |    2 +-
  man/mu-view.1    |    4 ++--
- 10 files changed, 27 insertions(+), 27 deletions(-)
+ 10 files changed, 28 insertions(+), 28 deletions(-)
 
 Index: maildir-utils-0.9.8.2/man/mu-add.1
 ===================================================================
 --- maildir-utils-0.9.8.2.orig/man/mu-add.1	2012-03-02 06:27:06.000000000 +0900
-+++ maildir-utils-0.9.8.2/man/mu-add.1	2012-03-15 08:31:50.702865825 +0900
++++ maildir-utils-0.9.8.2/man/mu-add.1	2012-03-15 08:52:15.436460638 +0900
 @@ -1,8 +1,8 @@
- .TH MU ADD 1 "October 2011" "User Manuals"
+-.TH MU ADD 1 "October 2011" "User Manuals"
++.TH MU-ADD 1 "October 2011" "User Manuals"
  
 -.SH NAME 
 +.SH NAME
@@ -29,7 +30,7 @@ Index: maildir-utils-0.9.8.2/man/mu-add.1
 Index: maildir-utils-0.9.8.2/man/mu-cfind.1
 ===================================================================
 --- maildir-utils-0.9.8.2.orig/man/mu-cfind.1	2012-03-02 06:27:06.000000000 +0900
-+++ maildir-utils-0.9.8.2/man/mu-cfind.1	2012-03-15 08:40:48.403552345 +0900
++++ maildir-utils-0.9.8.2/man/mu-cfind.1	2012-03-15 08:51:39.000000000 +0900
 @@ -1,8 +1,8 @@
 -.TH MU CFIND 1 "May 2011" "User Manuals"
 +.TH MU-CFIND 1 "May 2011" "User Manuals"
@@ -72,7 +73,7 @@ Index: maildir-utils-0.9.8.2/man/mu-cfind.1
 Index: maildir-utils-0.9.8.2/man/mu-easy.1
 ===================================================================
 --- maildir-utils-0.9.8.2.orig/man/mu-easy.1	2012-03-02 06:27:06.000000000 +0900
-+++ maildir-utils-0.9.8.2/man/mu-easy.1	2012-03-15 08:32:52.482918126 +0900
++++ maildir-utils-0.9.8.2/man/mu-easy.1	2012-03-15 08:51:39.000000000 +0900
 @@ -2,7 +2,7 @@
  
  .SH NAME
@@ -85,7 +86,7 @@ Index: maildir-utils-0.9.8.2/man/mu-easy.1
 Index: maildir-utils-0.9.8.2/man/mu-extract.1
 ===================================================================
 --- maildir-utils-0.9.8.2.orig/man/mu-extract.1	2012-03-02 06:27:06.000000000 +0900
-+++ maildir-utils-0.9.8.2/man/mu-extract.1	2012-03-15 08:34:40.683052222 +0900
++++ maildir-utils-0.9.8.2/man/mu-extract.1	2012-03-15 08:51:39.000000000 +0900
 @@ -1,8 +1,8 @@
 -.TH MU EXTRACT 1 "February 2012" "User Manuals"
 +.TH MU-EXTRACT 1 "February 2012" "User Manuals"
@@ -100,7 +101,7 @@ Index: maildir-utils-0.9.8.2/man/mu-extract.1
 Index: maildir-utils-0.9.8.2/man/mu-find.1
 ===================================================================
 --- maildir-utils-0.9.8.2.orig/man/mu-find.1	2012-03-02 06:27:06.000000000 +0900
-+++ maildir-utils-0.9.8.2/man/mu-find.1	2012-03-15 08:42:54.867721996 +0900
++++ maildir-utils-0.9.8.2/man/mu-find.1	2012-03-15 08:51:39.000000000 +0900
 @@ -1,8 +1,8 @@
 -.TH MU FIND 1 "December 2011" "User Manuals"
 +.TH MU-FIND 1 "December 2011" "User Manuals"
@@ -133,7 +134,7 @@ Index: maildir-utils-0.9.8.2/man/mu-find.1
 Index: maildir-utils-0.9.8.2/man/mu-index.1
 ===================================================================
 --- maildir-utils-0.9.8.2.orig/man/mu-index.1	2012-03-02 06:27:06.000000000 +0900
-+++ maildir-utils-0.9.8.2/man/mu-index.1	2012-03-15 08:44:09.987822222 +0900
++++ maildir-utils-0.9.8.2/man/mu-index.1	2012-03-15 08:51:39.000000000 +0900
 @@ -2,7 +2,7 @@
  
  .SH NAME 
@@ -173,7 +174,7 @@ Index: maildir-utils-0.9.8.2/man/mu-index.1
 Index: maildir-utils-0.9.8.2/man/mu-mkdir.1
 ===================================================================
 --- maildir-utils-0.9.8.2.orig/man/mu-mkdir.1	2012-03-02 06:27:06.000000000 +0900
-+++ maildir-utils-0.9.8.2/man/mu-mkdir.1	2012-03-15 08:35:03.363083335 +0900
++++ maildir-utils-0.9.8.2/man/mu-mkdir.1	2012-03-15 08:51:39.000000000 +0900
 @@ -1,8 +1,8 @@
 -.TH MU MKDIR 1 "May 2011" "User Manuals"
 +.TH MU-MKDIR 1 "May 2011" "User Manuals"
@@ -188,7 +189,7 @@ Index: maildir-utils-0.9.8.2/man/mu-mkdir.1
 Index: maildir-utils-0.9.8.2/man/mu-remove.1
 ===================================================================
 --- maildir-utils-0.9.8.2.orig/man/mu-remove.1	2012-03-02 06:27:06.000000000 +0900
-+++ maildir-utils-0.9.8.2/man/mu-remove.1	2012-03-15 08:35:07.095088474 +0900
++++ maildir-utils-0.9.8.2/man/mu-remove.1	2012-03-15 08:51:39.000000000 +0900
 @@ -1,8 +1,8 @@
 -.TH MU REMOVE 1 "October 2011" "User Manuals"
 +.TH MU-REMOVE 1 "October 2011" "User Manuals"
@@ -203,7 +204,7 @@ Index: maildir-utils-0.9.8.2/man/mu-remove.1
 Index: maildir-utils-0.9.8.2/man/mu-server.1
 ===================================================================
 --- maildir-utils-0.9.8.2.orig/man/mu-server.1	2012-03-02 06:27:06.000000000 +0900
-+++ maildir-utils-0.9.8.2/man/mu-server.1	2012-03-15 08:33:20.938942337 +0900
++++ maildir-utils-0.9.8.2/man/mu-server.1	2012-03-15 08:51:39.000000000 +0900
 @@ -2,7 +2,7 @@
  
  .SH NAME
@@ -216,7 +217,7 @@ Index: maildir-utils-0.9.8.2/man/mu-server.1
 Index: maildir-utils-0.9.8.2/man/mu-view.1
 ===================================================================
 --- maildir-utils-0.9.8.2.orig/man/mu-view.1	2012-03-02 06:27:06.000000000 +0900
-+++ maildir-utils-0.9.8.2/man/mu-view.1	2012-03-15 08:35:16.915101962 +0900
++++ maildir-utils-0.9.8.2/man/mu-view.1	2012-03-15 08:51:39.000000000 +0900
 @@ -1,8 +1,8 @@
 -.TH MU VIEW 1 "July 2011" "User Manuals"
 +.TH MU-VIEW 1 "July 2011" "User Manuals"
