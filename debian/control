@@ -12,7 +12,7 @@ Package: maildir-utils
 Section: mail
 Priority: optional
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}
+Depends: ${shlibs:Depends}, ${misc:Depends}, dpkg (>= 1.15.4) | install-info
 Description: Set of utilities to deal with Maildirs (upstream name mu)
  mu is a set of utilities to deal with Maildirs, specifically, 
  indexing and searching. 
