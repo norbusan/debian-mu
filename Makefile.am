@@ -24,13 +24,12 @@ widgets=
 endif
 
 if HAVE_GUILE
-guile=libmuguile
+guile=guile
 else
 guile=
 endif
 
-SUBDIRS=m4 man src $(widgets) $(guile) contrib toys
-
+SUBDIRS=m4 man src $(widgets) $(guile) emacs contrib toys
 
 ACLOCAL_AMFLAGS=-I m4
 
@@ -56,11 +55,12 @@ cc10:
 # this warns about functions that are over 33 non-comment lines long, which is a
 # sign that they need some refactoring. requires the pmccabe tool. if
 # all is fine, it outputs nothing
-# note, mu_msg_str_normalize is excempted from this rule.
+# note, some functions are  exempted from this rule.
 line33:
 	@$(PMCCABE) -c `find -name '*.c' -o -name '*.cc'`	\
 	 | grep -v mu-str-normalize.c				\
 	 | grep -v config_options_group_find			\
+	 | grep -v SCM_DEFINE_PUBLIC				\
 	 | grep -v tests					\
          | awk '($$5 > 33)'
 
@@ -72,7 +72,7 @@ fixme:
 gitcheck:
 	cd `mktemp -d`; \
 	git clone git://gitorious.org/mu/mu.git ; \
-	cd mu-ng ; \
+	cd mu; \
 	autoreconf -i ;\
 	./configure ; \
 	make distcheck

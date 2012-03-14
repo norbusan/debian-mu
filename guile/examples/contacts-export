@@ -1,0 +1,84 @@
+#!/bin/sh
+exec guile -e main -s $0 $@
+!#
+
+;;
+;; Copyright (C) 2011 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+;;
+;; This program is free software; you can redistribute it and/or modify it
+;; under the terms of the GNU General Public License as published by the
+;; Free Software Foundation; either version 3, or (at your option) any
+;; later version.
+;;
+;; This program is distributed in the hope that it will be useful,
+;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+;; GNU General Public License for more details.
+;;
+
+;; You should have received a copy of the GNU General Public License
+;; along with this program; if not, write to the Free Software Foundation,
+;; Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
+
+
+(use-modules (ice-9 getopt-long) (ice-9 format))
+(use-modules (srfi srfi-1))
+(use-modules (mu) (mu message) (mu contact))
+
+(define (sort-by-freq c1 c2)
+  (< (mu:frequency c1) (mu:frequency c2)))
+
+(define (sort-by-newness c1 c2)
+  (< (mu:last-seen c1) (mu:last-seen c2)))
+
+(define (main args)
+  (let* ((optionspec   '( (muhome   (value #t))
+			  (sort-by  (value #t))
+			  (revert   (value #f))
+			  (format   (value #t))
+			  (limit    (value #t))
+			  (help    (single-char #\h) (value #f))))
+	  (options (getopt-long args optionspec))
+	  (msg (string-append
+		 "usage: contacts-export [--help] [--muhome=<muhome>] "
+		 "--format=<org-contact|mutt-alias|mutt-ab|wanderlust|plain(*)> "
+		 "--sort-by=<frequency(*)|newness> [--revert] [--limit=<n>]\n"))
+	  (help (option-ref options 'help #f))
+	  (muhome (option-ref options 'muhome #f))
+	  (sort-by (or (option-ref options 'sort-by #f) "frequency"))
+	  (revert (option-ref options 'revert #f))
+	  (form  (or (option-ref options 'format #f) "plain"))
+	  (limit (string->number (option-ref options 'limit "1000000"))))
+    (if help
+      (begin
+	(display msg)
+	(exit 0))
+     (begin
+       (setlocale LC_ALL "")
+       (mu:initialize muhome)
+       (let* ((sort-func
+		(cond
+		  ((string= sort-by "frequency") sort-by-freq)
+		  ((string= sort-by "newness")  sort-by-newness)
+		  (else (begin (display msg) (exit 1)))))
+	       (contacts '()))
+	 ;; make a list of all contacts
+	 (mu:for-each-contact
+	   (lambda (c) (set! contacts (cons c contacts))))
+	 ;; should we sort it?
+	 (if sort-by
+	   (set! contacts (sort! contacts
+			    (if revert (negate sort-func) sort-func))))
+
+	 ;; should we limit the number?
+	 (if (and limit (< limit (length contacts)))
+	   (set! contacts (take! contacts limit)))
+	 ;; export!
+	 (for-each
+	   (lambda (c)
+	     (format #t "~a\n" (mu:contact->string c form)))
+	   contacts))))))
+
+;; Local Variables:
+;; mode: scheme
+;; End:

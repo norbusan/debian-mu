@@ -1,4 +1,4 @@
-## Copyright (C) 2008-2011 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+## Copyright (C) 2008-2012 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 ##
 ## This program is free software; you can redistribute it and/or modify
 ## it under the terms of the GNU General Public License as published by
@@ -14,13 +14,13 @@
 ## along with this program; if not, write to the Free Software Foundation,
 ## Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
 
-AC_INIT([mu],[0.9.7],[http://code.google.com/p/mu0/issues/list],[mu])
+AC_INIT([mu],[0.9.8.2],[http://code.google.com/p/mu0/issues/list],[mu])
 AC_CONFIG_HEADERS([config.h])
 AC_CONFIG_SRCDIR([src/mu.cc])
 # libtoolize wants to put some stuff in here; if you have an old
 # autotools/libtool setup. you can try to comment this out
 AC_CONFIG_MACRO_DIR([m4])
-AM_INIT_AUTOMAKE([dist-bzip2])
+AM_INIT_AUTOMAKE
 
 # silent build if we have a new enough automake
 m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES([yes])])
@@ -30,8 +30,7 @@ m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES([yes])])
 AM_PROG_LIBTOOL
 #LT_INIT([disable-shared])
 
-AS_IF([test x$prefix = xNONE],[
-   prefix=/usr/local])
+AS_IF([test x$prefix = xNONE],[prefix=/usr/local])
 AC_SUBST(prefix)
 
 AC_PROG_CC
@@ -40,6 +39,8 @@ AC_PROG_CC_STDC
 AC_PROG_INSTALL
 AC_PROG_CXX
 AC_HEADER_STDC
+
+AC_CHECK_HEADERS([locale.h langinfo.h])
 
 # use the 64-bit versions
 AC_SYS_LARGEFILE
@@ -84,10 +85,10 @@ AS_IF([test "x$PKG_CONFIG" = "xno"],[
 
 # glib2?
 # we need 2.14 at least, because we use GRegex
-PKG_CHECK_MODULES(GLIB, glib-2.0 >= 2.14)
+PKG_CHECK_MODULES(GLIB, glib-2.0 >= 2.14 gobject-2.0)
 AC_SUBST(GLIB_CFLAGS)
 AC_SUBST(GLIB_LIBS)
-glib_version="`pkg-config --modversion glib-2.0`"
+glib_version="`$PKG_CONFIG --modversion glib-2.0`"
 
 # gtest was introduced in glib 2.16; but we're also using
 # g_test_log_set_fatal_handler, which was introduced in 2.22
@@ -97,59 +98,64 @@ AS_IF([test "x$have_gtest" = "xno"],[
      AC_MSG_WARN([You need GLIB version >= 2.22 to build the tests])
 ])
 
-# gmime 2.4 or 2.6? mu has only been tested with gmime-2.4, but Fedora
+# gmime 2.4 or 2.6?
+# mu has only been tested with gmime-2.4, but Fedora
 # 14 ships with gmime 2.5.x, which registers itself (pkgconfig) as 2.6
 # it is reported mu works fine with this new gmime as well, so we support
 # both; based on patch by GooseYArd
-PKG_CHECK_MODULES(GMIME,gmime-2.4,[have_gmime_24=yes],[have_gmime_24=no])
-AS_IF([test "x$have_gmime_24" = "xno"],[
-   PKG_CHECK_MODULES(GMIME,gmime-2.6,[have_gmime_26=yes],[have_gmime_26=no])
-   AS_IF([test "x$have_gmime_26" = "xno"],[
+PKG_CHECK_MODULES(GMIME,gmime-2.6,[have_gmime_26=yes],[have_gmime_26=no])
+AS_IF([test "x$have_gmime_26" = "xno"],[
+   PKG_CHECK_MODULES(GMIME,gmime-2.4,[have_gmime_24=yes],[have_gmime_24=no])
+   AS_IF([test "x$have_gmime_24" = "xno"],[
       AC_MSG_ERROR([
-      *** neither gmime-2.4 nor gmime-2.6 could not be found; please install it
+      *** neither gmime-2.4 nor gmime-2.6 could be found; please install it
       *** e.g., in debian/ubuntu the package would be 'libgmime-2.4-dev'
       *** If you compiled it yourself, you should ensure that the pkgconfig
       *** installation dir (e.g., /usr/local/lib/pkgconfig) is in your
       *** PKG_CONFIG_PATH.
       ])],[
-         gmime_version="`pkg-config --modversion gmime-2.6`"
+         gmime_version="`$PKG_CONFIG --modversion gmime-2.4`"
     ])],[
-      gmime_version="`pkg-config --modversion gmime-2.4`"
+      gmime_version="`$PKG_CONFIG --modversion gmime-2.6`"
    ])
 AC_SUBST(GMIME_CFLAGS)
 AC_SUBST(GMIME_LIBS)
 
 
-# xapian?
-AC_CHECK_PROG(XAPIAN,xapian-config,xapian-config,no)
-AM_CONDITIONAL(HAVE_XAPIAN,test "x$XAPIAN" != "xno")
-AS_IF([test "x$XAPIAN" = "xno"],[
+# xapian checking - we need 1.2.x at least
+AC_CHECK_PROG(XAPIAN_CONFIG,xapian-config,xapian-config,no)
+AM_CONDITIONAL(HAVE_XAPIAN,test "x$XAPIAN_CONFIG" != "xno")
+AS_IF([test "x$XAPIAN_CONFIG" = "xno"],[
    AC_MSG_ERROR([
    *** xapian could not be found; please install it
    *** e.g., in debian/ubuntu the package would be 'libxapian-dev'
    *** If you compiled it yourself, you should ensure that xapian-config
-   *** is in your PATH.
-   ])
-],[
-   XAPIAN_CXXFLAGS=`$XAPIAN --cxxflags`
-   XAPIAN_LIBS=`$XAPIAN --libs`
-   have_xapian="yes"
-   xapian_version="`xapian-config --version`"
-])
+   *** is in your PATH.])],
+   [xapian_version=$($XAPIAN_CONFIG --version | sed -e 's/.* //')])
+AS_CASE([$xapian_version],
+	[1.[[2-9]].[[0-9]]], [],
+	[AC_MSG_ERROR([*** xapian version >= 1.2 needed, but version $xapian_version found.])])
+
+XAPIAN_CXXFLAGS="`$XAPIAN_CONFIG --cxxflags`"
+XAPIAN_LIBS="`$XAPIAN_CONFIG --libs`"
+have_xapian="yes"
+
 AC_SUBST(XAPIAN_CXXFLAGS)
 AC_SUBST(XAPIAN_LIBS)
 
-# we set the set the version of the Xapian database layout here; it
-# will become part of the db name, so we can automatically recreate the
-# database when we incompatible have changes.
+###############################################################################
+# we set the set the version of the MuStore (Xapian database) layout
+# here; it will become part of the db name, so we can automatically
+# recreate the database when we incompatible have changes.
 #
-# note that MU_XAPIAN_DB_VERSION does not necessarily follow MU
+# note that MU_STORE_SCHEMA_VERSION does not necessarily follow MU
 # versioning, as we hopefully don't have updates for each version;
 # also, this has nothing to do with Xapian's software version
-AC_DEFINE(MU_XAPIAN_DB_VERSION,["9.7"], ['Schema' version of the database])
+AC_DEFINE(MU_STORE_SCHEMA_VERSION,["9.8"], ['Schema' version of the database])
+###############################################################################
 
 
-#
+###############################################################################
 # we need gtk (2 or 3) for some of the graphical tools
 #
 AC_ARG_WITH([gui],
@@ -166,7 +172,7 @@ AS_IF([test "x$gui" = "xgtk3"],[
   PKG_CHECK_MODULES(GTK,gtk+-3.0,[have_gtk3=yes],[have_gtk3=no])
   AC_SUBST(GTK_CFLAGS)
   AC_SUBST(GTK_LIBS)
-  gtk_version="`pkg-config --modversion gtk+-3.0`"
+  gtk_version="`$PKG_CONFIG --modversion gtk+-3.0`"
 ])
 AS_IF([test "x$gui"="gtk3" -a "x$have_gtk3" = "xno"],
    AC_MSG_ERROR([GTK+ 3.x not found]))
@@ -177,7 +183,7 @@ AS_IF([test "x$gui" != "xnone" -a "x$have_gtk3" != "xyes"],[
   PKG_CHECK_MODULES(GTK,gtk+-2.0,[have_gtk2=yes],[have_gtk2=no])
   AC_SUBST(GTK_CFLAGS)
   AC_SUBST(GTK_LIBS)
-  gtk_version="`pkg-config --modversion gtk+-2.0`"
+  gtk_version="`$PKG_CONFIG --modversion gtk+-2.0`"
 ])
 # only an error if we explicitly asked for it
 AS_IF([test "x$have_gtk2" = "xno" -a "x$gui" != "xauto"],
@@ -191,7 +197,7 @@ AS_IF([test "x$have_gtk2" = "xyes" -o "x$have_gtk3" = "xyes"],[buildgui=yes],
 AS_IF([test "x$buildgui" = "xyes"],[
   PKG_CHECK_MODULES(WEBKIT,webkit-1.0 >= 1.0.3,[have_webkit=yes],[have_webkit=no])
   AS_IF([test "x$have_webkit" = "xyes"],[
-	    webkit_version="`pkg-config --modversion webkit-1.0`"])
+	    webkit_version="`$PKG_CONFIG --modversion webkit-1.0`"])
   AC_SUBST(WEBKIT_CFLAGS)
   AC_SUBST(WEBKIT_LIBS)
 ])
@@ -201,7 +207,7 @@ AM_CONDITIONAL(HAVE_WEBKIT, [test "x$have_webkit" = "xyes"])
 AS_IF([test "x$buildgui"="xyes"],[
 PKG_CHECK_MODULES(GIO,gio-2.0,[have_gio=yes],[have_gio=no])
 AS_IF([test "x$have_gio" = "xyes"],[
-	    gio_version="`pkg-config --modversion gio-2.0`"])
+	    gio_version="`$PKG_CONFIG --modversion gio-2.0`"])
 AC_SUBST(GIO_CFLAGS)
 AC_SUBST(GIO_LIBS)
 ])
@@ -209,48 +215,45 @@ AM_CONDITIONAL(HAVE_GIO, [test "x$have_gio" = "xyes"])
 
 # should we build the widgets/ dir?
 AM_CONDITIONAL(BUILD_WIDGETS, [test "x$have_webkit" = "xyes" -a "x$have_gio" = "xyes"])
+###############################################################################
+
+
+
 
 
 ###############################################################################
-# check for guile & guile-snarf
-AC_PATH_PROG(GUILE_CONFIG, [guile-config], [], [$PATH])
-AS_IF([test "x$GUILE_CONFIG" != "x"],
-  [GUILE_CFLAGS=`$GUILE_CONFIG compile`; GUILE_LIBS=`$GUILE_CONFIG link`])
-AC_SUBST(GUILE_LIBS)
+# check for guile 2.0 & guile-snarf
+PKG_CHECK_MODULES(GUILE,guile-2.0,[have_guile=yes],[have_guile=no])
 AC_SUBST(GUILE_CFLAGS)
+AC_SUBST(GUILE_LIBS)
 
-AC_PATH_PROG(GUILE_SNARF, [guile-snarf], [], [$PATH])
-AS_IF([test "x$GUILE_SNARF" != "x"],[
-    AC_DEFINE_UNQUOTED([GUILE_SNARF], ["$GUILE_SNARF"],[Path to guile-snarf])],[
-    AC_MSG_WARN([cannot find guile-snarf])])
+AS_IF([test "x$have_guile" = "xyes"],[
+  AC_PATH_PROG(GUILE_SNARF, [guile-snarf], [], [$PATH])
+  AS_IF([test "x$GUILE_SNARF" != "x"],
+    [AC_DEFINE_UNQUOTED([GUILE_SNARF], ["$GUILE_SNARF"],[Path to guile-snarf])
+    GUILE_SITEDIR="`${PKG_CONFIG} guile-2.0 --variable=sitedir`"],
+    [AC_MSG_WARN([cannot find guile-snarf])])])
 
-AS_IF([test "x$GUILE_CONFIG" != "x"],
- [GUILE_VERSION="`$GUILE_CONFIG --version 2>&1 | sed 's/.*version //'`";
-  GUILE_MAJOR_VERSION="`echo "$GUILE_VERSION" | sed 's/\..*//'`"])
+AC_SUBST(GUILE_SITEDIR)
 
-AS_IF([test "x$GUILE_MAJOR_VERSION" = "x0" -o "x$GUILE_MAJOR_VERSION" = "x1"],
-    [AC_DEFINE_UNQUOTED([HAVE_PRE2_GUILE],[1],[have pre-2.x guile])])
+AS_IF([test "x$have_guile" = "xyes" -a "x$GUILE_SNARF" != "x"],
+  [guile_version="`${PKG_CONFIG} --modversion guile-2.0`"
+  AC_DEFINE_UNQUOTED([HAVE_GUILE],1,[Whether we have guile 2.0])])
 
-# for now, we require guile 2.x
-AM_CONDITIONAL(HAVE_GUILE,[test "$xGUILE_CONFIG" != "x" \
-                           -a "x$GUILE_SNARF" != "x" \
-			   -a "x$GUILE_MAJOR_VERSION" != "0"])
-
-AS_IF([test "x$GUILE_MAJOR_VERSION" = "x0" -o "x$GUILE_MAJOR_VERSION" = "x1"],
-      [AC_MSG_WARN([Only guile >= 2.x is supported]);
-       guile_too_old="yes"])
+AM_CONDITIONAL(HAVE_GUILE, [test "x$have_guile" = "xyes"])
 ###############################################################################
 
 
 
-# check for xdg-open
-AS_IF([test "x$buildgui"="xyes"],[
-  AC_PATH_PROG(XDGOPEN, [xdg-open], [], [$PATH])
-  AS_IF([test "x$XDGOPEN" != "x"],[
-    AC_DEFINE_UNQUOTED([XDGOPEN], ["$XDGOPEN"],[Path to xdg-open])],[
-    AC_MSG_WARN([xdg-open not found, mu cannot open attachments])])
-])
+###############################################################################
+# check for makeinfo
+AC_CHECK_PROG(have_makeinfo,makeinfo,yes,no)
+AM_CONDITIONAL(HAVE_MAKEINFO, [test "x$have_makeinfo" = "xyes"])
+###############################################################################
 
+
+
+###############################################################################
 # check for pmccabe
 AC_PATH_PROG([PMCCABE],[pmccabe],[pmccabe],[no])
 AS_IF([test "x$PMCCABE" = "xno"],[
@@ -259,19 +262,22 @@ AS_IF([test "x$PMCCABE" = "xno"],[
    *** Developers: you do not seem to have the pmccabe tool installed.
    *** Please install it if you want to run the automated code checks])
 ],[have_pmccabe="yes"])
+###############################################################################
 
-#toys/procmule/Makefile
+
 
 AC_CONFIG_FILES([
 Makefile
 src/Makefile
 src/tests/Makefile
 widgets/Makefile
-libmuguile/Makefile
+emacs/Makefile
+guile/Makefile
+guile/mu/Makefile
+guile/examples/Makefile
 toys/Makefile
 toys/mug/Makefile
 toys/mug2/Makefile
-toys/muile/Makefile
 man/Makefile
 m4/Makefile
 contrib/Makefile
@@ -305,15 +311,14 @@ if test "x$have_webkit" = "xyes"; then
 echo "Webkit version                       : $webkit_version"
 fi
 
-if test "x$GUILE_CONFIG" != "x"; then
-echo "Guile version                        : $GUILE_VERSION"
+if test "x$have_guile" = "xyes"; then
+echo "Guile version                        : $guile_version"
 fi
 
 echo
 echo "Build unit tests (glib >= 2.22)      : $have_gtest"
 echo "Build 'mug' toy-ui (requires GTK+)   : $buildgui"
 echo "McCabe's Cyclomatic Complexity tool  : $have_pmccabe"
-echo "xdg-open                             : $XDGOPEN"
 echo
 
 echo "Have direntry->d_ino                 : $use_dirent_d_ino"
@@ -340,4 +345,3 @@ fi
 echo
 echo "type 'make' to build mu, or 'make check' to run the unit tests."
 echo "use 'make V=1' to show the detailed output during the build"
-

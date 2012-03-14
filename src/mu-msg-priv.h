@@ -32,13 +32,17 @@
 
 G_BEGIN_DECLS
 
-
 struct _MuMsgFile {
 	GMimeMessage	*_mime_msg;
 	time_t		 _timestamp;
 	size_t		 _size;
 	char		 _path    [PATH_MAX + 1];
 	char		 _maildir [PATH_MAX + 1];
+
+	/* list where we push allocated strings so we can
+	 * free them when the struct gets destroyed
+	 */
+	GSList          *_free_later;
 };
 
 
@@ -51,9 +55,32 @@ struct _MuMsg {
 	/* our two backend */
 	MuMsgFile	*_file; /* based on GMime, ie. a file on disc */
 	MuMsgDoc        *_doc;  /* based on Xapian::Document */
-	
+
 	MuMsgCache      *_cache;
 };
+
+
+/**
+ * convert a GMimePart to a string
+ *
+ * @param part a GMimePart
+ * @param err will receive TRUE if there was an error, FALSE otherwise
+ *
+ * @return utf8 string for this MIME part, to be freed by caller
+ */
+gchar* mu_msg_mime_part_to_string (GMimePart *part, gboolean *err);
+
+
+/**
+ * get the MIME part that's probably the body of the message (heuristic)
+ *
+ * @param self a MuMsg
+ * @param want_html whether it should be a html type of body
+ *
+ * @return the MIME part, or NULL in case of error.
+ */
+GMimePart* mu_msg_mime_get_body_part (GMimeMessage *msg, gboolean want_html);
+
 
 G_END_DECLS
 

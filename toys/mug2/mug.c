@@ -25,6 +25,7 @@
 #include <string.h>		/* for memset */
 
 #include <mu-util.h>
+#include <mu-store.h>
 #include <mu-runtime.h>
 #include <mu-index.h>
 
@@ -44,48 +45,6 @@ struct _MugData {
 	gchar *muhome;
 };
 typedef struct _MugData MugData;
-
-MuResult
-each_msg (MuIndexStats* stats, MugData *data)
-{
-	static int i  = 0;
-
-	if (++i % 100 == 0)
-		gtk_main_iteration ();
-	
-	return MU_OK;
-}
-	
-static void
-reindex (MugData *mugdata)
-{
-	MuIndex *midx;
-	GError *err;
-
-	if (mu_util_xapian_is_locked
-	    (mu_runtime_path(MU_RUNTIME_PATH_XAPIANDB)))
-		return;
-	
-	err = NULL;
-	midx = mu_index_new (mu_runtime_path(MU_RUNTIME_PATH_XAPIANDB),
-			     mu_runtime_path(MU_RUNTIME_PATH_CONTACTS),
-			     &err);
-	if (!midx) {
-		if (err && err->code == MU_ERROR_XAPIAN_CANNOT_GET_WRITELOCK) {
-			g_warning ("database busy...");
-			return; /* db already busy.. */
-		}
-		g_warning ("failed to get index: %s", err ? err->message : "<none>");
-		g_error_free (err);
-		return;
-	}
-
-	mu_index_run (midx,
-		      mu_index_last_used_maildir(midx),
-		      FALSE, NULL, (MuIndexMsgCallback)each_msg, NULL, mugdata);
-
-	mu_index_destroy (midx);
-}
 
 
 static void
@@ -133,9 +92,6 @@ on_tool_button_clicked (GtkToolButton * btn, MugData * mugdata)
 		mug_msg_list_view_move_prev (MUG_MSG_LIST_VIEW
 					     (mugdata->mlist));
 		break;
-	case ACTION_REINDEX:
-		reindex (mugdata);
-		break;
 	case ACTION_ABOUT:
 		about_mug (mugdata);
 		break;
@@ -149,7 +105,7 @@ get_connected_tool_button (const char* stock_id, ToolAction action,
 			   MugData *mugdata)
 {
 	GtkToolItem *btn;
-	
+
 	btn = gtk_tool_button_new_from_stock (stock_id);
 	g_object_set_data (G_OBJECT (btn), "action",
 			   GUINT_TO_POINTER (action));
@@ -189,7 +145,7 @@ mug_toolbar (MugData * mugdata)
 					    (tools[i].stock_id, tools[i].action,
 					     mugdata), i);
 	}
-	
+
 	return toolbar;
 }
 
@@ -391,7 +347,7 @@ mug_shell (MugData * mugdata)
 		gtk_window_set_icon_from_file (GTK_WINDOW (mugdata->win), icon, NULL);
 		g_free (icon);
 	}
-	
+
 	return mugdata->win;
 }
 

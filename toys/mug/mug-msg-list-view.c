@@ -124,15 +124,15 @@ static void
 treecell_func (GtkTreeViewColumn * tree_column, GtkCellRenderer * renderer,
 	       GtkTreeModel * tree_model, GtkTreeIter * iter, gpointer data)
 {
-	MuMsgFlags flags;
+	MuFlags flags;
 	MuMsgPrio prio;
 
 	gtk_tree_model_get (tree_model, iter,
 			    MUG_COL_FLAGS, &flags, MUG_COL_PRIO, &prio, -1);
 
 	g_object_set (G_OBJECT (renderer),
-		      "weight", (flags & MU_MSG_FLAG_NEW) ? 800 : 400,
-		      "weight", (flags & MU_MSG_FLAG_SEEN) ? 400 : 800,
+		      "weight", (flags & MU_FLAG_NEW) ? 800 : 400,
+		      "weight", (flags & MU_FLAG_SEEN) ? 400 : 800,
 		      "foreground", prio == MU_MSG_PRIO_HIGH ? "red" : NULL,
 		      NULL);
 }
@@ -306,11 +306,11 @@ static MugError
 mu_result_to_mug_error (MuError r)
 {
 	switch (r) {
-	case MU_ERROR_XAPIAN_DIR:
+	case MU_ERROR_XAPIAN_DIR_NOT_ACCESSIBLE:
 		return MUG_ERROR_XAPIAN_DIR;
-	case MU_ERROR_XAPIAN_NOT_UPTODATE:
+	case MU_ERROR_XAPIAN_NOT_UP_TO_DATE:
 		return MUG_ERROR_XAPIAN_NOT_UPTODATE;
-	case MU_ERROR_QUERY:
+	case MU_ERROR_XAPIAN_QUERY:
 		return MUG_ERROR_QUERY;
 	default:
 		return MUG_ERROR_OTHER;
@@ -323,10 +323,14 @@ run_query (const char *xpath, const char *query, MugMsgListView * self)
 	GError *err;
 	MuQuery *xapian;
 	MuMsgIter *iter;
+	MuStore *store;
 
 	err = NULL;
-	xapian = mu_query_new (xpath, &err);
-	if (!xapian) {
+
+	if (! (store = mu_store_new_read_only (xpath, &err)) ||
+	    ! (xapian = mu_query_new (store, &err))) {
+		if (store)
+			mu_store_unref (store);
 		g_warning ("Error: %s", err->message);
 		g_signal_emit (G_OBJECT (self),
 			       signals[MUG_ERROR_OCCURED], 0,
@@ -334,9 +338,10 @@ run_query (const char *xpath, const char *query, MugMsgListView * self)
 		g_error_free (err);
 		return NULL;
 	}
+	mu_store_unref (store);
 
 	iter = mu_query_run (xapian, query, FALSE, MU_MSG_FIELD_ID_DATE,
-			     TRUE, &err);
+			     TRUE, -1, &err);
 	mu_query_destroy (xapian);
 	if (!iter) {
 		g_warning ("Error: %s", err->message);
@@ -362,7 +367,7 @@ add_row (GtkListStore * store, MuMsg *msg)
 	datestr = timeval == 0 ? "-" : mu_date_display_s (timeval);
 	from = empty_or_display_contact (mu_msg_get_from (msg));
 	to = empty_or_display_contact (mu_msg_get_to (msg));
-	flagstr = mu_msg_flags_str_s (mu_msg_get_flags (msg));
+	flagstr = mu_flags_to_str_s (mu_msg_get_flags (msg), MU_FLAG_TYPE_ANY);
 
 	gtk_list_store_append (store, &treeiter);
 	gtk_list_store_set (store, &treeiter,
@@ -394,11 +399,8 @@ update_model (GtkListStore * store, const char *xpath, const char *query,
 	}
 
 	for (count = 0; !mu_msg_iter_is_done (iter);
-	     mu_msg_iter_next (iter), ++count) {
-		MuMsg *msg;
-		msg = mu_msg_iter_get_msg (iter, NULL); /* don't unref */
-		add_row (store, msg);
-	}
+	     mu_msg_iter_next (iter), ++count)
+		add_row (store, mu_msg_iter_get_msg_floating(iter)); /* don't unref */
 
 	mu_msg_iter_destroy (iter);
 

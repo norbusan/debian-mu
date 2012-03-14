@@ -25,85 +25,140 @@
 
 #include <glib.h>
 #include <mu-config.h>
+#include <mu-store.h>
 
 G_BEGIN_DECLS
 
 /**
  * execute the 'mkdir' command
- * 
+ *
  * @param opts configuration options
- * 
- * @return MU_EXITCODE_OK (0) if the command succeeded,
- * MU_EXITCODE_ERROR otherwise
+ * @param err receives error information, or NULL
+ *
+ * @return MU_OK (0) if the command succeeded,
+ * some error code otherwise
  */
-MuExitCode mu_cmd_mkdir (MuConfig *opts);
+MuError mu_cmd_mkdir (MuConfig *opts, GError **err);
 
 
 /**
  * execute the 'view' command
- * 
+ *
  * @param opts configuration options
- * 
- * @return MU_EXITCODE_OK (0) if the command succeeded,
- * MU_EXITCODE_ERROR otherwise
+ * @param err receives error information, or NULL
+ *
+ * @return MU_OK (0) if the command succeeded,
+ * some error code otherwise
  */
-MuExitCode mu_cmd_view (MuConfig *opts);
+MuError mu_cmd_view (MuConfig *opts, GError **err);
 
 
 /**
  * execute the 'index' command
- * 
+ *
+ * @param store store object to use
  * @param opts configuration options
- * 
- * @return MU_EXITCODE_OK (0) if the command succeeded,
- * MU_EXITCODE_ERROR otherwise
+ * @param err receives error information, or NULL
+ *
+ * @return MU_OK (0) if the command succeeded,
+ * some error code otherwise
  */
-MuExitCode mu_cmd_index   (MuConfig *opts);
+MuError mu_cmd_index   (MuStore *store, MuConfig *opt, GError **err);
 
-
-/**
- * execute the 'cleanup' command
- * 
- * @param opts configuration options
- * 
- * @return MU_EXITCODE_OK (0) if the command succeeds,
- * MU_EXITCODE_ERROR otherwise
- */
-MuExitCode mu_cmd_cleanup (MuConfig *opts);
 
 /**
  * execute the 'find' command
- * 
+ *
+ * @param store store object to use
  * @param opts configuration options
- * 
- * @return MU_EXITCODE_OK (0) if the command succeeds and
- * >MU_EXITCODE_OK (0) results, MU_EXITCODE_NO_MATCHES if the command
- * succeeds but there no matches, MU_EXITCODE_ERROR for all other errors
+ * @param err receives error information, or NULL
+ *
+ * @return MU_OK (0) if the command succeeds and
+ * >MU_OK (0) results, MU_EXITCODE_NO_MATCHES if the command
+ * succeeds but there no matches, some error code for all other errors
  */
-MuExitCode mu_cmd_find (MuConfig *opts);
+MuError mu_cmd_find (MuStore *store, MuConfig *opts, GError **err);
 
 
 /**
  * execute the 'extract' command
- * 
+ *
  * @param opts configuration options
- * 
- * @return MU_EXITCODE_OK (0) if the command succeeds,
- * MU_EXITCODE_ERROR otherwise
+ * @param err receives error information, or NULL
+ *
+ * @return MU_OK (0) if the command succeeds,
+ * some error code otherwise
  */
-MuExitCode mu_cmd_extract (MuConfig *opts);
+MuError mu_cmd_extract (MuConfig *opts, GError **err);
 
 
 /**
- * execute the cfind command
- * 
+ * execute the 'mv' command
+ *
  * @param opts configuration options
- * 
- * @return MU_EXITCODE_OK (0) if the command succeeds,
- * MU_EXITCODE_ERROR otherwise
+ * @param err receives error information, or NULL
+ *
+ * @return MU_OK (0) if the command succeeds,
+ * some error code otherwise
  */
-MuExitCode mu_cmd_cfind (MuConfig *opts);
+MuError mu_cmd_mv (MuConfig *opts, GError **err);
 
+/**
+ * execute the cfind command
+ *
+ * @param opts configuration options
+ * @param err receives error information, or NULL
+ *
+ * @return MU_OK (0) if the command succeeds,
+ * some error code otherwise
+ */
+MuError mu_cmd_cfind (MuConfig *opts, GError **err);
+
+
+/**
+ * execute the add command
+ *
+ * @param store store object to use
+ * @param opts configuration options
+ * @param err receives error information, or NULL
+ *
+ * @return MU_OK (0) if the command succeeds,
+ * some error code otherwise
+ */
+MuError mu_cmd_add (MuStore *store, MuConfig *opts, GError **err);
+
+/**
+ * execute the remove command
+ *
+ * @param store store object to use
+ * @param opts configuration options
+ * @param err receives error information, or NULL
+ *
+ * @return MU_OK (0) if the command succeeds,
+ * some error code otherwise
+ */
+MuError mu_cmd_remove (MuStore *store, MuConfig *opts, GError **err);
+
+
+/**
+ * execute the server command
+ * @param store store object to use
+ * @param opts configuration options
+  *
+ * @return MU_OK (0) if the command succeeds,
+ * some error code otherwise
+ */
+MuError mu_cmd_server (MuStore *store, MuConfig *opts,GError**/*unused*/);
+
+/**
+ * execute some mu command, based on 'opts'
+ *
+ * @param opts configuration option
+ * @param err receives error information, or NULL
+ *
+ * @return MU_OK if all went wall, some error code otherwise
+ */
+MuError mu_cmd_execute (MuConfig *opts, GError **err);
 
 G_END_DECLS
 
