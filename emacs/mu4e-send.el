@@ -1,11 +1,9 @@
-;; mu4e-send.el -- part of mm, the mu mail user agent
+;; mu4e-send.el -- part of mu4e, the mu mail user agent for emacs
 ;;
-;; Copyright (C) 2011 Dirk-Jan C. Binnema
+;; Copyright (C) 2011-2012 Dirk-Jan C. Binnema
 
 ;; Author: Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 ;; Maintainer: Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
-;; Keywords: email
-;; Version: 0.0
 
 ;; This file is not part of GNU Emacs.
 ;;
@@ -27,8 +25,6 @@
 ;; In this file, various functions to compose/send messages, piggybacking on
 ;; gnus' message mode
 
-;; mm
-
 ;;; Code:
 
 (eval-when-compile (require 'cl))
@@ -46,8 +42,8 @@
 
 (defun mu4e-send-user-agent ()
   "Return the User-Agent string for mu4e. This is either the value
-of `mu4e-user-agent', or, if not set, a string based on the version
-of mm and emacs."
+of `mu4e-user-agent', or, if not set, a string based on the versions
+of mu4e and emacs."
   (or mu4e-user-agent
     (format "mu4e %s; emacs %s" mu4e-mu-version emacs-version)))
 
@@ -68,7 +64,8 @@ of mm and emacs."
 	    (or (caar from) (cdar from) "someone")
 	    "someone"))
 	"\n\n"
-	(replace-regexp-in-string "^" " > " body)))))
+	(replace-regexp-in-string "^"
+	  mu4e-send-citation-prefix body)))))
 
 (defun mu4e-send-recipients-remove (lst email-to-remove)
   "Remove the recipient with EMAIL from the recipient list (of form
@@ -146,6 +143,37 @@ nil, function returns nil."
       (format "%s <%s>" user-full-name user-mail-address)
       (format "%s" user-mail-address))))
 
+
+
+(defun mu4e-insert-mail-header-separator ()
+  "Insert `mail-header-separator' in the first empty line of the
+message. message-mode needs this line to know where the headers end
+and the body starts. Note, in `mu4e-edit-mode, we use
+`before-save-hook' and `after-save-hook' to ensure that this
+separator is never written to file. Also see
+`mu4e-remove-mail-header-separator'."
+  (save-excursion
+    (goto-char (point-min))
+      ;; search for the first empty line
+    (if (search-forward-regexp (concat "^$"))
+      (replace-match
+	(propertize mail-header-separator 'read-only t 'intangible t))
+      ;; no empty line? then append one
+      ((progn )
+	(goto-char (point-max))
+	(insert (concat "\n" mail-header-separator "\n"))))))
+
+(defun mu4e-remove-mail-header-separator ()
+  "Remove `mail-header-separator; we do this before saving a
+file (and restore it afterwardds), to ensure that the separator
+never hits the disk. Also see `mu4e-insert-mail-header-separator."
+  (save-excursion
+    (goto-char (point-min))
+    ;; remove the --text follows this line-- separator
+    (when (search-forward-regexp (concat "^" mail-header-separator))
+      (replace-match ""))))
+
+
 (defun mu4e-send-create-reply (msg)
   "Create a draft message as a reply to MSG.
 
@@ -160,9 +188,6 @@ A reply message has fields:
   References:  - see `mu4e-send-references-create'
   In-Reply-To: - message-id of MSG
   User-Agent   - see  `mu4e-send-user-agent'
-
-Then follows `mail-header-separator' (for `message-mode' to separate
-body from headers)
 
 And finally, the cited body of MSG, as per `mu4e-send-cite-original'."
   (let* ((recipnum (+ (length (plist-get msg :to))
@@ -190,11 +215,8 @@ And finally, the cited body of MSG, as per `mu4e-send-cite-original'."
 	(concat
 	  ;; if there's no Re: yet, prepend it
 	  (if (string-match (concat "^" mu4e-send-reply-prefix) subject)
-	    "" mu4e-send-reply-prefix) 
+	    "" mu4e-send-reply-prefix)
 	  subject))
-
-      (propertize mail-header-separator 'read-only t 'intangible t) '"\n"
-
       "\n\n"
       (mu4e-send-cite-original msg))))
 
@@ -211,16 +233,13 @@ then, the following fields, normally hidden from user:
   References:  - see `mu4e-send-references-create'
   User-Agent   - see  `mu4e-send-user-agent'
 
-Then follows `mail-header-separator' (for `message-mode' to separate
-body from headers)
-
 And finally, the cited body of MSG, as per `mu4e-send-cite-original'."
   (let ((subject (or (plist-get msg :subject) "")))
     (concat
       (mu4e-send-header "From" (or (mu4e-send-from-create) ""))
       (when (boundp 'mail-reply-to)
 	(mu4e-send-header "Reply-To" mail-reply-to))
-      
+
       (mu4e-send-header "To" "")
       (mu4e-send-header "User-agent"  (mu4e-send-user-agent))
       (mu4e-send-header "References"  (mu4e-send-references-create msg))
@@ -228,11 +247,8 @@ And finally, the cited body of MSG, as per `mu4e-send-cite-original'."
 	(concat
 	  ;; if there's no Re: yet, prepend it
 	  (if (string-match (concat "^" mu4e-send-forward-prefix) subject)
-	    "" mu4e-send-forward-prefix) 
+	    "" mu4e-send-forward-prefix)
 	  subject))
-
-      (propertize mail-header-separator 'read-only t 'intangible t) "\n"
-
       "\n\n"
       (mu4e-send-cite-original msg))))
 
@@ -246,10 +262,7 @@ A new draft message has fields:
 
 then, the following fields, normally hidden from user:
   Reply-To:    - if `mail-reply-to' has been set
-  User-Agent   - see  `mu4e-send-user-agent'
-
-Then follows `mail-header-separator' (for `message-mode' to separate
-body from headers)."
+  User-Agent   - see  `mu4e-send-user-agent'."
   (concat
     (mu4e-send-header "From" (or (mu4e-send-from-create) ""))
     (when (boundp 'mail-reply-to)
@@ -257,7 +270,7 @@ body from headers)."
     (mu4e-send-header "To" "")
     (mu4e-send-header "User-agent"  (mu4e-send-user-agent))
     (mu4e-send-header "Subject" "")
-    (propertize mail-header-separator 'read-only t 'intangible t) "\n"))
+     "\n"))
 
 (defun mu4e-send-open-draft (compose-type &optional msg)
   "Open a draft file for a new message, creating it if it does not
@@ -272,7 +285,9 @@ use the new docid. Returns the full path to the new message."
 		 (string-match "^[^.]+" system-name) (match-end 0)))))
 	  (draft
 	    (concat mu4e-maildir mu4e-drafts-folder "/cur/"
-	      (format "%s-%x%x.%s:2,D" ;; 'D': rarely used, but hey, it's available
+	      ;; 'D': rarely used, but hey, it's available
+	      ;; 'S': because we're looking at the draft as we speak
+	      (format "%s-%x%x.%s:2,DS"
 		(format-time-string "%Y%m%d" (current-time))
 		(emacs-pid) (random t) hostname)))
 	  (str (case compose-type
@@ -281,18 +296,84 @@ use the new docid. Returns the full path to the new message."
 		 (new     (mu4e-send-create-new))
 		 (t (error "unsupported compose-type %S" compose-type)))))
     (when str
-      (with-temp-file draft
-	(insert str)
-	(write-file draft)))
+      (with-current-buffer (find-file-noselect draft)
+	(insert str)))
+    draft)) ;; return the draft buffer file
 
-    ;; save our file immediately, add add it to the db; thus, we can retrieve
-    ;; the new docid from `mu4e-path-docid-map'.
-    (mu4e-proc-add draft mu4e-drafts-folder)
-    draft))
+
+(define-derived-mode mu4e-edit-mode message-mode "mu4e:edit"
+  "Major mode for the mu4e main screen.
+\\{message-mode-map}."
+  (let ((message-hidden-headers
+	  `("^References:" "^Face:" "^X-Face:" "^X-Draft-From:"
+	     "^User-agent:")))
+    (use-local-map mu4e-edit-mode-map)
+
+    (message-hide-headers)
+
+    (make-local-variable 'before-save-hook)
+    (make-local-variable 'after-save-hook)
+
+    (make-local-variable 'message-default-charset)
+
+    ;; if the default charset is not set, use UTF-8
+    (unless message-default-charset
+      (setq message-default-charset 'utf-8))
+
+
+    ;; hack-hack-hack... just before saving, we remove the
+    ;; mail-header-separator; just after saving we restore it; thus, the
+    ;; separator should never appear on disk
+    (add-hook 'before-save-hook 'mu4e-remove-mail-header-separator)
+    (add-hook 'after-save-hook
+      (lambda ()
+	(mu4e-set-buffer-name)
+	(mu4e-insert-mail-header-separator)
+	(set-buffer-modified-p nil)))
+
+    ;; update the db when the file is saved...]
+    (add-hook 'after-save-hook
+      (lambda()
+	(mu4e-proc-add (buffer-file-name) mu4e-drafts-folder))))
+
+    ;; notify the backend that a message has been sent. The backend will respond
+    ;; with (:sent ...) sexp, which is handled in `mu4e-send-compose-handler'.
+    (add-hook 'message-sent-hook
+      (lambda ()
+	(set-buffer-modified-p t)
+	(basic-save-buffer)
+	(mu4e-proc-sent (buffer-file-name) mu4e-drafts-folder)))
+
+    ;; register the function; this function will be called when the '(:sent...)'
+    ;; message is received (see mu4e-proc.el) with parameters docid and path
+    (setq mu4e-proc-sent-func 'mu4e-sent-handler)
+
+    ;; set the default directory to the user's home dir; this is probably more
+    ;; useful e.g. when finding an attachment file the directory the current
+    ;; mail files lives in...
+    (setq default-directory (expand-file-name "~/")))
+
+
+(defconst mu4e-send-buffer-max-name-length 20
+  "Maximum length of the mu4e-send-buffer-name.")
+
+(defun mu4e-set-buffer-name (&optional compose-type)
+  "Set some user-friendly buffer name based on the compose type."
+  (let* ((subj (message-field-value "subject"))
+	  (subj (unless (and subj (string-match "^[:blank:]*$" subj)) subj))
+	  (str (or subj
+		 (case compose-type
+		   (reply       "*reply*")
+		   (forward     "*forward*")
+		   (otherwise   "*draft*")))))
+    (rename-buffer (generate-new-buffer-name
+		     (truncate-string-to-width str
+		       mu4e-send-buffer-max-name-length
+		       nil nil t)))))
 
 
 (defun mu4e-send-compose-handler (compose-type &optional original-msg includes)
-  "Create a new draft message, or open an existing one.
+    "Create a new draft message, or open an existing one.
 
 COMPOSE-TYPE determines the kind of message to compose and is a
 symbol, either `reply', `forward', `edit', `new'. `edit' is for
@@ -320,71 +401,81 @@ The message file name is a unique name determined by
 The initial STR would be created from either `mu4e-send-create-reply',
 ar`mu4e-send-create-forward' or `mu4e-send-create-new'. The editing buffer is
 using Gnus' `message-mode'."
-  (unless mu4e-maildir       (error "mu4e-maildir not set"))
-  (unless mu4e-drafts-folder (error "mu4e-drafts-folder not set"))
-  (let ((draft
-	  (if (member compose-type '(reply forward new))
-	    (mu4e-send-open-draft compose-type original-msg)
-	    (if (eq compose-type 'edit)
-	      (plist-get original-msg :path)
-	      (error "unsupported compose-type %S" compose-type)))))
+    (unless mu4e-maildir       (error "mu4e-maildir not set"))
+    (unless mu4e-drafts-folder (error "mu4e-drafts-folder not set"))
+    (let ((draft
+	    (if (member compose-type '(reply forward new))
+	      (mu4e-send-open-draft compose-type original-msg)
+	      (if (eq compose-type 'edit)
+		(plist-get original-msg :path)
+		(error "unsupported compose-type %S" compose-type)))))
 
-    (unless (file-readable-p draft)
-      (error "Cannot read %s" draft))
+      (find-file draft)
+      (mu4e-edit-mode)
 
-    (find-file draft)
-    (message-mode)
+      ;; insert mail-header-separator, which is needed by message mode to separate
+      ;; headers and body. will be removed before saving to disk
+      (mu4e-insert-mail-header-separator)
 
-    ;; include files -- e.g. when forwarding a message with attachments,
-    ;; we take those from the original.
-    (save-excursion
-      (goto-char (point-max)) ;; put attachments at the end
-      (dolist (att includes)
-	(mml-attach-file
-	  (plist-get att :file-name) (plist-get att :mime-type))))
+      ;; include files -- e.g. when forwarding a message with attachments,
+      ;; we take those from the original.
+      (save-excursion
+	(goto-char (point-max)) ;; put attachments at the end
+	(dolist (att includes)
+	  (mml-attach-file
+	    (plist-get att :file-name) (plist-get att :mime-type))))
 
-    (make-local-variable 'write-file-functions)
+      ;; include the message header if it's set; but not when editing an existing
+      ;; message
+      (unless (eq compose-type 'edit)
+	(when message-signature
+	  (message-insert-signature)))
 
-    ;; update the db when the file is saved...]
-    (add-to-list 'write-file-functions
-      (lambda() (mu4e-proc-add (buffer-file-name) mu4e-drafts-folder)))
+      (if (member compose-type '(new forward))
+	(message-goto-to)
+	(message-goto-body))
 
-    ;; hook our functions up with sending of the message
-    (add-hook 'message-sent-hook 'mu4e-send-save-to-sent nil t)
-    (add-hook 'message-sent-hook 'mu4e-send-set-parent-flag nil t)
+      (mu4e-set-buffer-name compose-type)
 
-    (let ((message-hidden-headers
-	    `("^References:" "^Face:" "^X-Face:" "^X-Draft-From:"
-	       "^User-agent:")))
-      (message-hide-headers))
-
-    (if (member compose-type '(new forward))
-      (message-goto-to)
-      (message-goto-body))))
+      ;; buffer is not user-modified yet
+      (set-buffer-modified-p nil)))
 
 
-(defun mu4e-send-save-to-sent ()
-  "Move the message in this buffer to the sent folder. This is
- meant to be called from message mode's `message-sent-hook'."
-  (unless mu4e-sent-folder (error "mu4e-sent-folder not set"))
-  (save-excursion
-    (goto-char (point-min))
-    ;; remove the --text follows this line-- separator
-    (if (search-forward-regexp (concat "^" mail-header-separator "\n"))
-      (replace-match "")
-      (error "cannot find mail-header-separator"))
-    (save-buffer)
-    (let ((docid (gethash (buffer-file-name) mu4e-path-docid-map)))
-      (unless docid (error "unknown message (%S)" (buffer-file-name)))
-      ;; ok, all seems well, well move the message to the sent-folder
-      (mu4e-proc-move-msg docid mu4e-sent-folder "-T-D+S")
-      (message "Message has been sent"))))
+
+(defun mu4e-sent-handler (docid path)
+  "Handler function, called with DOCID and PATH for the just-sent
+message."
+  (with-current-buffer (find-file-noselect path)
+    ;; for Forward ('Passed') and Replied messages, try to set the appropriate
+    ;; flag at the message forwarded or replied-to
+    (mu4e-send-set-parent-flag docid path)
+    ;; handle the draft -- should it be moved to the send folder, or elsewhere?
+    (mu4e-send-save-copy-maybe docid path)
+    ;; now, get rid of the buffer
+    (kill-buffer)))
 
 
+(defun mu4e-send-save-copy-maybe (docid path)
+  "Handler function, called with DOCID and PATH for the just-sent
+message, which will move it to the sent-folder or elsewhere,
+depending on the value of `mu4e-sent-messages-behavior'.
 
-(defun mu4e-send-set-parent-flag ()
-  "Set the 'replied' flag on messages we replied to, and the
-'passed' flag on message we have forwarded.
+Function assumes that it's executed in the context of the message
+buffer."
+  ;; first, what to do with the draft message in PATH?
+  (if (eq mu4e-sent-messages-behavior 'delete)
+    (mu4e-proc-remove-msg docid) ;; remove it
+    ;; otherwise,
+    (progn ;; prepare the message for saving
+      (basic-save-buffer)
+      ;; now either move it to trash or to sent
+      (if (eq mu4e-sent-messages-behavior 'trash)
+	(mu4e-proc-move-msg docid mu4e-trash-folder "+T-D+S")
+	(mu4e-proc-move-msg docid mu4e-sent-folder  "-T-D+S")))))
+
+(defun mu4e-send-set-parent-flag (docid path)
+  "Set the 'replied' \"R\" flag on messages we replied to, and the
+'passed' \"F\" flag on message we have forwarded.
 
 If a message has a 'in-reply-to' header, it is considered a reply
 to the message with the corresponding message id. If it does not
@@ -397,11 +488,12 @@ message or a reply, we instruct the server to update that message
 with resp. the 'P' (passed) flag for a forwarded message, or the
 'R' flag for a replied message.
 
-This is meant to be called from message mode's
-`message-sent-hook'."
+Function assumes that it's executed in the context of the message
+buffer.
+"
   (let ((in-reply-to (message-fetch-field "in-reply-to"))
 	 (forwarded-from)
-	 (references (message-fetch-field "references")))
+  	 (references (message-fetch-field "references")))
     (unless in-reply-to
       (when references
 	(with-temp-buffer ;; inspired by `message-shorten-references'.
@@ -410,7 +502,8 @@ This is meant to be called from message mode's
 	  (let ((refs))
 	    (while (re-search-forward "<[^ <]+@[^ <]+>" nil t)
 	      (push (match-string 0) refs))
-	    (setq forwarded-from (car-safe (last refs)))))))
+	    ;; the last will be the first
+	    (setq forwarded-from (first refs))))))
     ;; remove the <>
     (when (and in-reply-to (string-match "<\\(.*\\)>" in-reply-to))
       (mu4e-proc-flag (match-string 1 in-reply-to) "+R"))

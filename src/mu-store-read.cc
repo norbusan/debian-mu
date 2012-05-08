@@ -78,7 +78,7 @@ mu_store_new_read_only (const char* xpath, GError **err)
 		return new _MuStore (xpath);
 
 	} catch (const MuStoreError& merr) {
-		g_set_error (err, 0, merr.mu_error(), "%s",
+		g_set_error (err, MU_ERROR_DOMAIN, merr.mu_error(), "%s",
 			     merr.what().c_str());
 
 	} MU_XAPIAN_CATCH_BLOCK_G_ERROR(err, MU_ERROR_XAPIAN);
@@ -163,11 +163,7 @@ mu_store_contains_message (MuStore *store, const char* path, GError **err)
 
 	try {
 		const std::string term (store->get_uid_term(path));
-
-		MU_WRITE_LOG ("term exists? '%s': %s", term.c_str(),
-			      store->db_read_only()->term_exists (term) ? "yes" : "no");
-
-		return store->db_read_only()->term_exists (term) ? TRUE: FALSE;
+ 		return store->db_read_only()->term_exists (term) ? TRUE: FALSE;
 
 	} MU_XAPIAN_CATCH_BLOCK_G_ERROR_RETURN(err, MU_ERROR_XAPIAN, FALSE);
 
@@ -264,7 +260,8 @@ mu_store_get_msg (MuStore *self, unsigned docid, GError **err)
 
 	try {
 		Xapian::Document *doc =
-			new Xapian::Document (self->db_read_only()->get_document (docid));
+			new Xapian::Document
+			(self->db_read_only()->get_document (docid));
 		return mu_msg_new_from_doc ((XapianDocument*)doc, err);
 
 	} MU_XAPIAN_CATCH_BLOCK_G_ERROR_RETURN (err, MU_ERROR_XAPIAN, 0);

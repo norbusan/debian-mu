@@ -1,11 +1,65 @@
 * NEWS (user visible changes)
 
-** Release 0.9.8.1 (not yet released)
+** Release 0.9.8.3 <2012-04-06>
+
+   *NOTE*: existing mu/mu4e are recommended to run `mu index --rebuild' after
+   installation.
+
+*** mu4e
+
+    - allow for searching by editing bookmarks
+      (`mu4e-search-bookmark-edit-first') (keybinding 'B')
+    - make it configurable what to do with sent messages (see
+      `mu4e-sent-messages-behavior')
+    - speedbar support (initial patch by Antono V)
+    - better handling of drafts:
+      - don't save too early
+      - more descriptive buffer names (based on Subject, if any)
+      - don't put "--text-follows-this-line--" markers in files
+    - automatically include signatures, if set
+    - add user-settable variables mu4e-view-wrap-lines and mu4e-view-hide-cited,
+      which determine the initial way a message is displayed
+    - improved documentation
+
+*** general
+
+    - much improved searching for GMail folders (i.e. maildir:/ matching);
+      this requires a 'mu index --rebuild'
+    - correctly handle utf-8 messages, even if they don't specify this explicitly
+    - fix compiler warnings for newer/older gcc and clang/clang++
+    - fix unit tests (and some code) for Ubuntu 10.04 and FreeBSD9
+    - fix warnings for compilation with GTK+ 3.2 and recent glib (g_set_error)
+    - fixe mu_msg_move_to_maildir for top-level messages
+    - fixes in maildir scanning
+    - plugs some memleaks
+
+** Release 0.9.8.2 <2012-03-11>
+
+*** mu4e:
+
+   - make mail updating non-blocking
+   - allow for automatic periodic update ('mu4e-update-interval')
+   - allow for external triggering of update
+   - make behavior when leaving the headers buffer customizable, ie.
+     ask/apply/ignore ('mu4e-headers-leave-behaviour')
+
+*** general
+
+    - fix output for some non-UTF8 locales
+    - open ('play') file names with spaces
+    - don't show unnecessary errors for --format=links
+    - make build warning-free for clang/clang++
+    - allow for slightly older autotools
+    - fix unit tests for some hidden assumptions (locale, dir structure etc.)
+    - some documentation updates / clarifications
+
+** Release 0.9.8.1 <2012-02-18 Sat>
 
 *** mu
    - show only leaf/rfc822 MIME-parts
 
 *** mu4e
+
    - allow for shell commands with arguments in `mu4e-get-mail-command'.
    - support marking messages as 'read' and 'unread'
    - show the current query in the the mode-line (`global-mode-string').
@@ -152,6 +206,7 @@
 
 
 ** Release 0.6 <2010-01-23 Sat>
+
     - First new release of mu since 2008
     - No longer depends on sqlite
 

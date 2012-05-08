@@ -55,10 +55,11 @@
  * and return it in the d_type parameter
  */
 #ifdef HAVE_STRUCT_DIRENT_D_TYPE
-#define GET_DTYPE(DE,FP)						\
-	((DE)->d_type == DT_UNKNOWN ? mu_util_get_dtype_with_lstat((FP)) : (DE)->d_type)
+#define GET_DTYPE(DE,FP)						   \
+	((DE)->d_type == DT_UNKNOWN ? mu_util_get_dtype_with_lstat((FP)) : \
+	 (DE)->d_type)
 #else
-#define GET_DTYPE(DE,FP)			\
+#define GET_DTYPE(DE,FP)			                           \
 	mu_util_get_dtype_with_lstat((FP))
 #endif /*HAVE_STRUCT_DIRENT_D_TYPE*/
 
@@ -88,7 +89,7 @@ create_maildir (const char *path, mode_t mode, GError **err)
 		 * there's already such a dir, but with the wrong
 		 * permissions; so we need to check */
 		if (rv != 0 || !mu_util_check_dir(fullpath, TRUE, TRUE)) {
-			g_set_error (err, 0, MU_ERROR_FILE_CANNOT_MKDIR,
+			g_set_error (err, MU_ERROR_DOMAIN, MU_ERROR_FILE_CANNOT_MKDIR,
 				     "creating dir failed for %s: %s",
 				     fullpath,
 				     strerror (errno));
@@ -114,7 +115,7 @@ create_noindex (const char *path, GError **err)
 	/* note, if the 'close' failed, creation may still have
 	 * succeeded...*/
 	if (fd < 0 || close (fd) != 0) {
-		g_set_error (err, 0, MU_ERROR_FILE_CANNOT_CREATE,
+		g_set_error (err, MU_ERROR_DOMAIN, MU_ERROR_FILE_CANNOT_CREATE,
 			     "error in create_noindex: %s",
 			     strerror (errno));
 		return FALSE;
@@ -207,7 +208,7 @@ mu_maildir_link (const char* src, const char *targetpath, GError **err)
 	rv = symlink (src, targetfullpath);
 
 	if (rv != 0) {
-		g_set_error (err, 0, MU_ERROR_FILE_CANNOT_LINK,
+		g_set_error (err, MU_ERROR_DOMAIN, MU_ERROR_FILE_CANNOT_LINK,
 			     "error creating link %s => %s: %s",
 			     targetfullpath, src, strerror (errno));
 		g_free (targetfullpath);
@@ -341,28 +342,47 @@ is_dotdir_to_ignore (const char* dir)
 static gboolean
 ignore_dir_entry (struct dirent *entry, unsigned char d_type)
 {
-	/* if it's not a dir and not a file, ignore it.
-	 * note, this means also symlinks (DT_LNK) are ignored,
-	 * maybe make this optional */
-	if (G_UNLIKELY(d_type != DT_REG && d_type != DT_DIR))
-		return TRUE;
+	if (G_LIKELY(d_type == DT_REG)) {
 
-	/* ignore '.' and '..' dirs, as well as .notmuch and
-	 * .nnmaildir */
+		/* ignore emacs tempfiles */
+		if (entry->d_name[0] == '#')
+			return TRUE;
+		/* ignore dovecot metadata */
+		if (entry->d_name[0] == 'd' &&
+		    strncmp (entry->d_name, "dovecot", 7) == 0)
+			return TRUE;
+		/* ignore core files */
+		if (entry->d_name[0] == 'c' &&
+		    strncmp (entry->d_name, "core", 4) == 0)
+			return TRUE;
 
-	return is_dotdir_to_ignore (entry->d_name);
+		return FALSE; /* other files: don't ignore */
+
+	} else if (d_type == DT_DIR)
+		return is_dotdir_to_ignore (entry->d_name);
+	else
+		return TRUE; /* ignore non-normal files, non-dirs */
 }
 
-
+/*
+ * return the maildir value for the the path - this is the directory
+ * for the message (with the top-level dir as "/"), and without the
+ * leaf "/cur" or "/new". In other words, contatenate old_mdir + "/" + dir,
+ * unless dir is either 'new' or 'cur'. The value will be used in queries.
+ */
 static gchar*
 get_mdir_for_path (const gchar *old_mdir, const gchar *dir)
 {
-	if (dir[0] != 'n' && dir[0] != 'c' &&
-	    strcmp(dir, "cur") != 0 && strcmp(dir, "new") != 0)
+	/* if the current dir is not 'new' or 'cur', contatenate
+	 * old_mdir an dir */
+	if ((dir[0] == 'n' && strcmp(dir, "new") == 0) ||
+	    (dir[0] == 'c' && strcmp(dir, "cur") == 0) ||
+	    (dir[0] == 't' && strcmp(dir, "tmp") == 0))
+		return strdup (old_mdir ? old_mdir : G_DIR_SEPARATOR_S);
+	else
 		return g_strconcat (old_mdir ? old_mdir : "",
 				    G_DIR_SEPARATOR_S, dir, NULL);
-	else
-		return strdup (old_mdir ? old_mdir : G_DIR_SEPARATOR_S);
+
 }
 
 
@@ -398,7 +418,10 @@ process_dir_entry (const char* path, const char* mdir, struct dirent *entry,
 	case DT_DIR: {
 		char *my_mdir;
 		MuError rv;
-
+		/* my_mdir is the search maildir (the dir starting
+		 * with the top-level maildir as /, and without the
+		 * /tmp, /cur, /new
+		 */
 		my_mdir = get_mdir_for_path (mdir, entry->d_name);
 		rv = process_dir (fullpath, my_mdir, cb_msg, cb_dir, data);
 		g_free (my_mdir);
@@ -412,22 +435,20 @@ process_dir_entry (const char* path, const char* mdir, struct dirent *entry,
 }
 
 
+static const size_t DIRENT_ALLOC_SIZE =
+	offsetof (struct dirent, d_name) + PATH_MAX;
+
 static struct dirent*
-dirent_copy (struct dirent *entry)
+dirent_new (void)
 {
-	struct dirent *d;
-
-	d = g_slice_new (struct dirent);
-
-	/* NOTE: simply memcpy'ing sizeof(struct dirent) bytes will
-	 * give memory errors. */
-	return (struct dirent*) memcpy (d, entry, entry->d_reclen);
+	return (struct dirent*) g_slice_alloc (DIRENT_ALLOC_SIZE);
 }
+
 
 static void
 dirent_destroy (struct dirent *entry)
 {
-	g_slice_free (struct dirent, entry);
+	g_slice_free1 (DIRENT_ALLOC_SIZE, entry);
 }
 
 #ifdef HAVE_STRUCT_DIRENT_D_INO
@@ -453,11 +474,25 @@ process_dir_entries (DIR *dir, const char* path, const char* mdir,
 {
 	MuError result;
 	GSList *lst, *c;
-	struct dirent *entry;
 
-	lst = NULL;
-	while ((entry = readdir (dir)))
-		lst = g_slist_prepend (lst, dirent_copy(entry));
+	for (lst = NULL;;) {
+		int rv;
+		struct dirent *entry, *res;
+		entry = dirent_new ();
+		rv = readdir_r (dir, entry, &res);
+		if (rv == 0) {
+			if (res)
+				lst = g_slist_prepend (lst, entry);
+			else {
+				dirent_destroy (entry);
+				break; /* last direntry reached */
+			}
+		} else {
+			dirent_destroy (entry);
+			g_warning ("error scanning dir: %s", strerror(rv));
+			return MU_ERROR_FILE;
+		}
+	}
 
 	/* we sort by inode; this makes things much faster on
 	 * extfs2,3 */
@@ -465,14 +500,9 @@ process_dir_entries (DIR *dir, const char* path, const char* mdir,
 	c = lst = g_slist_sort (lst, (GCompareFunc)dirent_cmp);
 #endif /*HAVE_STRUCT_DIRENT_D_INO*/
 
-	for (c = lst, result = MU_OK; c && result == MU_OK; c = g_slist_next(c)) {
-		result = process_dir_entry (path, mdir,
-					    (struct dirent*)c->data,
+	for (c = lst, result = MU_OK; c && result == MU_OK; c = g_slist_next(c))
+		result = process_dir_entry (path, mdir, (struct dirent*)c->data,
 					    msg_cb, dir_cb, data);
-		/* hmmm, break on MU_ERROR as well? */
-		if (result == MU_STOP)
-			break;
-	}
 
 	g_slist_foreach (lst, (GFunc)dirent_destroy, NULL);
 	g_slist_free (lst);
@@ -587,7 +617,7 @@ clear_links (const gchar* dirname, DIR *dir, GError **err)
 	}
 
 	if (errno != 0)
-		g_set_error (err, 0, MU_ERROR_FILE,
+		g_set_error (err, MU_ERROR_DOMAIN, MU_ERROR_FILE,
 			     "file error: %s", strerror(errno));
 
 	return (rv == FALSE && errno == 0);
@@ -604,7 +634,7 @@ mu_maildir_clear_links (const gchar* path, GError **err)
 
 	dir = opendir (path);
 	if (!dir) {
-		g_set_error (err, 0, MU_ERROR_FILE_CANNOT_OPEN,
+		g_set_error (err, MU_ERROR_DOMAIN, MU_ERROR_FILE_CANNOT_OPEN,
 			     "failed to open %s: %s", path,
 			     strerror(errno));
 		return FALSE;
@@ -707,7 +737,8 @@ mu_maildir_get_maildir_from_path (const char* path)
 
 	/* determine the maildir */
 	mdir = g_path_get_dirname (path);
-	if (!g_str_has_suffix (mdir, "cur") && !g_str_has_suffix (mdir, "new")) {
+	if (!g_str_has_suffix (mdir, "cur") &&
+	    !g_str_has_suffix (mdir, "new")) {
 		g_warning ("%s: not a valid maildir path: %s",
 			   __FUNCTION__, path);
 		g_free (mdir);
@@ -760,25 +791,25 @@ static gboolean
 msg_move_check_pre (const gchar *src, const gchar *dst, GError **err)
 {
 	if (!g_path_is_absolute(src)) {
-		g_set_error (err, 0, MU_ERROR_FILE,
+		g_set_error (err, MU_ERROR_DOMAIN, MU_ERROR_FILE,
 			     "source is not an absolute path: '%s'", src);
 		return FALSE;
 	}
 
 	if (!g_path_is_absolute(dst)) {
-		g_set_error (err, 0, MU_ERROR_FILE,
+		g_set_error (err, MU_ERROR_DOMAIN, MU_ERROR_FILE,
 			     "target is not an absolute path: '%s'", dst);
 		return FALSE;
 	}
 
 	if (access (src, R_OK) != 0) {
-		g_set_error (err, 0, MU_ERROR_FILE, "cannot read %s",
+		g_set_error (err, MU_ERROR_DOMAIN, MU_ERROR_FILE, "cannot read %s",
 			     src);
 		return FALSE;
 	}
 
 	if (access (dst, F_OK) == 0) {
-		g_set_error (err, 0, MU_ERROR_FILE, "%s already exists",
+		g_set_error (err, MU_ERROR_DOMAIN, MU_ERROR_FILE, "%s already exists",
 			     dst);
 		return FALSE;
 	}
@@ -791,13 +822,13 @@ msg_move_check_post (const char *src, const char *dst, GError **err)
 {
 	/* double check -- is the target really there? */
 	if (access (dst, F_OK) != 0) {
-		g_set_error (err, 0, MU_ERROR_FILE, "can't find target (%s)",
+		g_set_error (err, MU_ERROR_DOMAIN, MU_ERROR_FILE, "can't find target (%s)",
 			     dst);
 		return FALSE;
 	}
 
 	if (access (src, F_OK) == 0) {
-		g_set_error (err, 0, MU_ERROR_FILE, "source is still there (%s)",
+		g_set_error (err, MU_ERROR_DOMAIN, MU_ERROR_FILE, "source is still there (%s)",
 			     src);
 		return FALSE;
 	}
@@ -813,7 +844,7 @@ msg_move (const char* src, const char *dst, GError **err)
 		return FALSE;
 
 	if (rename (src, dst) != 0) {
-		g_set_error (err, 0, MU_ERROR_FILE, "error moving %s to %s",
+		g_set_error (err, MU_ERROR_DOMAIN, MU_ERROR_FILE, "error moving %s to %s",
 			     src, dst);
 		return FALSE;
 	}
@@ -838,7 +869,7 @@ mu_maildir_move_message (const char* oldpath, const char* targetmdir,
 	newfullpath = mu_maildir_get_new_path (oldpath, targetmdir,
 					       newflags);
 	if (!newfullpath) {
-		g_set_error (err, 0, MU_ERROR_FILE,
+		g_set_error (err, MU_ERROR_DOMAIN, MU_ERROR_FILE,
 			     "failed to determine target full path");
 		return FALSE;
 	}
@@ -847,7 +878,7 @@ mu_maildir_move_message (const char* oldpath, const char* targetmdir,
 	src_is_target = (g_strcmp0 (oldpath, newfullpath) == 0);
 
 	if (!ignore_dups && src_is_target) {
-		g_set_error (err, 0, MU_ERROR_FILE_TARGET_EQUALS_SOURCE,
+		g_set_error (err, MU_ERROR_DOMAIN, MU_ERROR_FILE_TARGET_EQUALS_SOURCE,
 			     "target equals source");
 		return FALSE;
 	}

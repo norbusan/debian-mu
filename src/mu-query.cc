@@ -194,7 +194,10 @@ get_query (MuQuery *mqx, const char* searchexpr, GError **err)
 	Xapian::Query query;
 	char *preprocessed;
 
-	preprocessed = mu_query_preprocess (searchexpr);
+	preprocessed = mu_query_preprocess (searchexpr, err);
+	if (!preprocessed)
+		throw std::runtime_error
+			("parse error while preprocessing query");
 
 	try {
 		query = mqx->query_parser().parse_query
@@ -210,7 +213,7 @@ get_query (MuQuery *mqx, const char* searchexpr, GError **err)
 
 	} catch (...) {
 		/* some error occured */
-		g_set_error (err, 0, MU_ERROR_XAPIAN_QUERY,
+		g_set_error (err, MU_ERROR_DOMAIN, MU_ERROR_XAPIAN_QUERY,
 			     "parse error in query");
 		g_free (preprocessed);
 		throw;
@@ -255,7 +258,7 @@ mu_query_new (MuStore *store, GError **err)
 	g_return_val_if_fail (store, NULL);
 
 	if (mu_store_count (store, err) == 0) {
-		g_set_error (err, 0, MU_ERROR_XAPIAN_IS_EMPTY,
+		g_set_error (err, MU_ERROR_DOMAIN, MU_ERROR_XAPIAN_IS_EMPTY,
 			     "database is empty");
 		return 0;
 	}
@@ -278,7 +281,7 @@ mu_query_destroy (MuQuery *self)
 
 /* preprocess a query to make them a bit more promiscuous */
 char*
-mu_query_preprocess (const char *query)
+mu_query_preprocess (const char *query, GError **err)
 {
 	GSList *parts, *cur;
 	gchar *myquery;
@@ -287,7 +290,9 @@ mu_query_preprocess (const char *query)
 
 	/* convert the query to a list of query terms, and escape them
 	 * separately */
-	parts = mu_str_esc_to_list (query);
+	parts = mu_str_esc_to_list (query, err);
+	if (!parts)
+		return NULL;
 
 	for (cur = parts; cur; cur = g_slist_next(cur)) {
 		/* remove accents and turn to lower-case */
@@ -332,7 +337,7 @@ mu_query_run (MuQuery *self, const char* searchexpr, gboolean threads,
 		enq.set_cutoff(0,0);
 
 		return mu_msg_iter_new (
-			(XapianEnquire*)&enq,
+			reinterpret_cast<XapianEnquire*>(&enq),
 			maxnum <= 0 ? self->db().get_doccount() : maxnum,
 			threads,
 			threads ? sortfieldid : MU_MSG_FIELD_ID_NONE,

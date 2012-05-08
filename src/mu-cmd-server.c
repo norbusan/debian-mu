@@ -79,9 +79,7 @@ install_sig_handler (void)
 /* BOX - beginning-of-expression */
 #define BOX "\376"
 
-static void  send_expr (const char* frm, ...) G_GNUC_PRINTF(1, 2);
-
-static void
+static void G_GNUC_PRINTF(1, 2)
 send_expr (const char* frm, ...)
 {
 	char *expr;
@@ -89,11 +87,14 @@ send_expr (const char* frm, ...)
 	char hdr[16];
 	size_t exprlen, hdrlen;
 
-	va_start (ap, frm);
-
 	expr    = NULL;
+
+	va_start (ap, frm);
 	exprlen = g_vasprintf (&expr, frm, ap);
-	hdrlen  = snprintf (hdr, sizeof(hdr), BOX "%u" BOX, exprlen);
+	va_end (ap);
+
+	hdrlen  = snprintf (hdr, sizeof(hdr), BOX "%u" BOX,
+			    (unsigned)exprlen);
 
 	if (write (fileno(stdout), hdr, hdrlen) < 0)
 		MU_WRITE_LOG ("error writing output: %s", strerror(errno));
@@ -102,14 +103,11 @@ send_expr (const char* frm, ...)
 		MU_WRITE_LOG ("error writing output: %s", strerror(errno));
 
 	g_free (expr);
-	va_end (ap);
+
 }
 
 
-static MuError server_error (GError **err, MuError merr, const char* frm, ...)
-	G_GNUC_PRINTF(3, 4);
-
-static MuError
+static MuError G_GNUC_PRINTF(3, 4)
 server_error (GError **err, MuError merr, const char* frm, ...)
 {
 	gboolean has_err;
@@ -118,6 +116,7 @@ server_error (GError **err, MuError merr, const char* frm, ...)
 
 	va_start (ap, frm);
 	errmsg = g_strdup_vprintf (frm, ap);
+	va_end (ap);
 
 	has_err = err && *err;
 	send_expr ("(:error %u :error-message \"%s\")\n",
@@ -125,7 +124,6 @@ server_error (GError **err, MuError merr, const char* frm, ...)
 		   has_err ? (*err)->message : errmsg);
 
 	g_free (errmsg);
-	va_end (ap);
 
 	return has_err ? (unsigned)(*err)->code : merr;
 }
@@ -169,6 +167,7 @@ enum _Cmd {
 	CMD_QUIT,
 	CMD_REMOVE,
 	CMD_SAVE,
+	CMD_SENT,
 	CMD_PING,
 	CMD_VIEW,
 
@@ -196,6 +195,7 @@ cmd_from_string (const char *str)
 		{ CMD_QUIT,	"quit"},
 		{ CMD_REMOVE,	"remove" },
 		{ CMD_SAVE,     "save"},
+		{ CMD_SENT,	"sent"},
 		{ CMD_PING,	"ping"},
 		{ CMD_VIEW,	"view"}
 	};
@@ -213,7 +213,7 @@ cmd_from_string (const char *str)
 
 
 static Cmd
-parse_line (const gchar *line, GSList **args)
+parse_line (const gchar *line, GSList **args, GError **err)
 {
 	Cmd cmd;
 	GSList *lst;
@@ -223,7 +223,7 @@ parse_line (const gchar *line, GSList **args)
 	if (!line)
 		return CMD_IGNORE;
 
-	lst = mu_str_esc_to_list (line);
+	lst = mu_str_esc_to_list (line, err);
 	if (!lst)
 		return CMD_INVALID;
 
@@ -375,6 +375,12 @@ cmd_find (MuStore *store, MuQuery *query, GSList *args, GError **err)
 		return server_error (err, MU_ERROR_INTERNAL,
 				     "couldn't get iterator");
 
+	/* before sending new results, send an 'erase' message, so the
+	 * frontend knows it should erase the headers buffer. this
+	 * will ensure that the output of two finds quickly will not
+	 * be mixed. */
+	send_expr ("(:erase t)");
+
 	/* return results + the number of results found */
 	send_expr ("(:found %u)\n", output_found_sexps (iter, maxnum));
 	mu_msg_iter_destroy (iter);
@@ -419,7 +425,7 @@ get_docid_from_msgid (MuQuery *query, const char *str, GError **err)
 	docid = MU_STORE_INVALID_DOCID;
 	if (!iter || mu_msg_iter_is_done (iter))
 		if (err && *err == NULL)
-			g_set_error (err, 0, MU_ERROR_NO_MATCHES,
+			g_set_error (err, MU_ERROR_DOMAIN, MU_ERROR_NO_MATCHES,
 				     "could not find message %s", str);
 		else
 			return docid;
@@ -427,7 +433,7 @@ get_docid_from_msgid (MuQuery *query, const char *str, GError **err)
 		MuMsg *msg;
 		msg = mu_msg_iter_get_msg_floating (iter);
 		if (!mu_msg_is_readable(msg)) {
-			g_set_error (err, 0, MU_ERROR_FILE_CANNOT_READ,
+			g_set_error (err, MU_ERROR_DOMAIN, MU_ERROR_FILE_CANNOT_READ,
 				     "'%s' is not readable",
 				     mu_msg_get_path(msg));
 		} else
@@ -453,7 +459,7 @@ get_docid (MuQuery *query, const char *str, GError **err)
 	docid = strtol (str, &endptr, 10);
 	if (*endptr != '\0') {
 		if (!query) {
-			g_set_error (err, 0, MU_ERROR_IN_PARAMETERS,
+			g_set_error (err, MU_ERROR_DOMAIN, MU_ERROR_IN_PARAMETERS,
 				     "invalid docid '%s'", str);
 			return MU_STORE_INVALID_DOCID;
 		} else
@@ -500,7 +506,7 @@ do_move (MuStore *store, unsigned docid, MuMsg *msg, const char *maildir,
 		return server_error (err, MU_ERROR_XAPIAN, "%s",
 				     "failed to update message");
 
-	sexp = mu_msg_to_sexp (msg, docid, NULL, TRUE);
+	sexp = mu_msg_to_sexp (msg, docid, NULL, FALSE/*include body*/);
 	send_expr ("(:update %s :move %s)", sexp, is_move ? "t" : "nil");
 
 	g_free (sexp);
@@ -849,7 +855,7 @@ index_msg_cb (MuIndexStats *stats, void *user_data)
 	if (MU_CAUGHT_SIGNAL)
 		return MU_STOP;
 
-	if (stats->_processed % 500)
+	if (stats->_processed % 1000)
 		return MU_OK;
 
 	send_expr ("(:info index :status running "
@@ -860,14 +866,16 @@ index_msg_cb (MuIndexStats *stats, void *user_data)
 }
 
 static MuError
-cmd_add (MuStore *store, GSList *args, GError **err)
+cmd_add_or_sent (MuStore *store, Cmd add_or_sent, GSList *args, GError **err)
 {
 	unsigned docid;
 	const char *path, *maildir;
 	gchar *escpath;
 
+	g_return_val_if_fail (add_or_sent == CMD_ADD || add_or_sent == CMD_SENT,
+			      MU_ERROR_INTERNAL);
 	return_if_fail_param_num (args, 2, 2,
-				  "usage: add <path> <maildir>");
+				  "usage: add|sent <path> <maildir>");
 
 	path    = (const char*)args->data;
 	maildir = (const char*)g_slist_nth (args, 1)->data;
@@ -878,13 +886,18 @@ cmd_add (MuStore *store, GSList *args, GError **err)
 				     "failed to add path '%s'", path);
 
 	escpath = mu_str_escape_c_literal (path, TRUE);
-	send_expr ("(:info add :path %s :docid %u)", escpath, docid);
+
+	if (add_or_sent == CMD_ADD)
+		send_expr ("(:info add :path %s :docid %u)",
+			   escpath, docid);
+	else
+		send_expr ("(:sent t :path %s :docid %u)",
+			   escpath, docid);
+
 	g_free (escpath);
 
 	return MU_OK;
 }
-
-
 
 
 static MuError
@@ -946,7 +959,8 @@ handle_command (Cmd cmd, MuStore *store, MuQuery *query, GSList *args,
 
 	switch (cmd) {
 
-	case CMD_ADD:		rv = cmd_add (store, args, err); break;
+	case CMD_ADD:		rv = cmd_add_or_sent (store, CMD_ADD,
+						      args, err); break;
 	case CMD_COMPOSE:	rv = cmd_compose (store, args, err); break;
 	case CMD_FIND:		rv = cmd_find (store, query, args, err); break;
 	case CMD_FLAG:		rv = cmd_flag (store, query, args, err); break;
@@ -957,12 +971,14 @@ handle_command (Cmd cmd, MuStore *store, MuQuery *query, GSList *args,
 	case CMD_QUIT:		rv = cmd_quit (args, err); break;
 	case CMD_REMOVE:	rv = cmd_remove (store, args, err); break;
 	case CMD_SAVE:		rv = cmd_save  (store, args, err); break;
+	case CMD_SENT:		rv = cmd_add_or_sent  (store, CMD_SENT,
+						       args, err); break;
 	case CMD_PING:		rv = cmd_ping (store, args, err); break;
 	case CMD_VIEW:		rv = cmd_view (store, query, args, err); break;
 
 	case CMD_IGNORE: return TRUE;
 	default:
-		g_set_error (err, 0, MU_ERROR_IN_PARAMETERS,
+		g_set_error (err, MU_ERROR_DOMAIN, MU_ERROR_IN_PARAMETERS,
 			     "unknown command");
 		return FALSE;
 	}
@@ -995,8 +1011,16 @@ mu_cmd_server (MuStore *store, MuConfig *opts, GError **err)
 		GError *my_err;
 
 		line = my_readline (MU_PROMPT);
-		cmd  = parse_line (line, &args);
+		args = NULL;
+		cmd  = parse_line (line, &args, err);
 		g_free (line);
+
+		if (cmd == CMD_INVALID) {
+			g_set_error (err, MU_ERROR_DOMAIN, MU_ERROR_IN_PARAMETERS,
+				     "invalid command");
+			mu_str_free_list (args);
+			break;
+		}
 
 		my_err = NULL;
 		if (!handle_command (cmd, store, query, args, &my_err))

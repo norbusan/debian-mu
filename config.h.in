@@ -10,6 +10,9 @@
 /* Define to 1 if you have the <dlfcn.h> header file. */
 #undef HAVE_DLFCN_H
 
+/* Whether we have GTK+ 3.x */
+#undef HAVE_GTK3
+
 /* Whether we have guile 2.0 */
 #undef HAVE_GUILE
 

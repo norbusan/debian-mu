@@ -100,21 +100,21 @@ init_file_metadata (MuMsgFile *self, const char* path, const gchar* mdir,
 	struct stat statbuf;
 
 	if (access (path, R_OK) != 0) {
-		g_set_error (err, 0, MU_ERROR_FILE,
+		g_set_error (err, MU_ERROR_DOMAIN, MU_ERROR_FILE,
 			     "cannot read file %s: %s",
 			     path, strerror(errno));
 		return FALSE;
 	}
 
 	if (stat (path, &statbuf) < 0) {
-		g_set_error (err, 0, MU_ERROR_FILE,
+		g_set_error (err, MU_ERROR_DOMAIN, MU_ERROR_FILE,
 			     "cannot stat %s: %s",
 			     path, strerror(errno));
 		return FALSE;
 	}
 
 	if (!S_ISREG(statbuf.st_mode)) {
-		g_set_error (err, 0, MU_ERROR_FILE,
+		g_set_error (err, MU_ERROR_DOMAIN, MU_ERROR_FILE,
 			     "not a regular file: %s", path);
 		return FALSE;
 	}
@@ -138,7 +138,7 @@ get_mime_stream (MuMsgFile *self, const char *path, GError **err)
 
 	file = fopen (path, "r");
 	if (!file) {
-		g_set_error (err, 0, MU_ERROR_FILE,
+		g_set_error (err, MU_ERROR_DOMAIN, MU_ERROR_FILE,
 			     "cannot open %s: %s",
 			     path, strerror (errno));
 		return NULL;
@@ -146,7 +146,7 @@ get_mime_stream (MuMsgFile *self, const char *path, GError **err)
 
 	stream = g_mime_stream_file_new (file);
 	if (!stream) {
-		g_set_error (err, 0, MU_ERROR_GMIME,
+		g_set_error (err, MU_ERROR_DOMAIN, MU_ERROR_GMIME,
 			     "cannot create mime stream for %s",
 			     path);
 		fclose (file);
@@ -169,7 +169,7 @@ init_mime_msg (MuMsgFile *self, const char* path, GError **err)
 	parser = g_mime_parser_new_with_stream (stream);
 	g_object_unref (stream);
 	if (!parser) {
-		g_set_error (err, 0, MU_ERROR_GMIME,
+		g_set_error (err, MU_ERROR_DOMAIN, MU_ERROR_GMIME,
 			     "%s: cannot create mime parser for %s",
 			     __FUNCTION__, path);
 		return FALSE;
@@ -178,7 +178,7 @@ init_mime_msg (MuMsgFile *self, const char* path, GError **err)
 	self->_mime_msg = g_mime_parser_construct_message (parser);
 	g_object_unref (parser);
 	if (!self->_mime_msg) {
-		g_set_error (err, 0, MU_ERROR_GMIME,
+		g_set_error (err, MU_ERROR_DOMAIN, MU_ERROR_GMIME,
 			     "%s: cannot construct mime message for %s",
 			     __FUNCTION__, path);
 		return FALSE;
@@ -479,22 +479,29 @@ convert_to_utf8 (GMimePart *part, char *buffer)
 	ctype = g_mime_object_get_content_type (GMIME_OBJECT(part));
 	g_return_val_if_fail (GMIME_IS_CONTENT_TYPE(ctype), NULL);
 
-	charset = g_mime_content_type_get_parameter (ctype, "charset");
-	if (charset)
-		charset = g_mime_charset_iconv_name (charset);
-
 	/* of course, the charset specified may be incorrect... */
+	charset = g_mime_content_type_get_parameter (ctype, "charset");
 	if (charset) {
-		char *utf8 = mu_str_convert_to_utf8 (buffer, charset);
+		char *utf8;
+		utf8 = mu_str_convert_to_utf8
+		         (buffer,
+			  g_mime_charset_iconv_name (charset));
 		if (utf8) {
 			g_free (buffer);
 			return utf8;
 		}
+	} else if (g_utf8_validate (buffer, -1, NULL)) {
+		/*  check if the buffer is valid utf8, even if it doesn't
+		 *  say so explicitly... if that is the case, return it as-is */
+
+		/* nothing to do, buffer is already utf8 */
+
+	} else {
+		/* hmmm.... no charset at all, or conversion failed; ugly
+		  *  hack: replace all non-ascii chars with '.' */
+		mu_str_asciify_in_place (buffer);
 	}
 
-	/* hmmm.... no charset at all, or conversion failed; ugly
-	 *  hack: replace all non-ascii chars with '.' */
-	mu_str_asciify_in_place (buffer);
 	return buffer;
 }
 
@@ -530,7 +537,7 @@ mu_msg_mime_part_to_string (GMimePart *part, gboolean *err)
 	ssize_t buflen;
 	char *buffer = NULL;
 
-	*err = TRUE;
+	*err = TRUE; /* guilty until proven innocent */
 	g_return_val_if_fail (GMIME_IS_PART(part), NULL);
 
 	wrapper = g_mime_part_get_content_object (part);
@@ -639,7 +646,8 @@ append_text (GMimeObject *parent, GMimeObject *part, gchar **txt)
 
 	parttxt = mu_msg_mime_part_to_string (GMIME_PART(part), &err);
 	if (err) {
-		g_warning ("%s: could not get text for part", __FUNCTION__);
+		/* this happens for broken messages */
+		g_debug ("%s: could not get text for part", __FUNCTION__);
 		return;
 	}
 
