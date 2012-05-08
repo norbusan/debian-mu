@@ -137,6 +137,22 @@ mu_util_create_tmpdir (void)
 }
 
 
+GQuark
+mu_util_error_quark (void)
+{
+	static GQuark error_domain = 0;
+
+	if (G_UNLIKELY(error_domain == 0))
+		error_domain = g_quark_from_static_string
+			("mu-error-quark");
+
+	return error_domain;
+}
+
+
+
+
+
 const char*
 mu_util_cache_dir (void)
 {
@@ -147,33 +163,6 @@ mu_util_cache_dir (void)
 		  getuid());
 
 	return cachedir;
-}
-
-
-gboolean
-mu_util_init_system (void)
-{
-	/* without setlocale, non-ascii cmdline params (like search
-	 * terms) won't work */
-	setlocale (LC_ALL, "");
-
-        /* on FreeBSD, it seems g_slice_new and friends lead to
-         * segfaults. Same for MacOS. We cannot easily debug what is
-         * going on there (no access to such a system), so all we can
-         * do is add a lame fallback -> we let g_slice_* use normal
-         * malloc
-         */
-#ifndef __linux__
-        if (!g_setenv ("G_SLICE", "always-malloc", TRUE)) {
-                g_critical ("cannot set G_SLICE");
-                return FALSE;
-        }
-        /* g_debug ("setting G_SLICE to always-malloc"); */
-#endif /*!__linux__*/
-
-	g_type_init ();
-
-	return TRUE;
 }
 
 
@@ -205,39 +194,46 @@ mu_util_check_dir (const gchar* path, gboolean readable, gboolean writeable)
 gchar*
 mu_util_guess_maildir (void)
 {
-	const gchar *mdir1;
-	gchar *mdir2;
+        const gchar *mdir1, *home;
 
-	/* first, try MAILDIR */
-	mdir1 = g_getenv ("MAILDIR");
+        /* first, try MAILDIR */
+        mdir1 = g_getenv ("MAILDIR");
 
-	if (mdir1 && mu_util_check_dir (mdir1, TRUE, FALSE))
-		return g_strdup (mdir1);
+        if (mdir1 && mu_util_check_dir (mdir1, TRUE, FALSE))
+                return g_strdup (mdir1);
 
-	/* then, try ~/Maildir */
-	mdir2 = mu_util_dir_expand ("~/Maildir");
-	if (mu_util_check_dir (mdir2, TRUE, FALSE))
-		return mdir2;
+        /* then, try <home>/Maildir */
+        home = g_get_home_dir();
+        if (home) {
+                char *mdir2;
+                mdir2 = g_strdup_printf ("%s%cMaildir",
+                        home, G_DIR_SEPARATOR);
+                if (mu_util_check_dir (mdir2, TRUE, FALSE))
+                        return mdir2;
+                g_free (mdir2);
+        }
 
-	/* nope; nothing found */
-	return NULL;
+        /* nope; nothing found */
+        return NULL;
 }
 
 
 gchar*
 mu_util_guess_mu_homedir (void)
 {
-	const char* home;
+        const char* home;
 
-	/* g_get_home_dir use /etc/passwd, not $HOME; this is better,
-	 * as HOME may be wrong when using 'sudo' etc.*/
-	home = g_get_home_dir ();
+        /* g_get_home_dir use /etc/passwd, not $HOME; this is better,
+         * as HOME may be wrong when using 'sudo' etc.*/
+        home = g_get_home_dir ();
 
-	if (!home)
-		MU_WRITE_LOG ("failed to determine homedir");
+        if (!home) {
+                MU_WRITE_LOG ("failed to determine homedir");
+                return NULL;
+        }
 
-	return g_strdup_printf ("%s%c%s", home ? home : ".", G_DIR_SEPARATOR,
-				".mu");
+        return g_strdup_printf ("%s%c%s", home ? home : ".",
+				G_DIR_SEPARATOR, ".mu");
 }
 
 gboolean
@@ -419,7 +415,7 @@ mu_util_fputs_encoded (const char *str, FILE *stream)
 		GError *err;
 		unsigned bytes;
 		err = NULL;
-		conv = g_locale_from_utf8 (str, -1, &bytes, NULL, &err);
+		conv = g_locale_from_utf8 (str, -1, (gsize*)&bytes, NULL, &err);
 		if (!conv || err) {
 			/* conversion failed; this happens because is
 			 * some cases GMime may gives us non-UTF-8

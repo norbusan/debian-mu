@@ -366,9 +366,9 @@ show_parts (const char* path, MuConfig *opts, GError **err)
 static gboolean
 check_params (MuConfig *opts)
 {
-	guint param_num;
+	size_t param_num;
 
-	param_num = mu_config_param_num(opts);
+	param_num = mu_config_param_num (opts);
 
 	if (param_num < 2) {
 		g_warning ("usage: mu extract [options] <file> [<pattern>]");
@@ -401,7 +401,7 @@ mu_cmd_extract (MuConfig *opts, GError **err)
 			      MU_ERROR_INTERNAL);
 
 	if (!check_params (opts)) {
-		g_set_error (err, 0, MU_ERROR_IN_PARAMETERS,
+		g_set_error (err, MU_ERROR_DOMAIN, MU_ERROR_IN_PARAMETERS,
 				     "error in parameters");
 		return MU_ERROR_IN_PARAMETERS;
 	}
@@ -412,7 +412,7 @@ mu_cmd_extract (MuConfig *opts, GError **err)
 	else {
 		rv = mu_util_check_dir(opts->targetdir, FALSE, TRUE);
 		if (!rv)
-			g_set_error (err, 0, MU_ERROR_FILE_CANNOT_WRITE,
+			g_set_error (err, MU_ERROR_DOMAIN, MU_ERROR_FILE_CANNOT_WRITE,
 				     "target '%s' is not a writable directory",
 				     opts->targetdir);
 		else

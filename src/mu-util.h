@@ -30,15 +30,6 @@
 G_BEGIN_DECLS
 
 /**
- * do system-specific initialization. should be called before anything
- * else. Initializes the locale and Gtype. Note: this function is
- * called by mu_runtime_init.
- *
- * @return TRUE if is succeeds, FALSE otherwise
- */
-gboolean mu_util_init_system (void);
-
-/**
  * get the expanded path; ie. perform shell expansion on the path. the
  * path does not have to exist
  *
@@ -194,6 +185,19 @@ gboolean mu_util_play (const char *path,
 		       gboolean allow_local, gboolean allow_remote);
 
 
+
+/**
+ * Get an error-query for mu, to be used in `g_set_error'. Recent
+ * version of Glib warn when using 0 for the error-domain in
+ * g_set_error.
+ *
+ *
+ * @return an error quark for mu
+ */
+GQuark mu_util_error_quark (void) G_GNUC_CONST;
+#define MU_ERROR_DOMAIN (mu_util_error_quark())
+
+
 /**
  * convert a string array in to a string, with the elements separated
  * by ' '
@@ -279,7 +283,8 @@ typedef gpointer XapianEnquire;
 
 #define MU_STORE_CATCH_BLOCK_RETURN(GE,R)				\
           catch (const MuStoreError& merr) {				\
-		g_set_error ((GE), 0, merr.mu_error(), "%s",		\
+		g_set_error ((GE), (MU_ERROR_DOMAIN),			\
+			     merr.mu_error(), "%s",			\
 			     merr.what().c_str());			\
 		return (R);						\
 	  }								\
@@ -295,11 +300,12 @@ typedef gpointer XapianEnquire;
 
 #define MU_XAPIAN_CATCH_BLOCK_G_ERROR(GE,E)					\
 	  catch (const Xapian::DatabaseLockError &xerr) {			\
-		g_set_error ((GE),0,MU_ERROR_XAPIAN_CANNOT_GET_WRITELOCK,	\
+		g_set_error ((GE),(MU_ERROR_DOMAIN),				\
+			     MU_ERROR_XAPIAN_CANNOT_GET_WRITELOCK,		\
 			     "%s: xapian error '%s'",				\
 			     __FUNCTION__, xerr.get_msg().c_str());		\
 	} catch (const Xapian::DatabaseCorruptError &xerr) {			\
-		g_set_error ((GE),0,MU_ERROR_XAPIAN_CORRUPTION,			\
+		g_set_error ((GE),(MU_ERROR_DOMAIN),MU_ERROR_XAPIAN_CORRUPTION,	\
 			     "%s: xapian error '%s'",				\
 			     __FUNCTION__, xerr.get_msg().c_str());		\
 	} catch (const Xapian::DatabaseError &xerr) {				\
@@ -307,12 +313,14 @@ typedef gpointer XapianEnquire;
 			     "%s: xapian error '%s'",				\
 			     __FUNCTION__, xerr.get_msg().c_str());		\
 	} catch (const Xapian::Error &xerr) {					\
-		g_set_error ((GE),0,(E), "%s: xapian error '%s'",		\
+		g_set_error ((GE),(MU_ERROR_DOMAIN),(E),			\
+			     "%s: xapian error '%s'",				\
 			     __FUNCTION__, xerr.get_msg().c_str());		\
         } catch (...) {								\
-		g_set_error ((GE),0,(MU_ERROR_INTERNAL),			\
+		if ((GE)&&!(*(GE)))						\
+			g_set_error ((GE),(MU_ERROR_DOMAIN),(MU_ERROR_INTERNAL),\
 			     "%s: caught exception", __FUNCTION__);		\
-        }
+	 }
 
 
 #define MU_XAPIAN_CATCH_BLOCK_RETURN(R)					\
@@ -327,12 +335,14 @@ typedef gpointer XapianEnquire;
 
 #define MU_XAPIAN_CATCH_BLOCK_G_ERROR_RETURN(GE,E,R)			\
 	  catch (const Xapian::Error &xerr) {				\
-		g_set_error ((GE),0,(E),				\
+		g_set_error ((GE),(MU_ERROR_DOMAIN),(E),		\
 			     "%s: xapian error '%s'",			\
 			   __FUNCTION__, xerr.get_msg().c_str());	\
 		return (R);						\
         } catch (...) {							\
-		g_set_error ((GE),0,(MU_ERROR_INTERNAL),		\
+		if ((GE)&&!(*(GE)))					\
+			g_set_error ((GE),(MU_ERROR_DOMAIN),		\
+				     (MU_ERROR_INTERNAL),		\
 			     "%s: caught exception", __FUNCTION__);	\
 		return (R);						\
         }

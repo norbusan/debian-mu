@@ -14,7 +14,7 @@
 ## along with this program; if not, write to the Free Software Foundation,
 ## Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
 
-AC_INIT([mu],[0.9.8.2],[http://code.google.com/p/mu0/issues/list],[mu])
+AC_INIT([mu],[0.9.8.3],[http://code.google.com/p/mu0/issues/list],[mu])
 AC_CONFIG_HEADERS([config.h])
 AC_CONFIG_SRCDIR([src/mu.cc])
 # libtoolize wants to put some stuff in here; if you have an old
@@ -44,6 +44,11 @@ AC_CHECK_HEADERS([locale.h langinfo.h])
 
 # use the 64-bit versions
 AC_SYS_LARGEFILE
+
+# check for makeinfo
+AC_CHECK_PROG(have_makeinfo,makeinfo,yes,no)
+AM_CONDITIONAL(HAVE_MAKEINFO,test "x$have_makeinfo" = "xyes")
+
 
 
 # we need some special tricks for filesystems that don't have d_type;
@@ -193,6 +198,10 @@ AM_CONDITIONAL(HAVE_GTK,[test "x$have_gtk2" = "xyes" -o "x$have_gtk3" = "xyes" ]
 AS_IF([test "x$have_gtk2" = "xyes" -o "x$have_gtk3" = "xyes"],[buildgui=yes],
 	    [buildgui=no])
 
+AS_IF([test "x$have_gtk3" = "xyes"],
+  [AC_DEFINE_UNQUOTED([HAVE_GTK3],1,[Whether we have GTK+ 3.x])])
+
+
 # webkit? needed for the fancy web widget
 AS_IF([test "x$buildgui" = "xyes"],[
   PKG_CHECK_MODULES(WEBKIT,webkit-1.0 >= 1.0.3,[have_webkit=yes],[have_webkit=no])
@@ -326,8 +335,15 @@ echo "Have direntry->d_type                : $use_dirent_d_type"
 echo "-----------------------------"
 echo
 
+if test "x$have_makeinfo" != "xyes"; then
+    echo "You do not seem to have the makeinfo program; if you are building from git"
+    echo "you need that to create documentation for guile and emacs. It is in the"
+    echo "texinfo package in debian/ubuntu (ie., apt-get install texinfo)"
+fi
+
+
 if test "x$buildgui" = "xyes"; then
-echo "The demo UIs are in toys/mug and toys/mug2"
+     echo "The demo UIs are in toys/mug and toys/mug2"
      if test "x$gui" = "xgtk3"; then
      	echo "Note that mug2 will *not* work with gtk+3, because it depends"
     	echo "on libraries that use gtk+2, and the two can't be in one process"

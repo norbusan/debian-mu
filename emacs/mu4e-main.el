@@ -1,11 +1,9 @@
-;;; mu4e-main.el -- part of mm, the mu mail user agent
+;;; mu4e-main.el -- part of mu4e, the mu mail user agent
 ;;
-;; Copyright (C) 2011 Dirk-Jan C. Binnema
+;; Copyright (C) 2011-2012 Dirk-Jan C. Binnema
 
 ;; Author: Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 ;; Maintainer: Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
-;; Keywords: email
-;; Version: 0.0
 
 ;; This file is not part of GNU Emacs.
 ;;
@@ -27,15 +25,15 @@
 ;;; Code:
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; mm main view mode + keybindings
 (defconst mu4e-main-buffer-name "*mu4e-main*"
-  "*internal* Name of the mm main buffer.")
-
+  "*internal* Name of the mu4e main view buffer.")
 
 (defvar mu4e-main-mode-map
   (let ((map (make-sparse-keymap)))
 
     (define-key map "b" 'mu4e-search-bookmark)
+    (define-key map "B" 'mu4e-search-bookmark-edit-first)
+
     (define-key map "s" 'mu4e-search)
     (define-key map "q" 'mu4e-quit)
     (define-key map "j" 'mu4e-jump-to-maildir)
@@ -51,23 +49,13 @@
   "Keymap for the *mu4e-main* buffer.")
 (fset 'mu4e-main-mode-map mu4e-main-mode-map)
 
-(defun mu4e-main-mode ()
+(define-derived-mode mu4e-main-mode special-mode "mu4e:main"
   "Major mode for the mu4e main screen.
-
 \\{mu4e-main-mode-map}."
-  (interactive)
-
-  (kill-all-local-variables)
   (use-local-map mu4e-main-mode-map)
-
   (setq
-    major-mode 'mu4e-main-mode
-    mode-name "mu4e-main"
     truncate-lines t
-    buffer-read-only t
     overwrite-mode 'overwrite-mode-binary))
-
-(put 'mu4e-main-mode 'mode-class 'special)
 
 
 (defun mu4e-action-str (str &optional func-or-shortcut)
@@ -97,7 +85,7 @@ clicked."
     newstr))
 
 (defun mu4e-main-view()
-  "Show the mm main view."
+  "Show the mu4e main view."
   (let ((buf (get-buffer-create mu4e-main-buffer-name))
 	 (inhibit-read-only t))
     (with-current-buffer buf
@@ -145,8 +133,6 @@ clicked."
       (switch-to-buffer buf))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Interactive functions
 
 (defconst mu4e-update-buffer-name "*mu4e-update*"
@@ -179,7 +165,7 @@ split-window."
     (error "`smtp-queue-dir' does not exist"))
   (setq smtpmail-queue-mail (not smtpmail-queue-mail))
   (message
-    (concat "Outgoing mail will now be " 
+    (concat "Outgoing mail will now be "
       (if smtpmail-queue-mail "queued" "sent directly")))
   (mu4e-main-view))
 

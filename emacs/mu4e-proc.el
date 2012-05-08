@@ -46,6 +46,11 @@ argument. See `mu4e-proc-filter' for the format.")
 the server process, when some message has been deleted. The
 function is passed the docid of the removed message.")
 
+(defvar mu4e-proc-sent-func  'mu4e-default-handler
+  "*internal* A function called for each :sent sexp returned from
+the server process, when some message has been sent. The
+function is passed the docid and the draft-path of the sent message.")
+
 (defvar mu4e-proc-view-func  'mu4e-default-handler
   "*internal* A function called for each single message sexp
 returned from the server process. The function is passed a message
@@ -61,6 +66,11 @@ server process; the function is passed a msg plist as argument. See
   "*internal* A function called for when we received a :found sexp
 after the headers have returns, to report on the number of
 matches. See `mu4e-proc-filter' for the format.")
+
+(defvar mu4e-proc-erase-func 'mu4e-default-handler
+  "*internal* A function called for when we received an :erase sexp
+after the headers have returns, to clear the current headers
+buffer. See `mu4e-proc-filter' for the format.")
 
 (defvar mu4e-proc-compose-func  'mu4e-default-handler
   "*internal* A function called for each message returned from the
@@ -91,7 +101,6 @@ to the sent folder using their docid")
 process."
   (let ((type (plist-get info :info)))
     (cond
-      ;; (:info :version "3.1")
       ((eq type 'add)
 	;; update our path=>docid map; we use this when composing messages to
 	;; add draft messages to the db, so when we're sending them, we can move
@@ -256,9 +265,19 @@ updated as well, with all processed sexp data removed."
 	((plist-get sexp :found)
 	  (funcall mu4e-proc-found-func (plist-get sexp :found)))
 
-	;; viewin a specific message
+	;; viewing a specific message
 	((plist-get sexp :view)
 	  (funcall mu4e-proc-view-func (plist-get sexp :view)))
+
+	;; receive an erase message
+	((plist-get sexp :erase)
+	  (funcall mu4e-proc-erase-func))
+
+	;; receive a :sent message
+	((plist-get sexp :sent)
+	  (funcall mu4e-proc-sent-func
+	    (plist-get sexp :docid)
+	    (plist-get sexp :path)))
 
 	;; receive a pong message
 	((plist-get sexp :pong)
@@ -420,6 +439,13 @@ set to e.g. '/drafts'; if this works, we will receive (:info :path
 response."
   (mu4e-proc-send-command "ping"))
 
+
+(defun mu4e-proc-sent (draftpath maildir)
+  "Tell the mu server that message DRAFTPATH has been send and its MAILDIR,
+expecting a (:sent <docid> :path <draftpath>) in response."
+  (mu4e-proc-send-command "sent %s %s" draftpath maildir))
+
+
 (defun mu4e-proc-view-msg (docid-or-msgid)
   "Get one particular message based on its DOCID-OR-MSGID. The result will
 be delivered to the function registered as `mu4e-proc-message-func'."
@@ -433,7 +459,7 @@ be delivered to the function registered as `mu4e-proc-message-func'."
 The result will be delivered to the function registered as
 `mu4e-proc-compose-func'."
   (unless (member compose-type '(forward reply edit))
-    (error "Unsupported compose-type"))
+    (error "Unsupported compose-type %S" compose-type))
   (mu4e-proc-send-command "compose %s %d" (symbol-name compose-type) docid))
 
 
