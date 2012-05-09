@@ -59,7 +59,7 @@ binary-indep: install
 	dh_testroot
 	dh_installdocs README NEWS TODO debian/README.source
 	dh_installchangelogs
-	dh_installemacsen
+	dh_installemacsen -pmu4e
 	dh_compress
 	dh_fixperms
 	dh_installdeb
