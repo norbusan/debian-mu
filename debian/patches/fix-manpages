@@ -13,8 +13,8 @@
 
 Index: maildir-utils.git/man/mu-add.1
 ===================================================================
---- maildir-utils.git.orig/man/mu-add.1	2012-05-09 22:28:38.000000000 +0900
-+++ maildir-utils.git/man/mu-add.1	2012-05-09 22:30:51.984226902 +0900
+--- maildir-utils.git.orig/man/mu-add.1	2012-05-09 23:59:48.000000000 +0900
++++ maildir-utils.git/man/mu-add.1	2012-05-10 00:04:00.884753894 +0900
 @@ -1,8 +1,8 @@
 -.TH MU ADD 1 "October 2011" "User Manuals"
 +.TH MU-ADD 1 "October 2011" "User Manuals"
@@ -29,8 +29,8 @@ Index: maildir-utils.git/man/mu-add.1
  
 Index: maildir-utils.git/man/mu-cfind.1
 ===================================================================
---- maildir-utils.git.orig/man/mu-cfind.1	2012-05-09 22:28:58.000000000 +0900
-+++ maildir-utils.git/man/mu-cfind.1	2012-05-09 22:31:10.740233231 +0900
+--- maildir-utils.git.orig/man/mu-cfind.1	2012-05-09 23:59:48.000000000 +0900
++++ maildir-utils.git/man/mu-cfind.1	2012-05-10 00:04:00.884753894 +0900
 @@ -1,8 +1,8 @@
 -.TH MU CFIND 1 "May 2011" "User Manuals"
 +.TH MU-CFIND 1 "May 2011" "User Manuals"
@@ -57,8 +57,8 @@ Index: maildir-utils.git/man/mu-cfind.1
  \fBquery\fR-command, which is (by default) accessible by pressing \fBQ\fR.
 Index: maildir-utils.git/man/mu-easy.1
 ===================================================================
---- maildir-utils.git.orig/man/mu-easy.1	2012-05-09 22:28:38.000000000 +0900
-+++ maildir-utils.git/man/mu-easy.1	2012-05-09 22:30:51.984226902 +0900
+--- maildir-utils.git.orig/man/mu-easy.1	2012-05-09 23:59:48.000000000 +0900
++++ maildir-utils.git/man/mu-easy.1	2012-05-10 00:04:00.884753894 +0900
 @@ -2,7 +2,7 @@
  
  .SH NAME
@@ -70,8 +70,8 @@ Index: maildir-utils.git/man/mu-easy.1
  
 Index: maildir-utils.git/man/mu-extract.1
 ===================================================================
---- maildir-utils.git.orig/man/mu-extract.1	2012-05-09 22:28:38.000000000 +0900
-+++ maildir-utils.git/man/mu-extract.1	2012-05-09 22:30:51.984226902 +0900
+--- maildir-utils.git.orig/man/mu-extract.1	2012-05-09 23:59:48.000000000 +0900
++++ maildir-utils.git/man/mu-extract.1	2012-05-10 00:04:00.884753894 +0900
 @@ -1,8 +1,8 @@
 -.TH MU EXTRACT 1 "February 2012" "User Manuals"
 +.TH MU-EXTRACT 1 "February 2012" "User Manuals"
@@ -85,22 +85,18 @@ Index: maildir-utils.git/man/mu-extract.1
  .SH SYNOPSIS
 Index: maildir-utils.git/man/mu-find.1
 ===================================================================
---- maildir-utils.git.orig/man/mu-find.1	2012-05-09 22:28:58.000000000 +0900
-+++ maildir-utils.git/man/mu-find.1	2012-05-09 22:31:10.740233231 +0900
-@@ -1,4 +1,4 @@
+--- maildir-utils.git.orig/man/mu-find.1	2012-05-09 23:59:48.000000000 +0900
++++ maildir-utils.git/man/mu-find.1	2012-05-10 00:04:20.972776360 +0900
+@@ -1,8 +1,8 @@
 -.TH MU FIND 1 "May 2012" "User Manuals"
 +.TH MU-FIND 1 "May 2012" "User Manuals"
  
  .SH NAME
  
-@@ -6,7 +6,7 @@
+-mu find \- find e-mail messages in the \fBmu\fR database.
++mu_find \- find e-mail messages in the \fBmu\fR database.
  
  .SH SYNOPSIS
- 
--.B mu find [options] <search expression>
-+.B mu_find [options] <search expression>
- 
- .SH DESCRIPTION
  
 @@ -61,7 +61,7 @@
  as filtering out unwanted results is usually preferrable over non matching
@@ -122,8 +118,8 @@ Index: maildir-utils.git/man/mu-find.1
  showing the conversation threads in the list of matching messages.
 Index: maildir-utils.git/man/mu-index.1
 ===================================================================
---- maildir-utils.git.orig/man/mu-index.1	2012-05-09 22:28:38.000000000 +0900
-+++ maildir-utils.git/man/mu-index.1	2012-05-09 22:30:51.984226902 +0900
+--- maildir-utils.git.orig/man/mu-index.1	2012-05-09 23:59:48.000000000 +0900
++++ maildir-utils.git/man/mu-index.1	2012-05-10 00:04:00.884753894 +0900
 @@ -2,7 +2,7 @@
  
  .SH NAME 
@@ -162,8 +158,8 @@ Index: maildir-utils.git/man/mu-index.1
  In general, \fBmu\fR has been getting faster with each release, even with
 Index: maildir-utils.git/man/mu-mkdir.1
 ===================================================================
---- maildir-utils.git.orig/man/mu-mkdir.1	2012-05-09 22:28:38.000000000 +0900
-+++ maildir-utils.git/man/mu-mkdir.1	2012-05-09 22:30:51.984226902 +0900
+--- maildir-utils.git.orig/man/mu-mkdir.1	2012-05-09 23:59:48.000000000 +0900
++++ maildir-utils.git/man/mu-mkdir.1	2012-05-10 00:04:00.884753894 +0900
 @@ -1,8 +1,8 @@
 -.TH MU MKDIR 1 "May 2011" "User Manuals"
 +.TH MU-MKDIR 1 "May 2011" "User Manuals"
@@ -177,8 +173,8 @@ Index: maildir-utils.git/man/mu-mkdir.1
  
 Index: maildir-utils.git/man/mu-remove.1
 ===================================================================
---- maildir-utils.git.orig/man/mu-remove.1	2012-05-09 22:28:38.000000000 +0900
-+++ maildir-utils.git/man/mu-remove.1	2012-05-09 22:30:51.984226902 +0900
+--- maildir-utils.git.orig/man/mu-remove.1	2012-05-09 23:59:48.000000000 +0900
++++ maildir-utils.git/man/mu-remove.1	2012-05-10 00:04:00.884753894 +0900
 @@ -1,8 +1,8 @@
 -.TH MU REMOVE 1 "October 2011" "User Manuals"
 +.TH MU-REMOVE 1 "October 2011" "User Manuals"
@@ -192,8 +188,8 @@ Index: maildir-utils.git/man/mu-remove.1
  
 Index: maildir-utils.git/man/mu-server.1
 ===================================================================
---- maildir-utils.git.orig/man/mu-server.1	2012-05-09 22:28:58.000000000 +0900
-+++ maildir-utils.git/man/mu-server.1	2012-05-09 22:31:10.740233231 +0900
+--- maildir-utils.git.orig/man/mu-server.1	2012-05-09 23:59:48.000000000 +0900
++++ maildir-utils.git/man/mu-server.1	2012-05-10 00:04:00.884753894 +0900
 @@ -2,7 +2,7 @@
  
  .SH NAME
@@ -205,8 +201,8 @@ Index: maildir-utils.git/man/mu-server.1
  
 Index: maildir-utils.git/man/mu-view.1
 ===================================================================
---- maildir-utils.git.orig/man/mu-view.1	2012-05-09 22:28:58.000000000 +0900
-+++ maildir-utils.git/man/mu-view.1	2012-05-09 22:31:10.740233231 +0900
+--- maildir-utils.git.orig/man/mu-view.1	2012-05-09 23:59:48.000000000 +0900
++++ maildir-utils.git/man/mu-view.1	2012-05-10 00:04:00.884753894 +0900
 @@ -1,8 +1,8 @@
 -.TH MU VIEW 1 "April 2012" "User Manuals"
 +.TH MU-VIEW 1 "April 2012" "User Manuals"
