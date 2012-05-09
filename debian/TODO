@@ -1,3 +1,5 @@
+* do something with the emacs files!!!!
+
 * build with --enable-gtk ???
 
 * fix linking with libz etc (dh_shlibs warning):
