@@ -178,11 +178,12 @@ gboolean mu_util_printerr_encoded (const char *frm, ...) G_GNUC_PRINTF(1,2);
  * @param path full path of the file to open
  * @param allow_local allow local files (ie. with file:// prefix or fs paths)
  * @param allow_remote allow URIs (ie., http, mailto)
+ * @param err receives error information, if any
  *
  * @return TRUE if it succeeded, FALSE otherwise
  */
-gboolean mu_util_play (const char *path,
-		       gboolean allow_local, gboolean allow_remote);
+gboolean mu_util_play (const char *path, gboolean allow_local,
+		       gboolean allow_remote, GError **err);
 
 
 
@@ -274,7 +275,6 @@ typedef gpointer XapianEnquire;
 	} while (0)
 
 
-
 /**
  *
  * don't repeat these catch blocks everywhere...
@@ -282,8 +282,8 @@ typedef gpointer XapianEnquire;
  */
 
 #define MU_STORE_CATCH_BLOCK_RETURN(GE,R)				\
-          catch (const MuStoreError& merr) {				\
-		g_set_error ((GE), (MU_ERROR_DOMAIN),			\
+        catch (const MuStoreError& merr) {				\
+		mu_util_g_set_error ((GE),					\
 			     merr.mu_error(), "%s",			\
 			     merr.what().c_str());			\
 		return (R);						\
@@ -300,25 +300,25 @@ typedef gpointer XapianEnquire;
 
 #define MU_XAPIAN_CATCH_BLOCK_G_ERROR(GE,E)					\
 	  catch (const Xapian::DatabaseLockError &xerr) {			\
-		g_set_error ((GE),(MU_ERROR_DOMAIN),				\
+		mu_util_g_set_error ((GE),						\
 			     MU_ERROR_XAPIAN_CANNOT_GET_WRITELOCK,		\
 			     "%s: xapian error '%s'",				\
 			     __FUNCTION__, xerr.get_msg().c_str());		\
 	} catch (const Xapian::DatabaseCorruptError &xerr) {			\
-		g_set_error ((GE),(MU_ERROR_DOMAIN),MU_ERROR_XAPIAN_CORRUPTION,	\
+		mu_util_g_set_error ((GE),						\
+				MU_ERROR_XAPIAN_CORRUPTION,			\
 			     "%s: xapian error '%s'",				\
 			     __FUNCTION__, xerr.get_msg().c_str());		\
 	} catch (const Xapian::DatabaseError &xerr) {				\
-		  g_set_error ((GE),0,MU_ERROR_XAPIAN,				\
+		  mu_util_g_set_error ((GE),MU_ERROR_XAPIAN,				\
 			     "%s: xapian error '%s'",				\
 			     __FUNCTION__, xerr.get_msg().c_str());		\
 	} catch (const Xapian::Error &xerr) {					\
-		g_set_error ((GE),(MU_ERROR_DOMAIN),(E),			\
+		mu_util_g_set_error ((GE),(E),					\
 			     "%s: xapian error '%s'",				\
 			     __FUNCTION__, xerr.get_msg().c_str());		\
         } catch (...) {								\
-		if ((GE)&&!(*(GE)))						\
-			g_set_error ((GE),(MU_ERROR_DOMAIN),(MU_ERROR_INTERNAL),\
+			mu_util_g_set_error ((GE),(MU_ERROR_INTERNAL),		\
 			     "%s: caught exception", __FUNCTION__);		\
 	 }
 
@@ -335,13 +335,13 @@ typedef gpointer XapianEnquire;
 
 #define MU_XAPIAN_CATCH_BLOCK_G_ERROR_RETURN(GE,E,R)			\
 	  catch (const Xapian::Error &xerr) {				\
-		g_set_error ((GE),(MU_ERROR_DOMAIN),(E),		\
+		mu_util_g_set_error ((GE),(E),				\
 			     "%s: xapian error '%s'",			\
 			   __FUNCTION__, xerr.get_msg().c_str());	\
 		return (R);						\
         } catch (...) {							\
 		if ((GE)&&!(*(GE)))					\
-			g_set_error ((GE),(MU_ERROR_DOMAIN),		\
+			mu_util_g_set_error ((GE),				\
 				     (MU_ERROR_INTERNAL),		\
 			     "%s: caught exception", __FUNCTION__);	\
 		return (R);						\
@@ -436,6 +436,17 @@ enum _MuError {
 	MU_STOP                               = 99
 };
 typedef enum _MuError MuError;
+
+
+/**
+ * set an error if it's not already set
+ *
+ * @param err errptr, or NULL
+ * @param errcode error code
+ * @param frm printf-style format, followed by paremeters
+ */
+void mu_util_g_set_error (GError **err, MuError errcode, const char *frm, ...)
+	G_GNUC_PRINTF(3,4);
 
 
 #define MU_COLOR_RED		"\x1b[31m"

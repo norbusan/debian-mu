@@ -323,12 +323,12 @@ mu_util_is_local_file (const char* path)
 
 
 gboolean
-mu_util_play (const char *path, gboolean allow_local, gboolean allow_remote)
+mu_util_play (const char *path, gboolean allow_local, gboolean allow_remote,
+	      GError **err)
 {
 	gboolean rv;
-	GError *err;
-	const gchar *prog;
-	char *cmdline, *escpath;
+	const gchar *argv[3];
+	const char *prog;
 
 	g_return_val_if_fail (path, FALSE);
 	g_return_val_if_fail (mu_util_is_local_file (path) || allow_remote,
@@ -345,19 +345,17 @@ mu_util_play (const char *path, gboolean allow_local, gboolean allow_remote)
 #endif /*!__APPLE__*/
 	}
 
-	escpath = g_strescape (path, NULL);
-	cmdline = g_strdup_printf ("%s \"%s\"", prog, escpath);
-	g_free (escpath);
+	argv[0] = prog;
+	argv[1] = path;
+	argv[2] = NULL;
 
 	err = NULL;
-	rv = g_spawn_command_line_async (cmdline, &err);
-	if (!rv) {
-		g_warning ("failed to spawn %s: %s",
-			   cmdline, err->message ? err->message : "error");
-		g_error_free (err);
-	}
-
-	g_free (cmdline);
+	rv = g_spawn_async (NULL,
+			    (gchar**)&argv,
+			    NULL,
+			    G_SPAWN_SEARCH_PATH,
+			    NULL, NULL, NULL,
+			    err);
 	return rv;
 }
 
@@ -422,7 +420,7 @@ mu_util_fputs_encoded (const char *str, FILE *stream)
 			 * string from e.g. wrongly encoded
 			 * message-subjects; if so, we escape the
 			 * string */
-			g_warning ("%s: fputs failed: %s",
+			g_warning ("%s: g_locale_from_utf8 failed: %s",
 				   __FUNCTION__,
 				   err ? err->message : "conversion failed");
 			g_clear_error (&err);
@@ -441,6 +439,27 @@ mu_util_fputs_encoded (const char *str, FILE *stream)
 	return TRUE;
 }
 
+
+
+void
+mu_util_g_set_error (GError **err, MuError errcode, const char *frm, ...)
+{
+	va_list ap;
+	char *msg;
+
+	/* don't bother with NULL errors, or errors already set */
+	if (!err || *err)
+		return;
+
+	msg = NULL;
+	va_start (ap, frm);
+	g_vasprintf (&msg, frm, ap);
+	va_end (ap);
+
+	g_set_error (err, MU_ERROR_DOMAIN, errcode, "%s", msg);
+
+	g_free (msg);
+}
 
 
 static gboolean

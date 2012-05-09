@@ -53,7 +53,7 @@ static gboolean output_sexp (MuMsgIter *iter, gboolean threads,
 static gboolean output_xml (MuMsgIter *iter,gboolean include_unreadable,
 			    GError **err);
 static gboolean output_plain (MuMsgIter *iter, const char *fields,
-			      gboolean summary,gboolean threads,
+			      int summary_len, gboolean threads,
 			      gboolean color,  gboolean include_unreadable,
 			      GError **err);
 
@@ -99,7 +99,8 @@ output_query_results (MuMsgIter *iter, MuConfig *opts, GError **err)
 	case MU_CONFIG_FORMAT_LINKS:
 		return output_links (iter, opts->linksdir, opts->clearlinks, err);
 	case MU_CONFIG_FORMAT_PLAIN:
-		return output_plain (iter, opts->fields, opts->summary,
+		return output_plain (iter, opts->fields,
+				     opts->summary ? opts->summary_len : 0,
 				     opts->threads, !opts->nocolor,
 				     opts->include_unreadable, err);
 	case MU_CONFIG_FORMAT_XML:
@@ -266,6 +267,7 @@ query_params_valid (MuConfig *opts, GError **err)
 		     "'%s' is not a readable Xapian directory", xpath);
 	return FALSE;
 }
+
 
 static gchar*
 resolve_bookmark (MuConfig *opts, GError **err)
@@ -566,14 +568,19 @@ display_field (MuMsg *msg, MuMsgFieldId mfid)
 
 
 static void
-print_summary (MuMsg *msg)
+print_summary (MuMsg *msg, int summary_len)
 {
+	const char* body;
 	char *summ;
 
-	const guint SUMMARY_LEN = 5; /* summary based on first 5
-				      * lines */
-	summ = mu_str_summarize (mu_msg_get_body_text(msg), SUMMARY_LEN);
-	g_print ("Summary: %s\n", summ ? summ : "<none>");
+	body = mu_msg_get_body_text(msg);
+
+	summ = body ? mu_str_summarize (body, (unsigned)summary_len) : NULL;
+
+	g_print ("Summary: ");
+	mu_util_fputs_encoded (summ ? summ : "<none>", stdout);
+	g_print ("\n");
+
 	g_free (summ);
 }
 
@@ -648,9 +655,8 @@ output_plain_fields (MuMsg *msg, const char *fields,
 }
 
 static gboolean
-output_plain (MuMsgIter *iter, const char *fields, gboolean summary,
-	      gboolean threads, gboolean color, gboolean include_unreadable,
-	      GError **err)
+output_plain (MuMsgIter *iter, const char *fields, int summary_len,
+	      gboolean threads, gboolean color, gboolean include_unreadable,  GError **err)
 {
 	MuMsgIter *myiter;
 	size_t count;
@@ -679,8 +685,8 @@ output_plain (MuMsgIter *iter, const char *fields, gboolean summary,
 
 		output_plain_fields (msg, fields, color, threads);
 
-		if (summary)
-			print_summary (msg);
+		if (summary_len > 0)
+			print_summary (msg, summary_len);
 
 		++count;
 	}

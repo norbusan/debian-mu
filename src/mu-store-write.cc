@@ -314,16 +314,6 @@ add_terms_values_str (Xapian::Document& doc, char *val,
 	if (mu_msg_field_xapian_value(mfid))
 		doc.add_value ((Xapian::valueno)mfid, val);
 
-	// if (mfid == MU_MSG_FIELD_ID_SUBJECT) {
-	// 	gchar *str;
-	// 	g_print ("subject:%s\n", val);
-	// 	str = mu_str_normalize (val, TRUE);
-	// 	g_print ("norm   :%s\n", str);
-	// 	mu_str_ascii_xapian_escape_in_place (str, TRUE);
-	// 	g_print ("esc    :%s\n", str);
-	// 	g_free (str);
-	// }
-
 	/* now, let's create some search terms... */
 	if (mu_msg_field_normalize (mfid))
 		mu_str_normalize_in_place (val, TRUE);
@@ -334,7 +324,7 @@ add_terms_values_str (Xapian::Document& doc, char *val,
 		termgen.index_text_without_positions (val, 1, prefix(mfid));
 	}
 	if (mu_msg_field_xapian_escape (mfid))
-		mu_str_ascii_xapian_escape_in_place (val,
+		mu_str_xapian_escape_in_place (val,
 						     TRUE /*esc_space*/);
 	if (mu_msg_field_xapian_term(mfid))
 		doc.add_term (prefix(mfid) +
@@ -486,7 +476,7 @@ each_part (MuMsg *msg, MuMsgPart *part, PartData *pdata)
 
 		/* now, let's create a term... */
 		mu_str_normalize_in_place (val, TRUE);
-		mu_str_ascii_xapian_escape_in_place (val, TRUE /*esc space*/);
+		mu_str_xapian_escape_in_place (val, TRUE /*esc space*/);
 
 		pdata->_doc.add_term
 			(file + std::string(val, 0, MuStore::MAX_TERM_LENGTH));
@@ -564,7 +554,7 @@ static void
 add_terms_values (MuMsgFieldId mfid, MsgDoc* msgdoc)
 {
 	/* note: contact-stuff (To/Cc/From) will handled in
-	 * add_contact_info, not here */
+	 * each_contact_info, not here */
 	if (!mu_msg_field_xapian_index(mfid) &&
 	    !mu_msg_field_xapian_term(mfid) &&
 	    !mu_msg_field_xapian_value(mfid))
@@ -622,6 +612,10 @@ xapian_pfx (MuMsgContact *contact)
 static void
 each_contact_info (MuMsgContact *contact, MsgDoc *msgdoc)
 {
+	/* for now, don't store reply-to addresses */
+	if (mu_msg_contact_type (contact) == MU_MSG_CONTACT_TYPE_REPLY_TO)
+		return;
+
 	const std::string pfx (xapian_pfx(contact));
 	if (pfx.empty())
 		return; /* unsupported contact type */
@@ -638,9 +632,8 @@ each_contact_info (MuMsgContact *contact, MsgDoc *msgdoc)
 	if (!mu_str_is_empty(contact->address)) {
 
 		char *escaped;
-
-		escaped = mu_str_ascii_xapian_escape (contact->address,
-						      FALSE /*dont esc space*/);
+		escaped = mu_str_xapian_escape (contact->address,
+						FALSE /*dont esc space*/);
 		msgdoc->_doc->add_term
 			(std::string  (pfx + escaped, 0, MuStore::MAX_TERM_LENGTH));
 		g_free (escaped);
@@ -660,7 +653,7 @@ new_doc_from_message (MuStore *store, MuMsg *msg)
 	Xapian::Document doc;
 	MsgDoc docinfo = {&doc, msg, store};
 
-	mu_msg_field_foreach ((MuMsgFieldForEachFunc)add_terms_values, &docinfo);
+	mu_msg_field_foreach ((MuMsgFieldForeachFunc)add_terms_values, &docinfo);
 	/* also store the contact-info as separate terms */
 	mu_msg_contact_foreach (msg, (MuMsgContactForeachFunc)each_contact_info,
 				&docinfo);
@@ -749,7 +742,6 @@ mu_store_add_path (MuStore *store, const char *path, const char *maildir,
 	g_return_val_if_fail (store, FALSE);
 	g_return_val_if_fail (path, FALSE);
 
-	err = NULL;
 	msg = mu_msg_new_from_file (path, maildir, err);
 	if (!msg)
 		return MU_STORE_INVALID_DOCID;
