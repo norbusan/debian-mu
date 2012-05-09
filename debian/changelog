@@ -4,6 +4,7 @@ maildir-utils (0.9.8.4-1) unstable; urgency=low
   * unfuzzify and adapt patches
   * install new toy msg2pdf into maildir-utils-extra
   * package emacs mu4e into a separate package, and install emacs support
+  * remove quilt from build-deps, and add emacsen-common
 
  -- Norbert Preining <preining@debian.org>  Wed, 09 May 2012 22:16:30 +0900
 
