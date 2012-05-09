@@ -564,7 +564,10 @@ fill_contact (MuMsgContact *self, InternetAddress *addr,
 	else
 		self->address  = NULL;
 
-	return TRUE;
+	/* note, the address could NULL e.g. when the recipient is something like
+	 * 'Undisclosed recipients'
+	 */
+	return self->address != NULL;
 }
 
 
@@ -572,11 +575,14 @@ static void
 address_list_foreach (InternetAddressList *addrlist, MuMsgContactType ctype,
 		      MuMsgContactForeachFunc func, gpointer user_data)
 {
-	int i;
+	int i, len;
 
-	for (i = 0; addrlist && i != internet_address_list_length(addrlist);
-	     ++i) {
+	if (!addrlist)
+		return;
 
+	len = internet_address_list_length(addrlist);
+
+	for (i = 0; i != len; ++i) {
 		MuMsgContact contact;
 		if (!fill_contact(&contact,
 				  internet_address_list_get_address (addrlist, i),
@@ -606,9 +612,9 @@ addresses_foreach (const char* addrs, MuMsgContactType ctype,
 }
 
 
-void
+static void
 msg_contact_foreach_file (MuMsg *msg, MuMsgContactForeachFunc func,
-			gpointer user_data)
+			  gpointer user_data)
 {
 	int i;
 	struct {
@@ -623,6 +629,10 @@ msg_contact_foreach_file (MuMsg *msg, MuMsgContactForeachFunc func,
 	/* sender */
 	addresses_foreach (g_mime_message_get_sender (msg->_file->_mime_msg),
 			   MU_MSG_CONTACT_TYPE_FROM, func, user_data);
+
+	/* reply_to */
+	addresses_foreach (g_mime_message_get_reply_to (msg->_file->_mime_msg),
+			   MU_MSG_CONTACT_TYPE_REPLY_TO, func, user_data);
 
 	/* get to, cc, bcc */
 	for (i = 0; i != G_N_ELEMENTS(ctypes); ++i) {
@@ -656,10 +666,10 @@ mu_msg_contact_foreach (MuMsg *msg, MuMsgContactForeachFunc func,
 	g_return_if_fail (msg);
 	g_return_if_fail (func);
 
-	if (msg->_doc)
-		msg_contact_foreach_doc (msg, func, user_data);
-	else if (msg->_file)
+	if (msg->_file)
 		msg_contact_foreach_file (msg, func, user_data);
+	else if (msg->_doc)
+		msg_contact_foreach_doc (msg, func, user_data);
 	else
 		g_return_if_reached ();
 }

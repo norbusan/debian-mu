@@ -14,7 +14,7 @@
 ## along with this program; if not, write to the Free Software Foundation,
 ## Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
 
-AC_INIT([mu],[0.9.8.3],[http://code.google.com/p/mu0/issues/list],[mu])
+AC_INIT([mu],[0.9.8.4],[http://code.google.com/p/mu0/issues/list],[mu])
 AC_CONFIG_HEADERS([config.h])
 AC_CONFIG_SRCDIR([src/mu.cc])
 # libtoolize wants to put some stuff in here; if you have an old
@@ -49,7 +49,9 @@ AC_SYS_LARGEFILE
 AC_CHECK_PROG(have_makeinfo,makeinfo,yes,no)
 AM_CONDITIONAL(HAVE_MAKEINFO,test "x$have_makeinfo" = "xyes")
 
-
+# we need emacs for byte-compiling mu4e
+AM_PATH_LISPDIR
+AM_CONDITIONAL(HAVE_EMACS,test "x$lispdir" != "xno")
 
 # we need some special tricks for filesystems that don't have d_type;
 # e.g. Solaris. See mu-maildir.c. Explicitly disabling it is for
@@ -90,7 +92,7 @@ AS_IF([test "x$PKG_CONFIG" = "xno"],[
 
 # glib2?
 # we need 2.14 at least, because we use GRegex
-PKG_CHECK_MODULES(GLIB, glib-2.0 >= 2.14 gobject-2.0)
+PKG_CHECK_MODULES(GLIB,glib-2.0 >= 2.14 gobject-2.0)
 AC_SUBST(GLIB_CFLAGS)
 AC_SUBST(GLIB_LIBS)
 glib_version="`$PKG_CONFIG --modversion glib-2.0`"
@@ -201,15 +203,27 @@ AS_IF([test "x$have_gtk2" = "xyes" -o "x$have_gtk3" = "xyes"],[buildgui=yes],
 AS_IF([test "x$have_gtk3" = "xyes"],
   [AC_DEFINE_UNQUOTED([HAVE_GTK3],1,[Whether we have GTK+ 3.x])])
 
-
 # webkit? needed for the fancy web widget
-AS_IF([test "x$buildgui" = "xyes"],[
+
+# note; gtk2 and gtk3 imply different webkit versions
+AS_IF([test "x$have_gtk2" = "xyes"],[
   PKG_CHECK_MODULES(WEBKIT,webkit-1.0 >= 1.0.3,[have_webkit=yes],[have_webkit=no])
   AS_IF([test "x$have_webkit" = "xyes"],[
 	    webkit_version="`$PKG_CONFIG --modversion webkit-1.0`"])
   AC_SUBST(WEBKIT_CFLAGS)
   AC_SUBST(WEBKIT_LIBS)
 ])
+
+AS_IF([test "x$have_gtk3" = "xyes"],[
+  PKG_CHECK_MODULES(WEBKIT,webkitgtk-3.0 >= 1.8.0, [have_webkit=yes],[have_webkit=no])
+  AS_IF([test "x$have_webkit" = "xyes"],[
+	    webkit_version="`$PKG_CONFIG --modversion webkitgtk-3.0`"])
+  AC_SUBST(WEBKIT_CFLAGS)
+  AC_SUBST(WEBKIT_LIBS)
+])
+
+
+
 AM_CONDITIONAL(HAVE_WEBKIT, [test "x$have_webkit" = "xyes"])
 
 # gio is needed for some widget/ things
@@ -281,12 +295,15 @@ src/Makefile
 src/tests/Makefile
 widgets/Makefile
 emacs/Makefile
+emacs/mu4e-meta.el
+emacs/version.texi
 guile/Makefile
 guile/mu/Makefile
 guile/examples/Makefile
 toys/Makefile
 toys/mug/Makefile
 toys/mug2/Makefile
+toys/msg2pdf/Makefile
 man/Makefile
 m4/Makefile
 contrib/Makefile
