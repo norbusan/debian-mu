@@ -1,0 +1,21 @@
+---
+ elisp-comp |    6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+Index: maildir-utils.git/elisp-comp
+===================================================================
+--- maildir-utils.git.orig/elisp-comp	2012-05-09 22:14:53.043457743 +0900
++++ maildir-utils.git/elisp-comp	2012-05-09 23:29:25.069462886 +0900
+@@ -76,9 +76,9 @@
+ 
+ (
+   cd $tempdir
+-  echo "(setq load-path (cons nil load-path))" > script
+-  $EMACS -batch -q -l script -f batch-byte-compile *.el || exit $?
+-  mv *.elc ..
++#  echo "(setq load-path (cons nil load-path))" > script
++#  $EMACS -batch -q -l script -f batch-byte-compile *.el || exit $?
++#  mv *.elc ..
+ ) || exit $?
+ 
+ (exit 0); exit 0

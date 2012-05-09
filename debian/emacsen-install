@@ -1,0 +1,54 @@
+#! /bin/sh -e
+# /usr/lib/emacsen-common/packages/install/mu4e
+
+# Written by Jim Van Zandt <jrv@debian.org>, borrowing heavily
+# from the install scripts for gettext by Santiago Vila
+# <sanvila@ctv.es> and octave by Dirk Eddelbuettel <edd@debian.org>.
+
+FLAVOR=$1
+PACKAGE=mu4e
+
+case $FLAVOR in
+    emacs|emacs22|emacs21|emacs20|emacs19|mule2|*xemacs*)
+    exit 0
+    ;;
+    *)
+    EMACSEN=$FLAVOR
+    ;;
+esac
+
+echo install/${PACKAGE}: Handling install for emacsen flavor ${FLAVOR}
+
+FLAGS="-no-site-file -q -batch -l path.el -f batch-byte-compile"
+
+ELDIR=/usr/share/emacs/site-lisp/${PACKAGE}
+ELCDIR=/usr/share/${FLAVOR}/site-lisp/${PACKAGE}
+
+cd "$ELDIR"
+LINKS=`echo *.el`
+
+if [ ! -d "$ELCDIR" ]; then
+    mkdir -p "$ELCDIR"
+    chmod 755 "$ELCDIR"
+fi
+
+cd "$ELCDIR"
+
+TOELDIR=../../../emacs/site-lisp/$PACKAGE
+
+rm -f *.el path.el
+
+for f in $LINKS; do
+    ln -sf "$TOELDIR/$f" ./
+done
+
+FILES=`/bin/ls -1 *.el`
+cat << EOF > path.el
+(setq load-path (cons "." load-path))
+(setq byte-compile-warnings nil)
+EOF
+${FLAVOR} ${FLAGS} ${FILES}
+chmod 644 *.elc
+rm -f path.el
+
+exit 0

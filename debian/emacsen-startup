@@ -1,0 +1,10 @@
+;; -*-emacs-lisp-*-
+;;
+;; Emacs startup file, e.g.  /etc/emacs/site-start.d/50mu4e.el
+;; for the Debian mu4e package
+(let ((package-dir (concat "/usr/share/"
+                           (symbol-name flavor)
+                           "/site-lisp/mu4e")))
+  (if (fboundp 'debian-pkg-add-load-path-item)
+      (debian-pkg-add-load-path-item package-dir)))
+(autoload 'mu4e "mu4e" "Mail client based on mu (maildir-utils)." t)

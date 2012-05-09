@@ -1,0 +1,10 @@
+#!/bin/sh -e
+# /usr/lib/emacsen-common/packages/remove/mu4e
+
+FLAVOR=$1
+PACKAGE=mu4e
+
+if [ ${FLAVOR} != emacs ]; then
+    echo remove/${PACKAGE}: purging byte-compiled files for ${FLAVOR}
+    rm -rf /usr/share/${FLAVOR}/site-lisp/${PACKAGE}
+fi

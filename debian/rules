@@ -5,6 +5,7 @@ export DH_OPTIONS
 
 mu := $(CURDIR)/debian/maildir-utils
 muextra := $(CURDIR)/debian/maildir-utils-extra
+mu4e := $(CURDIR)/debian/mu4e
 
 
 CFLAGS := -g -Wall
@@ -41,14 +42,30 @@ install-stamp: build-stamp
 	$(MAKE) install prefix=$(mu)/usr
 	# remove wrong info/dir
 	rm -f $(mu)/usr/share/info/dir*
+	# maildir-utils-extra package
 	mkdir -p $(muextra)/usr/bin
 	cp toys/mug2/mug2 $(muextra)/usr/bin/mug
+	cp toys/msg2pdf/msg2pdf $(muextra)/usr/bin/msg2pdf
 	mkdir -p $(muextra)/usr/share/pixmaps
 	cp toys/mug2/mug.svg $(muextra)/usr/share/pixmaps/
+	# mu4e package
+	mkdir -p $(mu4e)/usr/share
+	mv $(mu)/usr/share/emacs $(mu4e)/usr/share
+	mv $(mu)/usr/share/info $(mu4e)/usr/share
 	touch install-stamp
 
-binary-indep:
-# There aren't any architecture independent packages here.
+binary-indep: install
+	dh_testdir
+	dh_testroot
+	dh_installdocs README NEWS TODO debian/README.source
+	dh_installchangelogs
+	dh_installemacsen
+	dh_compress
+	dh_fixperms
+	dh_installdeb
+	dh_gencontrol
+	dh_md5sums
+	dh_builddeb
 
 binary-arch: DH_OPTIONS=-a
 binary-arch: install
