@@ -21,7 +21,6 @@ build-indep: build-stamp
 
 build-stamp:
 	dh_testdir
-	dh_autoreconf
 	EMACS=true CFLAGS="$(CFLAGS)" ./configure --prefix=/usr
 	$(MAKE)
 	touch $@
@@ -30,7 +29,6 @@ clean:
 	dh_testdir
 	dh_testroot
 	[ ! -f Makefile ] || $(MAKE) distclean
-	dh_autoreconf_clean
 	dh_clean install-stamp build-stamp config.log
 
 install: install-stamp

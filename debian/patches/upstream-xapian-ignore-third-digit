@@ -13,13 +13,14 @@ https://github.com/djcb/mu/commit/1dc44228d50f680d31080c760f8688e9675d6526
 addresses the problem, though its description is off; could you please
 apply it?
 ---
+ configure    |    2 +-
  configure.ac |    2 +-
- 1 file changed, 1 insertion(+), 1 deletion(-)
+ 2 files changed, 2 insertions(+), 2 deletions(-)
 
 Index: maildir-utils.git/configure.ac
 ===================================================================
---- maildir-utils.git.orig/configure.ac	2012-05-13 12:02:08.996315355 +0900
-+++ maildir-utils.git/configure.ac	2012-05-13 12:06:01.691160489 +0900
+--- maildir-utils.git.orig/configure.ac	2012-05-13 12:41:36.361815630 +0900
++++ maildir-utils.git/configure.ac	2012-05-13 12:43:36.553809478 +0900
 @@ -140,7 +140,7 @@
     *** is in your PATH.])],
     [xapian_version=$($XAPIAN_CONFIG --version | sed -e 's/.* //')])
@@ -29,3 +30,16 @@ Index: maildir-utils.git/configure.ac
  	[AC_MSG_ERROR([*** xapian version >= 1.2 needed, but version $xapian_version found.])])
  
  XAPIAN_CXXFLAGS="`$XAPIAN_CONFIG --cxxflags`"
+Index: maildir-utils.git/configure
+===================================================================
+--- maildir-utils.git.orig/configure	2012-05-13 12:42:18.257814273 +0900
++++ maildir-utils.git/configure	2012-05-13 12:44:26.933805003 +0900
+@@ -17640,7 +17640,7 @@
+   xapian_version=$($XAPIAN_CONFIG --version | sed -e 's/.* //')
+ fi
+ case $xapian_version in #(
+-  1.[2-9].[0-9]) :
++  1.[2-9].[0-9]*) :
+      ;; #(
+   *) :
+     as_fn_error $? "*** xapian version >= 1.2 needed, but version $xapian_version found." "$LINENO" 5 ;;
