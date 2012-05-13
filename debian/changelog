@@ -3,6 +3,7 @@ maildir-utils (0.9.8.4-2) unstable; urgency=low
   * mention GFDL without invariant sections etc for mu4e.texi etc 
     (Closes: #672596)
   * fix FTBFS due to xapian version check being to strict (Closes: #672707)
+  * run dh_autoreconf(_clean) at appropriate times (needed for the above fix)
 
  -- Norbert Preining <preining@debian.org>  Sun, 13 May 2012 11:58:08 +0900
 
