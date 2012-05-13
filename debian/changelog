@@ -1,3 +1,10 @@
+maildir-utils (0.9.8.4-2) UNRELEASED; urgency=low
+
+  * mention GFDL without invariant sections etc for mu4e.texi etc 
+    (Closes: #672596)
+
+ -- Norbert Preining <preining@debian.org>  Sun, 13 May 2012 11:58:08 +0900
+
 maildir-utils (0.9.8.4-1) unstable; urgency=low
 
   * new upstream release
