@@ -21,7 +21,7 @@ build-indep: build-stamp
 
 build-stamp:
 	dh_testdir
-	EMACS=true CFLAGS="$(CFLAGS)" ./configure --prefix=/usr
+	CFLAGS="$(CFLAGS)" ./configure --prefix=/usr
 	$(MAKE)
 	touch $@
 
