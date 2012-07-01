@@ -5,12 +5,12 @@
 
 Index: maildir-utils.git/toys/mug2/Makefile.am
 ===================================================================
---- maildir-utils.git.orig/toys/mug2/Makefile.am	2012-05-09 22:17:35.223667491 +0900
-+++ maildir-utils.git/toys/mug2/Makefile.am	2012-05-09 22:17:39.335672268 +0900
+--- maildir-utils.git.orig/toys/mug2/Makefile.am	2012-07-02 07:44:53.000000000 +0900
++++ maildir-utils.git/toys/mug2/Makefile.am	2012-07-02 07:49:20.666119905 +0900
 @@ -20,7 +20,7 @@
  SUBDIRS= .
  
- INCLUDES=-I${top_srcdir} -I${top_srcdir}/src $(GTK_CFLAGS) $(WEBKIT_CFLAGS) -DICONDIR='"$(icondir)"' \
+ INCLUDES=-I${top_srcdir} -I${top_srcdir}/lib $(GTK_CFLAGS) $(WEBKIT_CFLAGS) -DICONDIR='"$(icondir)"' \
 -	 -DMUG2DIR='"$(abs_srcdir)"' -DGTK_DISABLE_DEPRECATED -DGSEAL_ENABLE
 +	 -DMUG2DIR='"/usr/share/pixmaps"' -DGTK_DISABLE_DEPRECATED -DGSEAL_ENABLE
  
@@ -18,12 +18,12 @@ Index: maildir-utils.git/toys/mug2/Makefile.am
  # use -Wno-unused-parameters, because some callbacks may not
 Index: maildir-utils.git/toys/mug2/Makefile.in
 ===================================================================
---- maildir-utils.git.orig/toys/mug2/Makefile.in	2012-05-09 22:17:35.223667491 +0900
-+++ maildir-utils.git/toys/mug2/Makefile.in	2012-05-09 22:17:39.335672268 +0900
+--- maildir-utils.git.orig/toys/mug2/Makefile.in	2012-07-02 07:44:53.000000000 +0900
++++ maildir-utils.git/toys/mug2/Makefile.in	2012-07-02 07:49:44.696985646 +0900
 @@ -318,7 +318,7 @@
  # enforce compiling this dir first before decending into tests/
  SUBDIRS = .
- INCLUDES = -I${top_srcdir} -I${top_srcdir}/src $(GTK_CFLAGS) $(WEBKIT_CFLAGS) -DICONDIR='"$(icondir)"' \
+ INCLUDES = -I${top_srcdir} -I${top_srcdir}/lib $(GTK_CFLAGS) $(WEBKIT_CFLAGS) -DICONDIR='"$(icondir)"' \
 -	 -DMUG2DIR='"$(abs_srcdir)"' -DGTK_DISABLE_DEPRECATED -DGSEAL_ENABLE
 +	 -DMUG2DIR='"/usr/share/pixmaps"' -DGTK_DISABLE_DEPRECATED -DGSEAL_ENABLE
  

@@ -5,4 +5,4 @@
 fix-mug2-build
 fix-manpages
 disable-emacs-compile
-upstream-xapian-ignore-third-digit
+#upstream-xapian-ignore-third-digit
