@@ -21,30 +21,52 @@ mu4e Manual
 
 Welcome to mu4e!
 
-   mu4e (mu-for-emacs) is an e-mail client for GNU-Emacs version 23 and
+   mu4e (mu-for-emacs) is an e-mail client for GNU-Emacs, version 23 and
 later, built on top of the mu e-mail search engine. mu4e is optimized
 for fast handling of large amounts of e-mail.
 
+   Some of the features include:
+
+   * Fully search-based: there are no folders, only queries
+
+   * Fully documented, with example configurations
+
+   * UI optimized for speed with quick key strokes for common actions
+
+   * Asynchronous: heavy actions never block emacs
+
+   * Rich-text e-mails using org-mode (experimental)
+
+   * Address auto-completion based on your messages - no need for
+     managing address books
+
+   * Extendable using your own custom actions
+
    This manual goes through the installation of mu4e, discusses the
 basic configuration, and explains its daily use. It also shows how you
-can customize mu4e for your needs.
+can customize mu4e for your needs. At the end of the manual, there are
+some example configurations, which should help you to get up to speed
+quickly.
 
-   At the end of the manual, there are a number of example
-configurations, which should help you to get up to speed quickly.
+   Also note the *Note FAQ - Frequently Anticipated Questions::, and
+the section on *Note Known issues / missing features::, which may save
+you some time.
 
-   This manual has been updated for mu/mu4e version _0.9.8.4_.
+   This manual has been updated for mu/mu4e version _{No value for
+`mu4e-version'}_.
 
 * Menu:
 
-* Introduction::
-* Getting started::
-* Running mu4e::
-* Searching::
-* Actions::
-* Interaction with other tools::
-* Example configuration::
-* FAQ - Frequently Anticipated Questions::
-* Known issues / missing features::
+* Introduction:: How it all began
+* Getting started:: Setting things up
+* Running mu4e:: Daily use
+* Searching:: Some more background on searching/queries
+* Marking:: Marking messages and performing actions
+* Actions:: Defining and using custom actions
+* Interaction with other tools:: mu4e and the rest of the world
+* Example configuration:: Some examples to set you up quickly
+* FAQ - Frequently Anticipated Questions:: Common questions and answers
+* Known issues / missing features:: mu4e is not perfect yet
 
 Appendices
 * How it works:: Some notes about the implementation of mu4e
@@ -57,13 +79,13 @@ File: mu4e.info,  Node: Introduction,  Next: Getting started,  Prev: Top,  Up: T
 1 Introduction
 **************
 
-Let's get started!
+Welcome to mu4e!
 
 * Menu:
 
 * Why another e-mail client?::
 * Other mail clients::
-* What mu4e does and does not do::
+* What mu4e does not do::
 
 
 File: mu4e.info,  Node: Why another e-mail client?,  Next: Other mail clients,  Up: Introduction
@@ -71,34 +93,40 @@ File: mu4e.info,  Node: Why another e-mail client?,  Next: Other mail clients,  
 1.1 Why another e-mail client?
 ==============================
 
-Why does the world need another e-mail client?  Well, I'm not sure the
-world _needs_ another one, but maybe _I_ do! I spend a _lot_ of time,
-professionally and privately, dealing with e-mail and therefore, having
-an efficient e-mail client is essential for me. Since none of the
-existing ones worked the way I wanted, I created my own.
+Fair question.
 
-   Even while having been created for such selfish reasons, mu4e tries
-hard to be as useful as possible for all its users - suggestions are
-very welcome and are acted upon.
+   I'm not sure the world _needs_ yet another e-mail client, but perhaps
+_I_ do! I (the author) spend a _lot_ of time, professionally and
+privately, dealing with e-mail messdae and therefore, having an
+efficient e-mail client is essential for me. Since none of the existing
+ones worked the way I wanted, I created my own.
+
+   As emacs is such an integral part of my workflow, it made a lot of
+sense to integrate my e-mail client with it. And as I already had
+written an e-mail search engine (mu), it seemed only logical to use
+that as a basis.
+
+   Even though I created mu4e for such selfish reasons, mu4e tries hard
+to be as useful as possible for _all_ its users - suggestions are very
+welcome and many have already made it to mu4e.
 
 
-File: mu4e.info,  Node: Other mail clients,  Next: What mu4e does and does not do,  Prev: Why another e-mail client?,  Up: Introduction
+File: mu4e.info,  Node: Other mail clients,  Next: What mu4e does not do,  Prev: Why another e-mail client?,  Up: Introduction
 
 1.2 Other mail clients
 ======================
 
-Under the hood, mu4e is fully search-based, similar to programs such as
-notmuch(1), md(2) and sup(3). mu4e's user-interface is quite different
-from those programs though.
+Under the hood, mu4e is fully search-based, similar to programs like
+notmuch(1), md(2) and sup(3). However, mu4e's user-interface is quite
+different from those programs.
 
    mu4e's mail handling (deleting, moving etc.) is inspired by
 _Wanderlust_(4) (another emacs-based e-mail client), mutt(5) and dired,
-while it takes some cues from _Gmail_.
+while it also takes some cues from _Gmail_.
 
    mu4e tries to keep all the 'state' in your maildirs, so you can
-easily switch between clients, synchronize over IMAP or backup with
-rsync - if you delete the database, you won't lose any information;
-there is no _lock-in_.
+easily switch between clients, synchronize over IMAP, backup with rsync
+and so on. If you delete the database, you won't lose any information.
 
    ---------- Footnotes ----------
 
@@ -113,10 +141,10 @@ there is no _lock-in_.
    (5) `http://www.mutt.org/'
 
 
-File: mu4e.info,  Node: What mu4e does and does not do,  Prev: Other mail clients,  Up: Introduction
+File: mu4e.info,  Node: What mu4e does not do,  Prev: Other mail clients,  Up: Introduction
 
-1.3 What mu4e does and does not do
-==================================
+1.3 What mu4e does not do
+=========================
 
 mu and mu4e do _not_ deal with getting your e-mail messages from a mail
 server. That task is delegated to other tools, such as offlineimap(1),
@@ -169,28 +197,42 @@ File: mu4e.info,  Node: Installation,  Next: Getting mail,  Up: Getting started
 ================
 
 mu4e is part of mu - by installing the latter, the former will be
-installed as well.
-
-   At the time of writing, there are no distribution packages for mu4e
-yet, so we are assuming installation from source packages.
+installed as well. Note, some distributions provide packed versions of
+mu/mu4e; if you can use those, there's no need to compile anything
+yourself. However, if there are no packages for your distribution, or
+if you want to use the latest development versions, you can follow the
+steps below.
 
    First, you need make sure you have the necessary dependencies. On a
 Debian or Ubuntu system, you can get these with:
 
      sudo apt-get install libgmime-2.4-dev libxapian-dev
      # emacs if you don't have it yet, mu4e works with GNU-Emacs 23 and 24
+     # emacs 24 works better; it may be available as 'emacs-snapshot'
      sudo apt-get install emacs23
      # optional
      sudo apt-get install guile-2.0-dev html2text xdg-utils
+     # optional: only needed for msg2pdf
+     sudo apt-get install libwebkit-dev
 
-   Installation follows the normal sequence of:
+   Using a release-tarball (as avaiable from GoogleCode(1),
+Installation follows the normal sequence:
 
      $ tar xvfz mu-<version>.tar.gz  # use the specific version
      $ cd mu-<version>
      $./configure && make
      $ sudo make install
 
-   After this, mu and mu4e should be installed (1), and be available
+   Alternatively, if you build from the git repository, or use a
+tarball like the ones that github produces, the instructions are
+slightly different (and require you to have autotools installed):
+
+     # get from git, or from a github tarball
+     $ cd mu-<version>
+     $ autoreconf -i && ./configure && make
+     $ sudo make install
+
+   After this, mu and mu4e should be installed (2), and be available
 from the command line and emacs (respectively).
 
    You may need to restart emacs.
@@ -199,13 +241,15 @@ from the command line and emacs (respectively).
 ----------------------------------
 
 There is _experimental_ support for using the emacs customization
-system in mu4e, but for now we recommend setting the values manually.
-Please refer to *note Example configuration:: for a couple of examples
+system in mu4e, but for now, we recommend setting the values manually.
+Please refer to *Note Example configuration:: for a couple of examples
 of this.
 
    ---------- Footnotes ----------
 
-   (1) there's a hard dependency between versions of mu4e and mu - you
+   (1) `http://code.google.com/p/mu0/downloads/list'
+
+   (2) there's a hard dependency between versions of mu4e and mu - you
 cannot combine different versions
 
 
@@ -214,8 +258,8 @@ File: mu4e.info,  Node: Getting mail,  Next: Indexing your messages,  Prev: Inst
 2.2 Getting mail
 ================
 
-In order for mu (and, by extension, mu4e) to work, we need to have our
-e-mail messages stored in a Maildir. If you were already using
+In order for mu (and, by extension, mu4e) to work, you need to have
+your e-mail messages stored in a Maildir. If you are already using
 Maildirs, you are lucky; otherwise, you will need to get your mail
 there in some way.
 
@@ -261,7 +305,7 @@ following command:
 progress information while doing so.
 
    The indexing process may take a few minutes the first time you do it
-(for thousands of e-mails); afterwards it is much faster, since it only
+(for thousands of e-mails); afterwards it is much faster, since mu only
 has to scan the differences. Indexing is discussed in more detail in
 the mu-index man page.
 
@@ -278,7 +322,7 @@ the next step is to do some basic configuration.
 
    ---------- Footnotes ----------
 
-   (1) In most cases, you do not even have to provide the
+   (1) In most cases, you do not even need to provide the
 -maildir=~/Maildir; see the mu-index man-page for details
 
 
@@ -377,10 +421,10 @@ actually _do_.
 
 * Menu:
 
-* Main view::
-* Headers view::
-* Message view::
-* Editor view::
+* Main view:: This is where we start
+* Headers view:: Lists of message headers
+* Message view:: Viewing specific messages
+* Editor view:: Creating / editing messages
 
      ----------------------------------------------------------------------------
 
@@ -415,8 +459,8 @@ File: mu4e.info,  Node: Main view,  Next: Headers view,  Up: Running mu4e
 =============
 
 After you have installed mu4e (*note Getting started::), you can start
-it with `M-x mu4e'. This will do some checks to ensure everything is
-set up correctly, and then show the mu4e main view.
+it with `M-x mu4e'. mu4e wil do some checks to ensure everything is set
+up correctly, and then show you the mu4e main view.
 
    This looks something like the following:
 
@@ -441,12 +485,13 @@ set up correctly, and then show the mu4e main view.
 	* toggle [m]ail sending mode (direct)
 	* [f]lush queued mail
 
+        * [A]bout mu4e
         * [H]elp
 	* [q]uit mu4e
 ----------------------------------------------------------------------------
 
-   In the below, we assume the default key bindings here. If you've
-changed those, well, mutatis mutandis.
+   Below, we assume the default key bindings here. If you've changed
+those, well, _mutatis mutandis_.
 
 3.1.1 Basic actions
 -------------------
@@ -468,17 +513,17 @@ First, the _Basics_:
 3.1.2 Bookmarks
 ---------------
 
-Next come the _Bookmarks_.These are set with the variable
+Next come _Bookmarks_. These are set with the variable
 `mu4e-bookmarks'; what you see in the above example are the _default_
-bookmarks - you can add your own and/or replace the default ones. *Note
+bookmarks - you can add your own and/or replace the default ones; *Note
 Bookmarks::. In short, you can view the list of messages matching a
-bookmark by pressing <b> followed by the shortcut for this bookmark. If
-you'd like to edit the bookmarked query first, use <B>.
+certain bookmark by pressing <b> followed by the shortcut for this
+bookmark. If you'd like to edit the bookmarked query first, use <B>.
 
 3.1.3 Miscellaneous
 -------------------
 
-Finally, there are some _Misc_ actions:
+Finally, there are some _Misc_ (miscellaneous) actions:
    * [U]pdate email & database will execute whatever is in the variable
      `mu4e-get-mail-command', and afterwards update the mu database;
      *note Indexing your messages::. See *note Getting mail:: for
@@ -489,6 +534,8 @@ Finally, there are some _Misc_ actions:
      offline), and [f]lush queued mail will flush any queued mail. This
      item is visible only if you have actually set up mail-queuing.
      *note Queuing mail::.
+
+   * [A]bout mu4e will give some general information about mu4e.
 
    * [H]elp will show help information for this view.
 
@@ -530,7 +577,7 @@ Some notes to explain what you see in the example:
      use From/To (:from-or-to in `mu4e-headers-fields' as a more
      compact way to convey the most important information: it shows
      From: _except_ when the e-mail was sent by the user (i.e., you) -
-     in that case it shows To: (prefixed by To, as in the example
+     in that case it shows To: (prefixed by To(1), as in the example
      above). To determine whether a message was sent by you, mu4e uses
      the variable `mu4e-user-mail-address-regexp', which should be a
      regular expression matching all the e-mail addresses that you use.
@@ -544,7 +591,7 @@ Some notes to explain what you see in the example:
      mu4e-headers-date-format
 
    * The subject field displays the discussion threads according to the
-     _JWZ mail threading algorithm_(1).
+     _JWZ mail threading algorithm_(2).
 
 3.2.2 Keybindings
 -----------------
@@ -554,35 +601,57 @@ messages; these actions are also listed in the Headers menu in the
 Emacs menu bar.
 
 key          description
----          -----------
+===========================================================
 n,p          go to next, previous message
 y            select the message view (if it's visible)
-j            jump to maildir
-b,B          jump to bookmark (/ edit first)
-a            execute some action on header
+RET          open the message at point in the message view
 
+searching
+---------
+s            search
+S            edit last query
+/            narrow the search
+b            search bookmark
+B            edit bookmark before search
+j            jump to maildir
+M-left       previous query
+M-right      next query
+
+O            change sort order
+P            toggle threading
+Q            toggle full-search
+
+
+marking
+-------
 d            mark for moving to the trash folder
 DEL,D        mark for immediate deletion
 m            mark for moving to another maildir folder
++,-          mark for flagging/unflagging
+o,r          mark message as unread, read
+
 u            unmark message at point
+U            unmark *all* messages
+
 %            mark based on a regular expression
 T,t          mark whole thread, subthread
 
+*            deferred mark (decide what to mark for later)
+#            resolve deferred marks
+
+x            execute actions for the marked messages
+
+composition
+-----------
 R,F,C        reply/forward/compose
 E            edit (only allowed for draft messages)
 
+
+misc
+----
+a            execute some custom action on a header
 |            pipe message through shell command
-
-d            mark for moving to the trash folder
-DEL,D        mark for immediate deletion
-m            mark for moving to another maildir folder
-o            mark message as unread
-r            mark message as read
-u            unmark message at point
-U            unmark *all* messages
-x            execute actions for the marked messages
-RET          open the message at point in the message view
-
+C-+,C--      increase / decrease the number of headers shown
 H            get help
 q,z          leave the headers buffer
 
@@ -590,47 +659,81 @@ q,z          leave the headers buffer
 ----------------------
 
 The mark/unmark commands support the current _region_ (i.e., selection)
-- so, for example, if you the select a number of message and then press
-<DEL>, all selected message will be marked for deletion.
+- so, for example, if you the select ('mark' in emacs lingo) a number of
+message (like you would select text in a buffer) and then press <DEL>,
+all selected message will be marked for deletion.
 
-   The two-step mark-execute sequence is similar to what dired and a
-number of other emacs-based programs do. mu4e tries to be as quick as
-possible while still trying to avoid accidents.
+   The two-step mark-execute sequence is similar to what dired and som
+other emacs-based programs do. This way, mu4e tries to be as quick as
+possible while avoiding accidents.
 
-   You can mark all messages that match a certain regular expression
-with <%>. In addition, you can mark all messages in the current thread
-(<T>) or sub-thread (<t>).
+   You can mark all messages that match a certain pattern with <%>. In
+addition, you can mark all messages in the current thread (<T>) or
+sub-thread (<t>).
 
    When you try to do a new search, or refresh the headers buffer while
 you still have marked messages, normally you will be asked what to do
-with those marks - whether to _apply_ them before leaving, _ignore_
+with those marks - whether to _apply_ them before leaving, or _ignore_
 them. This behavior can be influenced with the variable
 `mu4e-headers-leave-behavior' - see its documentation.
 
-3.2.4 Actions
+   For more information about marking, *Note Marking::.
+
+3.2.4 Sort order and threading
+------------------------------
+
+By default, mu4e sorts messages by date, in descending order: the most
+recent messages are shown at the top. In addition, the messages are
+_threaded_, i.e., shown in the context of a message thread; this also
+affects the sort order.
+
+   You can change the sort order with M-x mu4e-headers-change-sorting or
+<O>, and you can toggle threading on/off using M-x
+mu4e-headers-toggle-threading or <P>. For both of these functions,
+unless you provide a prefix argument (<C-u>), the current search is
+updated immediately using the new parameters. You can toggle full-search
+(*note Searching::) using M-x mu4e-headers-toggle-full-search or <Q>.
+
+   If you want to change the defaults for these settings, you can use
+the variables `mu4e-headers-sortfield' and `mu4e-headers-show-threads'.
+
+   Note that you can see the current settings in the emacs modeline; it
+shows the current query, followed by the shortcut character for
+sortfield (the same character you'd use in
+`mu4e-headers-change-sorting'. The next character is either a (for
+ascending, _A->Z_ order), or d (for descending, _Z->A_ order). If
+threading is enabled, the next character is a T, and finally, if we're
+doing an unlimited, full search, the last character is an F.
+
+   To illustrate this, suppose our query is subject:foo maildir:/bar,
+we're sorting by subject in ascending order with threads enabled, and
+it's a full search. The corresponding mode-line string then is:
+subject:foo maildir:/bar(saTF).
+
+3.2.5 Actions
 -------------
 
-`mu4e-headers-action' (<a>) lets you pick some custom action to perform
-on the message at point. You can specify these actions using the
-variable `mu4e-headers-actions'. Refer to *note Actions:: for details.
+`mu4e-headers-action' (<a>) lets you pick custom actions to perform on
+the message at point. You can specify these actions using the variable
+`mu4e-headers-actions'. Refer to *note Actions:: for details.
 
    mu4e defines some default actions - one is capture - <a c> will
 'capture' the current message. Next, when you're editing some message,
 you can include the previously captured message as an attachment, using
 `mu4e-compose-attach-captured-message'.
 
-3.2.5 Split view
+   The file `mu4e-actions.el' in the mu4e source distribution contains a
+number of example actions.
+
+3.2.6 Split view
 ----------------
 
-Using the _Split view_ means viewing the *note Headers view:: and the
+Using the _Split view_, we can see the *note Headers view:: and the
 *note Message view:: next to each other, with the message that is
 selected in the former, visible in the latter.
 
-   Earlier versions of mu4e only showed one of the views at a time, but
-split view has become the default after version 0.9.8.3.
-
-   You can influence the way the splitting works by setting the variable
-`mu4e-split-view' in your configuration to one of 3 values:
+   You can influence the way the splitting is done by customizing the
+variable `mu4e-split-view' in your configuration to one of 3 values:
    * horizontal (this is the default): display the message view below
      the header view
 
@@ -657,7 +760,10 @@ message-view and vice-versa with `mu4e-select-other-view', bound to <y>.
 
    ---------- Footnotes ----------
 
-   (1) `http://www.jwz.org/doc/threading.html'
+   (1) You can customize this by changing the variable
+`mu4e-headers-from-or-to-prefix' (a cons cell)
+
+   (2) `http://www.jwz.org/doc/threading.html'
 
 
 File: mu4e.info,  Node: Message view,  Next: Editor view,  Prev: Headers view,  Up: Running mu4e
@@ -709,6 +815,7 @@ On Sun 21 Dec 2003 09:06:34 PM EET, Paul wrote:
      by default when viewing messages, you can set, respectively,
      `mu4e-view-wrap-lines' and `mu4e-view-hide-cited' to `t'. (1)
 
+   * For search-related operations, see *note Searching::.
 
 3.3.1 Keybindings
 -----------------
@@ -717,37 +824,66 @@ You can find most things you can do with this message in the _View_
 menu, or by using the keyboard; the default bindings are:
 
 key          description
----          -----------
+==============================================================
 n,p          go to next, previous message
 y            select the headers view (if it's visible)
 
+searching
+---------
+s            search
+e            edit last query
+/            narrow the search
+b            search bookmark
+B            edit bookmark before search
 j            jump to maildir
-b,B          jump to bookmark (/ edit first)
 
-a            execute some action on the message
+M-left       previous query
+M-right      next query
 
+marking
+-------
 d            mark for moving to the trash folder
 DEL,D        mark for immediate deletion
 m            mark for moving to another maildir folder
++,-          mark for flagging/unflagging
+o,r          mark message as unread, read
+
 u            unmark message at point
+U            unmark *all* messages
+
 %            mark based on a regular expression
 T,t          mark whole thread, subthread
 
+SPC          deferred mark (decide what to mark for later)
+*            resolve deferred marks
+
+x            execute actions for the marked messages
+
+composition
+-----------
 R,F,C        reply/forward/compose
 E            edit (only allowed for draft messages)
 
-.            show the raw message view. 'q' takes you back.
-
+actions
+-------
 g            go to (visit) numbered URL (using `browse-url')
              (or: <mouse-2> or RET with point on url)
 e            extract (save) attachment (asks for number)
              (or: <mouse-2> or RET with point on attachment)
+             C-u e will extract multiple attachments
 o            open attachment (asks for number)
              (or: <S-mouse-2> or S-RET with point on attachment)
-A            execute some action on an attachment
+
+a            execute some custom action on the message
+A            execute some custom action on an attachment
+
+misc
+----
 w            toggle line wrapping
 h            toggle showing cited parts
 
+.            show the raw message view. 'q' takes you back.
+C-+,C--      increase / decrease the number of headers shown
 H            get help
 q,z          leave the message view
 
@@ -767,7 +903,32 @@ this using the variable `mu4e-attachment-dir', for example:
 
      (setq mu4e-attachment-dir (file-name-expand "~/Downloads"))
 
-3.3.3 Actions
+   If you want to extract multiple attachments at once, you can do so by
+prefixing the extracting command by <C-u>; so <C-u e> will ask you for
+a range of attachments to extract (for example, 1 3-6 8). Range a is a
+shortcut for _all_ attachments.
+
+3.3.3 Viewing images inline
+---------------------------
+
+It is possible to show images inline in the message view buffer if you
+run emacs in GUI-mode. You can enable this by setting the variable
+`mu4e-view-show-images' to t.
+
+   Since emacs does not always handle images correctly, this is not
+enabled by default. Note, if you are using a (pre-) release of emacs 24
+and build it yourself, you probable want to build it with _Imagemagick_
+support - in that case, also make sure you call
+`imagemagick-register-types' in your configuration, so it is used for
+images.
+
+     ;; enable inline images
+     (setq mu4e-view-show-images t)
+     ;; use imagemagick, if available
+     (when (fboundp 'imagemagick-register-types)
+        (imagemagick-register-types))
+
+3.3.4 Actions
 -------------
 
 `mu4e-view-action' (<a>) lets you pick some custom action to perform on
@@ -790,16 +951,16 @@ on attachments, which you can specify with
      to get an overview of the changes, using the diffstat program. You
      can use something like: A | 1 RET diffstat -b RET.
 
-   * emacs (<e>): open the attachment in your running emacs . For
+   * emacs (<e>): open the attachment in your running emacs. For
      example, if you receive some text file you'd like to open in emacs:
      A e 1 RET.
 
-   These actions all work on _temporary copy_ of the attachment.
+   These actions all work on a _temporary copy_ of the attachment.
 
-   For more information about actions and how to define your own, see
-*note Actions::.
+   For more information on setting up actions and how to define them,
+see *note Actions::.
 
-3.3.4 Displaying rich-text messages
+3.3.5 Displaying rich-text messages
 -----------------------------------
 
 For displaying messages, mu4e normally prefers the plain-text version
@@ -880,7 +1041,6 @@ key          description
 C-c C-c      send message
 C-c C-d      save to drafts and leave
 C-c C-k      kill the message
-C-c C-w      insert signature
 C-c C-a      attach a file (pro-tip: drag & drop works as well)
 
 If you want use mu4e as the default program for sending mail, please see
@@ -888,7 +1048,56 @@ If you want use mu4e as the default program for sending mail, please see
 mail, other interesting topics: *note Citations with mu-cite:: and
 *note Maintaining an address-book with org-contacts::.
 
-3.4.2 Queuing mail
+   Normally, mu4e will _bury_ the message buffer after sending; if you
+want to kill the buffer instead, add something like the following to
+your configuration:
+
+     (setq message-kill-buffer-on-exit t)
+
+3.4.2 Address autocompletion
+----------------------------
+
+Since mu/mu4e version 0.9.8.5, there is support for autocompleting
+addresses using <TAB> when composing e-mail messages. As the source for
+the addresses to complete, mu4e uses the e-mail addresses in its
+database - addresses you sent messages to or received messages from.
+_Note:_ auto-completion should work with emacs versions 23.2 and later.
+
+   Address auto-completion is enabled by default, using the variable
+mu4e-compose-complete-addresses.
+
+3.4.3 Limiting the number of addresses for autocompletion
+---------------------------------------------------------
+
+If you have a lot of mail, especially from mailing lists and the like,
+there will be _many_ e-mail adresses, most of which are unlikely to be
+useful when auto-completing. For example, consider e-mail addresses in
+five year old mailing lists posts.
+
+   So, mu4e attempts to limit the number of e-mail addresses in the
+completion pool by filter the ones that are most likely to be relevant.
+The following variables are available to tune this:
+
+   * `mu4e-compose-complete-only-personal' - when set to t, only
+     consider addresses that were seen in _personal_ messages - that is,
+     messages in which one of my e-mail addresses was seen in one of
+     the address fields. This is to exclude mailing list posts. You can
+     define what is considered 'my e-mail address' using
+     `mu4e-my-email-addresses', a list of e-mail address (defaults to
+     (user-mail-address)), and when indexing from the command line, the
+     -my-address parameter for mu index.
+
+   * `mu4e-compose-complete-only-after' - only consider e-mail
+     addresses seen after some date. Parameter is a string, parseable by
+     `org-parse-time-string'. This excludes very old e-mail addresses.
+     The default is "2010-01-01", i.e., only consider e-mail addresses
+     used since the start of 2010.
+
+   * `mu4e-compose-complete-ignore-address-regexp' - a regular
+     expression to filter out other 'junk' e-mail addresses; defaults
+     to noreply.
+
+3.4.4 Queuing mail
 ------------------
 
 If you cannot send mail directly, for example because you are currently
@@ -920,7 +1129,7 @@ reach their destination until you switch it off again; so, be careful
 not to do this accidentally.
 
 
-File: mu4e.info,  Node: Searching,  Next: Actions,  Prev: Running mu4e,  Up: Top
+File: mu4e.info,  Node: Searching,  Next: Marking,  Prev: Running mu4e,  Up: Top
 
 4 Searching
 ***********
@@ -930,23 +1139,22 @@ you see, are the result of some query. Even if you 'jump to a folder',
 in fact you are executing a search query for messages that happen to
 have the property of being in a certain folder.
 
-   Queries normally return only up to `mu4e-search-results-limit' (which
-defaults to 1000) results. You get _all_ results when you prefix your
-search commands (such as with `mu4e-headers-search',
-`mu4e-headers-search-bookmark',
-`mu4e-headers-search-bookmark-edit-first' and
-`mu4e-headers-jump-to-maildir' with `C-u'.
+   By default, queries return up to `mu4e-search-results-limit'
+(default: 500) results. That's usually more than enough, and helps
+performance quite a bit. Sometimes, you may want to show _all_ results;
+you can enable this with M-x mu4e-headers-toggle-full-search, or by
+customizing the variable `mu4e-headers-full-search'. This applies to
+all search commands.
 
-   This limit was introduced in earlier versions of mu4e, where emacs
-could become slow when there were many matches. This is no longer the
-case (post mu4e version 0.9.8.3), but since it is still faster to limit
-the number of matches, the limit remains.
+   You can also influence the sort order and whether threads are shown
+or not; see *note Sort order and threading::.
 
 * Menu:
 
 * Queries::
 * Bookmarks::
 * Maildir searches::
+* Other search functionality::
 
 
 File: mu4e.info,  Node: Queries,  Next: Bookmarks,  Up: Searching
@@ -1063,7 +1271,7 @@ type is <Bt> (using the Today's messages-bookmark, see above).
    (1) Not a valid search query by itself
 
 
-File: mu4e.info,  Node: Maildir searches,  Prev: Bookmarks,  Up: Searching
+File: mu4e.info,  Node: Maildir searches,  Next: Other search functionality,  Prev: Bookmarks,  Up: Searching
 
 4.3 Maildir searches
 ====================
@@ -1095,7 +1303,10 @@ to list of maildirs you'd like to have quick access to, for example:
    This would set <i> as a shortcut for the /inbox folder; so
 effectively a query maildir:/inbox. There is a special shortcut <o> for
 _other_ (so don't use that one for your own shortcuts!), which allows
-you to choose from _all_ maildirs.
+you to choose from _all_ maildirs. There is support for autocompletion;
+note that the list of maildirs is determined when mu4e starts; if there
+are changes in the maildirs while mu4e is running, you need to restart
+mu4e.
 
    Each of the folder names is relative to your top-level maildir
 directory; so if you keep your mail in `~/Maildir', `/inbox' would
@@ -1110,9 +1321,220 @@ shortcut <m>); so, for example, if you want to move a message the
 /archive folder, you can do so by typing <ma>.
 
 
-File: mu4e.info,  Node: Actions,  Next: Interaction with other tools,  Prev: Searching,  Up: Top
+File: mu4e.info,  Node: Other search functionality,  Prev: Maildir searches,  Up: Searching
 
-5 Actions
+4.4 Other search functionality
+==============================
+
+4.4.1 Navigating through search queries
+---------------------------------------
+
+You can navigate through previous/next queries using
+`mu4e-headers-query-prev' and `mu4e-headers-query-next', which are
+bound to <M-left> and <M-right>, just like the way you can navigate to
+previous and next pages in many webbrowsers.
+
+   The functions try to be smart as to not record duplicate queries.
+Also, the number of queries remembered has a fixed limit, so
+long-running mu4e won't use too much memory.
+
+   If you want to forget previous/next queries, you can use
+`mu4e-headers-forget-queries'.
+
+4.4.2 Narrowing search results
+------------------------------
+
+Sometimes, it is useful to narrow existing search results, i.e., add
+some clauses to the current query to match fewer messages.
+
+   As an example of this, suppose you're looking at the some mailing
+list, perhaps by jumping to a maildir (`mu4e-headers-jump-to-maildir',
+<j>) or because you followed some bookmark
+(`mu4e-headers-search-bookmark', <b>). Now, of the messages in that
+search, you want to narrow things down to only those messages that have
+attachments.
+
+   Now, `mu4e-headers-search-narrow' (</>) comes in handy. That function
+asks for an additional search pattern, which will be appended to the
+current search query, in effect getting you the subset of the currently
+shown headers that also match this extra search pattern.
+
+   Technically, narrowing the results of query x with expression y
+implies doing a search (x) AND y.
+
+   Note, messages that were not in your in your original search results
+because of `mu4e-search-results-limit', may still show up in the
+narrowed query.
+
+
+File: mu4e.info,  Node: Marking,  Next: Actions,  Prev: Searching,  Up: Top
+
+5 Marking
+*********
+
+The common way in mu4e to do things with messages is a two-step process
+- first you _mark_ them for a certain action, then you _execute_
+(<x>)the marks. This works in a way somewhat similar to dired.
+
+   Marking can happen in both the *note Headers view:: and the *note
+Message view::.
+
+* Menu:
+
+* Selecting messages for marking::
+* What to mark for::
+* Executing the marks::
+* Leaving the headers buffer::
+* Custom mark functions::
+* Some marking examples::
+
+
+File: mu4e.info,  Node: Selecting messages for marking,  Next: What to mark for,  Up: Marking
+
+5.1 Selecting messages for marking
+==================================
+
+There are a couple of ways to select messages for marking:
+   * _message at point_: you can put a mark on the message-at-point in
+     either the *note Headers view:: or *note Message view::
+
+   * _region_: you can put a mark on all messages in the current region
+     (selection) in the *note Headers view::
+
+   * _Pattern_: you can put a mark on all messages in the *note Headers
+     view:: matching a certain pattern with `mu4e-headers-mark-pattern'
+     (<%>)
+
+   * You can put a mark on all the messages in the thread/subthread at
+     point with `mu4e-headers-mark-thread' and
+     `mu4e-headers-mark-subthread', respectively
+
+
+File: mu4e.info,  Node: What to mark for,  Next: Executing the marks,  Prev: Selecting messages for marking,  Up: Marking
+
+5.2 What to mark for
+====================
+
+mu4e supports a number of different marks - i.e., different actions to
+apply to messages:
+
+| mark for     | keybinding  | description              |
+|--------------+-------------+--------------------------|
+| trash        | d           | move to the trash folder |
+| delete       | D, <delete> | delete                   |
+| move         | m           | move to some maildir     |
+| flag         | +           | mark as 'flagged'        |
+| unflag       | -           | remove 'flagged' mark    |
+| read         | r           | mark as read             |
+| unread       | o           | marks as unread          |
+| deferred     | *           | mark now, decide later   |
+| unmark       | u           | remove mark at point     |
+| unmark all   | U           | remove all marks         |
+
+   After marking a header for something, the left-most columns shows a
+character to remind you what you marked it with. Next to that, mu4e
+displays the name of the mark, on top of the beginning of the header
+line. This latter display is informative, but if you often mark many
+(thousands) messages, this may slow down things significantly(1). For
+this reason, you can disable this by setting `mu4e-headers-show-target'
+to `nil'.
+
+   deferred is a special kind of mark; you can use it to mark some
+messages, and then decide later what mark to use for them. At any time,
+you can set the actual mark with `mu4e-mark-resolve-deferred-marks'
+(<#>), or mu4e will ask you for it when you execute the marks (<x>).
+
+   ---------- Footnotes ----------
+
+   (1) this uses an emacs feature called _overlays_, which are slow
+when used a lot in a buffer
+
+
+File: mu4e.info,  Node: Executing the marks,  Next: Leaving the headers buffer,  Prev: What to mark for,  Up: Marking
+
+5.3 Executing the marks
+=======================
+
+After you have marked some messages, you can execute them with <x>
+(`mu4e-mark-execute-all').
+
+
+File: mu4e.info,  Node: Leaving the headers buffer,  Next: Custom mark functions,  Prev: Executing the marks,  Up: Marking
+
+5.4 Leaving the headers buffer
+==============================
+
+When you quit the buffer (for example, but doing a new search) with
+marks being present, mu4e asks you what to do with them, depending on
+the value of the variable `mu4e-headers-leave-behavior' - see its
+documentation.
+
+
+File: mu4e.info,  Node: Custom mark functions,  Next: Some marking examples,  Prev: Leaving the headers buffer,  Up: Marking
+
+5.5 Custom mark functions
+=========================
+
+Sometimes, the built-in functions to mark messages may not be
+sufficient for your needs. For this, mu4e offers an easy way to define
+your own custom mark functions. You can choose one of the custom marker
+functions using <&> in *note Headers view:: and *note Message view::.
+
+   Custom mark functions should be appended to the list
+`mu4e-headers-custom-markers'. Each of the elements of this list
+('markers') is a list with three (or two) elements:
+   * The name of the marker - as short string describing this marker.
+     The first character of this string will also be its shortcut, so
+     these should be unique.
+
+   * a predicate function taking two arguments msg and param- first,
+     msg, which is the message plist (see *note The message
+     s-expression::); second is a parameter provided by the third of
+     the marker elements (next item). The predicate function should
+     return non-nil if the messages matches.
+
+   * (optionally) a function that is evaluated once, and its result is
+     passed as a parameter to the predicate function. This is useful to
+     ask for user-input.
+
+   So, let's look at an example: suppose we want to match all messages
+that have more than _n_ recipients. We could do it like this:
+
+     (add-to-list 'mu4e-headers-custom-markers
+       '("More than n recipients"
+           (lambda (msg n) (> (+ (length (mu4e-msg-field msg :to))
+                                 (length (mu4e-msg-field msg :cc))) n))
+           (lambda () (read-number "Match messages with more recipients than: "))) t)
+
+   After evaluating this, pressing <&> should let you choose the custom
+marker function, and ask you for the parameters.
+
+   As you can see, it's not very hard to define simple functions to
+match messages. There are some more examples in the defaults for
+`mu4e-headers-custom-markers'; see `mu4e-headers.el'.
+
+
+File: mu4e.info,  Node: Some marking examples,  Prev: Custom mark functions,  Up: Marking
+
+5.6 Some marking examples
+=========================
+
+Let's look at some examples, assuming the default key-bindings.
+
+   * _Mark the message at point for trashing_: press <d>
+
+   * _Mark all messages in the buffer as unread_: press <C-x h o>
+
+   * _Delete the messages in the current thread_: press <T D>
+
+   * _Mark messages with a subject matching "hello" for flagging_:
+     press <% + s hello RET>. Note, the menu system helps you here; all
+     you need to remember is <%> for `mu4e-headers-mark-pattern'.
+
+
+File: mu4e.info,  Node: Actions,  Next: Interaction with other tools,  Prev: Marking,  Up: Top
+
+6 Actions
 *********
 
 mu4e allows you to define custom actions for messages in the *note
@@ -1125,7 +1547,16 @@ or applying an attachment with a source code patch.
 for actions on attachments. In the following, we'll gives some examples
 of defining actions.
 
-5.0.1 Functions for actions
+   Note, the format of the actions has changed since version 0.9.8.4,
+and you must change your configuration to use the new format; mu4e
+warns you when you are using the old format.
+
+   The older format was: `(DESCRIPTION SHORTCUT [VALUE])', while the new
+format is a cons-cell, `(DESCRIPTION . VALUE)'; see below for some
+examples. If your shortcut is not also the first character of the
+description, simply prefix the description with that character.
+
+6.0.1 Functions for actions
 ---------------------------
 
 Defining a new custom action means that you need to write an
@@ -1146,9 +1577,9 @@ like:
 actions, either `mu4e-headers-actions', `mu4e-view-actions' or
 `mu4e-view-attachment-actions'.
 
-   Let's now look at some simple examples.
+   Let's take a at some simple examples.
 
-5.0.2 Example: adding an action in the headers view
+6.0.2 Example: adding an action in the headers view
 ---------------------------------------------------
 
 Suppose we would like to inspect the number of recipients for a message
@@ -1160,40 +1591,44 @@ our configuration:
        (message "Number of recipients: %d"
           (+ (length (mu4e-msg-field msg :to)) (length (mu4e-msg-field msg :cc)))))
 
+     ;; define 'N' (the first letter of the description) as the shortcut
      (add-to-list 'mu4e-headers-actions
-        '("Number of recipients" ?n show-number-of-recipients) t)
+        '("Number of recipients" . show-number-of-recipients) t)
 
    After activating this, <a n> in the headers view will show the
 number of recipients for the message at point.
 
-5.0.3 Example: adding an action in the message view
+6.0.3 Example: adding an action in the message view
 ---------------------------------------------------
 
 As another example, suppose we would like to search for messages by the
 sender of this message.
+
      (defun search-for-sender (msg)
        "Search for messages sent by the sender of the current one."
        (mu4e-headers-search (concat "from:" (cdar (mu4e-msg-field msg :from)))))
 
+     ;; define 'x' as the shortcut
      (add-to-list 'mu4e-view-actions
-        '("search for sender" ?x search-for-sender) t)
+        '("xsearch for sender" . search-for-sender) t)
 
-5.0.4 Example: adding an attachment action
+6.0.4 Example: adding an attachment action
 ------------------------------------------
 
 Finally, let's define an action for an attachment. As mentioned,
 attachment-action function take _2_ arguments, the message and the
 attachment number to use.
 
-   The following will count the number of lines in an attachment.
+   The following will count the number of lines in an attachment, and
+define <n> as the shortcut key (the 'n' is prefixed to the description).
 
      (defun count-lines-in-attachment (msg attachnum)
        "Count the number of lines in an attachment."
        (mu4e-view-pipe-attachment msg attachnum "wc -l"))
      (add-to-list 'mu4e-view-attachment-actions
-        '("count lines" ?n count-lines-in-attachment) t)
+        '("ncount lines" . count-lines-in-attachment) t)
 
-5.0.5 What functions are available?
+6.0.5 What functions are available?
 -----------------------------------
 
 elisp does not have a module-system, so it can be hard to see what
@@ -1209,10 +1644,21 @@ the like.
 called only from that particular context (the message view and the
 headers view, respectively).
 
+6.0.6 Example actions
+---------------------
+
+mu4e includes a number of example actions in `mu4e-actions.el' in the
+source distribution (see <C-h f mu4e-action-TAB>). For example, for
+viewing messages in an external web browser, or listening to a message's
+body-text using text-to-speech.
+
+   If you have come up with any interesting actions that may be useful
+for others, you are invited to contribute those.
+
 
 File: mu4e.info,  Node: Interaction with other tools,  Next: Example configuration,  Prev: Actions,  Up: Top
 
-6 Interaction with other tools
+7 Interaction with other tools
 ******************************
 
 In this chapter we discuss some ways in ways in which mu4e can cooperate
@@ -1222,15 +1668,17 @@ with other tools.
 
 * Setting the default emacs mail program::
 * Creating org-mode links::
+* Rich-text messages with org-mode::
 * Maintaining an address-book with org-contacts::
 * Getting new mail notifications with Sauron::
 * Speedbar support::
 * Citations with mu-cite::
+* Attaching files with dired::
 
 
 File: mu4e.info,  Node: Setting the default emacs mail program,  Next: Creating org-mode links,  Up: Interaction with other tools
 
-6.1 Setting the default emacs mail program
+7.1 Setting the default emacs mail program
 ==========================================
 
 emacs allows you to select an e-mail program as the default program it
@@ -1245,9 +1693,9 @@ to your configuration:
    At the present time, support is still experimental.
 
 
-File: mu4e.info,  Node: Creating org-mode links,  Next: Maintaining an address-book with org-contacts,  Prev: Setting the default emacs mail program,  Up: Interaction with other tools
+File: mu4e.info,  Node: Creating org-mode links,  Next: Rich-text messages with org-mode,  Prev: Setting the default emacs mail program,  Up: Interaction with other tools
 
-6.2 Creating org-mode links
+7.2 Creating org-mode links
 ===========================
 
 It can be useful to include links to e-mail messages or even search
@@ -1267,12 +1715,64 @@ org-agenda-open-link in agenda buffers, or M-x org-open-at-point
 elsewhere - both are typically bound to `C-c C-o'.
 
 
-File: mu4e.info,  Node: Maintaining an address-book with org-contacts,  Next: Getting new mail notifications with Sauron,  Prev: Creating org-mode links,  Up: Interaction with other tools
+File: mu4e.info,  Node: Rich-text messages with org-mode,  Next: Maintaining an address-book with org-contacts,  Prev: Creating org-mode links,  Up: Interaction with other tools
 
-6.3 Maintaining an address-book with org-contacts
+7.3 Rich-text messages with org-mode (EXPERIMENTAL)
+===================================================
+
+org-mode has some nice facilities for editing texts - creating lists,
+tables, mathematical formulae etc. In addition, it can convert them to
+HTML.
+
+   An _experimental_ mu4e feature lets you edit your messages with
+org-mode, and (optionally) convert them on the fly (when sending them)
+to messages with an HTML-part containing the rich-text version of your
+messages.
+
+   To enable all this, make sure you have
+     (require 'org-mu4e)
+   somewhere in your setup, and also make sure that the dvipng program
+is available in your path.
+
+   Then, when composing a message, you can use `M-x
+org-mu4e-compose-org-mode' to enable this mode, or, alternatively, put
+in the mode-hook for mu4e-compose-mode.
+
+   org-mu4e-compose-org-mode behaves more or less like a minor-mode.
+When it is active, editing the message body takes place in org-mode,
+while editing the headers uses the normal message editing mode,
+mu4e-compose-mode.
+
+   Now, if you want to automatically convert the org-mode markup to
+rich-text when sending messages, you need to set the variable
+`org-mu4e-convert-to-html' to non-nil:
+
+     (setq org-mu4e-convert-to-html t)
+
+   To send the message or execute other mu4e-compose-mode/message-mode
+commands on the message, first press <M-m>. Thus, for example, to send
+the message, you'd press <M-m C-c>.
+
+   The code for doing the conversion is based on Eric Schultze's
+org-mime(1), but has been customized for use with mu4e. In particular,
+the mode-switching between org-mode and mu4e-compose-mode is
+mu4e-specific.
+
+   ---------- Footnotes ----------
+
+   (1) `http://orgmode.org/worg/org-contrib/org-mime.php'
+
+
+File: mu4e.info,  Node: Maintaining an address-book with org-contacts,  Next: Getting new mail notifications with Sauron,  Prev: Rich-text messages with org-mode,  Up: Interaction with other tools
+
+7.4 Maintaining an address-book with org-contacts
 =================================================
 
-To manage your addresses using org-mode, there is org-contacts(1).
+Note, mu4e supports built-in address autocompletion; *note Address
+autocompletion::, and that is the recommended way to do this.
+
+   However, it is also possible to manage your addresses with org-mode,
+using org-contacts(1).
 
    mu4e-actions defines a useful action (*note Actions::) for this to
 add a contact based on the From:-address in the current mail (current
@@ -1281,12 +1781,13 @@ like:
 
      (setq mu4e-org-contacts-file  <full-path-to-your-org-contacts-file>)
      (add-to-list 'mu4e-headers-actions
-       '("org-contact-add" ?o mu4e-action-add-org-contact) t)
+       '("org-contact-add" . mu4e-action-add-org-contact) t)
      (add-to-list 'mu4e-view-actions
-       '("org-contact-add" ?o mu4e-action-add-org-contact) t)
+       '("org-contact-add" . mu4e-action-add-org-contact) t)
 
    After this, you should be able to add contacts using <a o> in the
 headers view and the message view, using the org-capture mechanism.
+Note, the <o> is because of the first character of org-contact-add.
 
    ---------- Footnotes ----------
 
@@ -1295,7 +1796,7 @@ headers view and the message view, using the org-capture mechanism.
 
 File: mu4e.info,  Node: Getting new mail notifications with Sauron,  Next: Speedbar support,  Prev: Maintaining an address-book with org-contacts,  Up: Interaction with other tools
 
-6.4 Getting new mail notifications with Sauron
+7.5 Getting new mail notifications with Sauron
 ==============================================
 
 The emacs-package Sauron(1) (by the same author) can be used to get
@@ -1317,10 +1818,11 @@ sauron-msg () {
         fi
     fi
     if test -n "x$DBUS_SESSION_BUS_ADDRESS"; then
-        dbus-send --session                 \
-            --dest="org.gnu.Emacs"        \
-            "/org/gnu/Emacs/Sauron"                \
-            "org.gnu.Emacs.Sauron.AddMsgEvent"      \
+        dbus-send --session                          \
+            --dest="org.gnu.Emacs"                   \
+            --type=method_call                       \
+            "/org/gnu/Emacs/Sauron"                  \
+            "org.gnu.Emacs.Sauron.AddMsgEvent"       \
             string:shell uint32:3 string:"$1"
     fi
 }
@@ -1342,7 +1844,7 @@ the Marmalade package-repository at `http://http://marmalade-repo.org/'
 
 File: mu4e.info,  Node: Speedbar support,  Next: Citations with mu-cite,  Prev: Getting new mail notifications with Sauron,  Up: Interaction with other tools
 
-6.5 Speedbar support
+7.6 Speedbar support
 ====================
 
 `speedbar' is an emacs-extension that shows navigational information for
@@ -1353,14 +1855,18 @@ them.
    mu4e loads mu4e-speedbar automatically; all you need to do to
 activate it is `M-x speedbar'. Then, when then going to the *note Main
 view::, the speedbar-frame will be updated with your bookmarks and
-maildirs.
+maildirs. For speed reasons, the list of maildirs is determined when
+mu4e starts; if the list of maildirs changes while mu4e is running, you
+need to restart mu4e to reflect those changes in the speedbar and in
+other places that use this list, such as auto-completion when jumping
+to a maildir.
 
    `mu4e-speedbar' was contributed by Antono Vasiljev.
 
 
-File: mu4e.info,  Node: Citations with mu-cite,  Prev: Speedbar support,  Up: Interaction with other tools
+File: mu4e.info,  Node: Citations with mu-cite,  Next: Attaching files with dired,  Prev: Speedbar support,  Up: Interaction with other tools
 
-6.6 Citations with mu-cite
+7.7 Citations with mu-cite
 ==========================
 
 Note, apart from its name mu-cite is a project totally unconnected to
@@ -1381,9 +1887,43 @@ following to make it work with mu4e:
      (setq mu-cite-prefix-format '(" > ")))
 
 
+File: mu4e.info,  Node: Attaching files with dired,  Prev: Citations with mu-cite,  Up: Interaction with other tools
+
+7.8 Attaching files with dired
+==============================
+
+It's possible to attach files to mu4e messages, using the following
+steps (based on a post on the mu-discuss mailing list by Stephen Eglen).
+
+   To prepare for this, you need a special version of the
+`gnus-dired-mail-buffers' function so it understands mu4e buffers as
+well; so put in your configuration:
+
+     (require 'gnus-dired)
+     ;; make the `gnus-dired-mail-buffers' function also work on message-mode derived
+     ;; modes, such as mu4e-compose-mode
+     (defun gnus-dired-mail-buffers ()
+       "Return a list of active message buffers."
+       (let (buffers)
+         (save-current-buffer
+           (dolist (buffer (buffer-list t))
+     	(set-buffer buffer)
+     	(when (and (derived-mode-p 'message-mode)
+     		(null message-sent-message-via))
+     	  (push (buffer-name buffer) buffers))))
+         (nreverse buffers)))
+
+     (setq gnus-dired-mail-mode 'mu4e-user-agent)
+     (add-hook 'dired-mode-hook 'turn-on-gnus-dired-mode)
+
+   Then, mark the file(s) in dired you would like to attach and press
+C-c RET C-a, and you'll be asked whether to attach them to an existing
+message, or create a new one.
+
+
 File: mu4e.info,  Node: Example configuration,  Next: FAQ - Frequently Anticipated Questions,  Prev: Interaction with other tools,  Up: Top
 
-7 Example configuration
+8 Example configuration
 ***********************
 
 In this chapter, we show some example configurations.
@@ -1397,7 +1937,7 @@ In this chapter, we show some example configurations.
 
 File: mu4e.info,  Node: Minimal configuration,  Next: Longer configuration,  Up: Example configuration
 
-7.1 Minimal configuration
+8.1 Minimal configuration
 =========================
 
 An (almost) minimal configuration for mu4e might look something like
@@ -1427,7 +1967,7 @@ this:
 
 File: mu4e.info,  Node: Longer configuration,  Next: Gmail configuration,  Prev: Minimal configuration,  Up: Example configuration
 
-7.2 Longer configuration
+8.2 Longer configuration
 ========================
 
      ;; example configuration for mu-for-emacs (mu4e)
@@ -1493,10 +2033,13 @@ File: mu4e.info,  Node: Longer configuration,  Next: Gmail configuration,  Prev:
         smtpmail-queue-mail  nil
         smtpmail-queue-dir  "/home/user/Maildir/queue/cur")
 
+        ;; don't keep message buffers around
+        (setq message-kill-buffer-on-exit t)
+
 
 File: mu4e.info,  Node: Gmail configuration,  Prev: Longer configuration,  Up: Example configuration
 
-7.3 Gmail configuration
+8.3 Gmail configuration
 =======================
 
 _Gmail_ is a popular e-mail provider; let's see how we can make it work
@@ -1615,6 +2158,9 @@ to see what is going on.
            smtpmail-smtp-server "smtp.gmail.com"
            smtpmail-smtp-service 587)
 
+     ;; don't keep message buffers around
+     (setq message-kill-buffer-on-exit t)
+
    And that's it - put the above in your `~/.emacs' (obviously you need
 to change USERNAME etc. to your own), and restart emacs, and run `M-x
 mu4e'.
@@ -1626,39 +2172,43 @@ Mail' folder by pressing `ma'.
 
 File: mu4e.info,  Node: FAQ - Frequently Anticipated Questions,  Next: Known issues / missing features,  Prev: Example configuration,  Up: Top
 
-8 FAQ - Frequently Anticipated Questions
+9 FAQ - Frequently Anticipated Questions
 ****************************************
 
 In this chapter we list a number of actual and anticipated questions
 and their answers.
 
    * _How can I quickly delete/move/trash a lot of messages?_ You can
-     select ('mark' in emacs-speak) the messages; the actions you then
-     take (e.g., <DEL> for delete, <m> for move and <t> for trash) will
-     apply to _all_ selected messages. You can also use functions like
+     select ('mark' in emacs-speak) the messages like you would select
+     text in a buffer; the actions you then take (e.g., <DEL> for
+     delete, <m> for move and <t> for trash) will apply to _all_
+     selected messages. You can also use functions like
      `mu4e-headers-mark-thread' (<T>), `mu4e-headers-mark-subthread'
      (<t>) to mark whole threads at the same time, and
-     `mu4e-headers-mark-matches' (<%>) to mark all messages matching a
+     `mu4e-headers-mark-pattern' (<%>) to mark all messages matching a
      certain regular expression.
 
    * _How can I use BBDB?_ Currently, there is no built-in for address
-     management with BBDB; instead, we recommend *note Maintaining an
-     address-book with org-contacts:: for now.
+     management with BBDB; instead, we recommend using mu4e's built-in
+     *note Address autocompletion::.
 
-   * _mu4e only seems to return a subset of all matches - how can I get
-     all?_. Yes, for speed reasons (and because, if you are like the
+   * _mu4e seems to return a mere subset of all matches - how can I get
+     all?_. Indeed, for speed reasons (and because, if you are like the
      author, you usually don't need thousands of matches), mu4e returns
      only up to the value of the variable `m4ue-search-result-limit'
-     matches. You can customize that variable, or simply press the
-     emacs prefix `C-u' before your search command to get all matches.
-     In other words, when you press C-u s hello you will get all
-     matches, while s hello only gets you up-to-a-limited-number
-     matches. Same for the other search based commands,
-     `mu4e-headers-jump-to-maildir' (default: <j>) and
-     `mu4e-headers-search-bookmark' (default: <b>).
+     matches. To show _all_ results, use M-x
+     mu4e-headers-toggle-full-search, or customize the variable
+     `mu4e-headers-full-search'. This applies to all search commands.
+
+   * _How can I show attached images in my message view buffers?_ See
+     *note Viewing images inline::.
 
    * _How can I easily include attachments in the messages I write?_
-     Drag-and-drop.
+     You can drag-and-drop from your desktop; alternatively, you can
+     use dired - see *note Attaching files with dired::.
+
+   * _mu4e seems to remove myself from the Cc: list; how can I prevent
+     that?_ Set `mu4e-compose-keep-self-cc' to t in your configuration.
 
    * _When I try to run mu index while mu4e is running I get errors
      like mu: mu_store_new_writable: xapian error 'Unable to get write
@@ -1666,23 +2216,26 @@ and their answers.
      You get this error because the underlying Xapian database allows
      itself to be opened in read-write mode only once. There is not
      much mu4e can do about this, but what you can do is telling mu to
-     (gracefully) terminate:    pkill -2 -u $UID mu # send SIGINT
+     (gracefully) terminate:
+
+        pkill -2 -u $UID mu # send SIGINT
         sleep 1
         mu index
-      mu4e will automatically restart mu when it needs it. In practice,
+
+     mu4e will automatically restart mu when it needs it. In practice,
      this seems to work quite well.
 
-   * _Can I automatically execute the actions on marked messages when
-     leaving the headers buffer?_ Yes you can - see the documentation on
+   * _Can I automatically apply the marks on messages when leaving the
+     headers buffer?_ Yes you can - see the documentation on
      mu4e-headers-leave-behavior.
 
-   * _Can I automatically apply word-wrapping (and hiding cited parts)
-     when viewing a message?_ Yes - see the documentation on
+   * _How can I automatically apply word-wrapping (and hiding cited
+     parts) when viewing a message?_ See the documentation on
      mu4e-view-wrap-lines (and mu4e-view-hide-cited). You can always
      toggle between the two states with <w> and <h>, respectively.
 
-   * _Is there context-sensitive help available?_ Yes - pressing <H> in
-     most cases should point you to the right spot in this manual.
+   * _Is there context-sensitive help available?_ Yes - pressing <H>
+     should take you to the right place in this manual.
 
    * _How can I set mu4e as the default e-mail client in emacs?_ See
      *note Setting the default emacs mail program::.
@@ -1693,8 +2246,8 @@ and their answers.
 
 File: mu4e.info,  Node: Known issues / missing features,  Next: How it works,  Prev: FAQ - Frequently Anticipated Questions,  Up: Top
 
-9 Known issues / missing features
-*********************************
+10 Known issues / missing features
+**********************************
 
 In this chapter we list a number of known issue and/or missing features
 in mu4e. Thus, users won't have to search in vain for things that are
@@ -1710,16 +2263,6 @@ not there (yet), and the author can use it as a todo-list.
    * _No support for crypto when reading mail_. Currently, you cannot
      conveniently read encrypted mail or check signatures. For outgoing
      messages, it should work though, using the built-in mechanisms.
-
-   * _One cannot influence the sorting of messages_. Messages are sorted
-     according to their thread, then descending by date. It would be
-     nice if it could be sorted in other ways as well.
-
-   * _mu4e gets confused when there are multiple windows showing the
-     headers._. Yes - don't do that.
-
-   * _Messages in the sent-folder do not include the attachments you
-     sent._ Same for the drafts-folder.
 
    * _The key-bindings are _somewhat_ hard-coded_ That is, the main
      menu assumes the default key-bindings, as do the
@@ -1879,8 +2422,9 @@ A typical message s-expression looks something like the following:
       :maildir "/INBOX"
       :priority normal
       :flags (seen)
-      :attachments ((:index 2 :name "photo.jpg" :mime-type "image/jpeg" :size 147331)
-                    (:index 3 :name "book.pdf" :mime-type "application/pdf" :size 192220))
+      :parts ( (:index 1 :mime-type "text/plain" :size 12345 :attachment nil)
+               (:index 2 :name "photo.jpg" :mime-type "image/jpeg" :size 147331 :attachment t)
+               (:index 3 :name "book.pdf" :mime-type "application/pdf" :size 192220 :attachment t))
       :references  ("6BDC23465F79238C8384574032D81EE81AF0114E4E74@123213.mail.example.com"
       "6BDC23465F79238203498230942D81EE81AF0114E4E74@123213.mail.example.com")
       :in-reply-to "6BDC23465F79238203498230942D81EE81AF0114E4E74@123213.mail.example.com"
@@ -1949,9 +2493,9 @@ this reason, mu4e can log all these messages. Note that the 'protocol'
 is documented to some extent in the mu-server manpage.
 
    You can enable (and disable) logging with M-x mu4e-toggle-logging.
-The log-buffer is called *mu4e-log-buffer*, and in the *note Main
-view::, *note Headers view:: and Message view, there's a keybinding <$>
-that will take you there. You can quit it by pressing <q>.
+The log-buffer is called *mu4e-log*, and in the *note Main view::,
+*note Headers view:: and Message view, there's a keybinding <$> that
+will take you there. You can quit it by pressing <q>.
 
    Logging can be a bit resource-intensive, so you may not want to
 leave it on all the time. By default, the log only maintains the most
@@ -2396,67 +2940,84 @@ permit their use in free software.
 
 Tag Table:
 Node: Top638
-Node: Introduction1719
-Node: Why another e-mail client?1955
-Node: Other mail clients2629
-Ref: Other mail clients-Footnote-13425
-Ref: Other mail clients-Footnote-23458
-Ref: Other mail clients-Footnote-33501
-Ref: Other mail clients-Footnote-43537
-Ref: Other mail clients-Footnote-53573
-Node: What mu4e does and does not do3604
-Ref: What mu4e does and does not do-Footnote-14548
-Ref: What mu4e does and does not do-Footnote-24582
-Ref: What mu4e does and does not do-Footnote-34622
-Node: Getting started4659
-Node: Installation5180
-Ref: Installation-Footnote-16544
-Node: Getting mail6650
-Node: Indexing your messages8145
-Ref: Indexing your messages-Footnote-19615
-Node: Basic configuration9732
-Node: Folders10133
-Node: Sending mail10840
-Node: Running mu4e12706
-Node: Main view14369
-Node: Headers view17104
-Ref: Marking messages20896
-Ref: Headers view-Footnote-123820
-Node: Message view23868
-Ref: Message view-Footnote-130263
-Ref: Message view-Footnote-230482
-Ref: Message view-Footnote-330530
-Node: Editor view30572
-Ref: Queuing mail32161
-Node: Searching33289
-Node: Queries34287
-Node: Bookmarks35871
-Ref: Bookmarks-Footnote-138436
-Node: Maildir searches38479
-Node: Actions40303
-Node: Interaction with other tools44012
-Node: Setting the default emacs mail program44505
-Node: Creating org-mode links45079
-Node: Maintaining an address-book with org-contacts46036
-Ref: Maintaining an address-book with org-contacts-Footnote-147062
-Node: Getting new mail notifications with Sauron47123
-Ref: Getting new mail notifications with Sauron-Footnote-148688
-Node: Speedbar support48831
-Node: Citations with mu-cite49526
-Node: Example configuration50300
-Node: Minimal configuration50632
-Node: Longer configuration51606
-Node: Gmail configuration54186
-Node: FAQ - Frequently Anticipated Questions58351
-Node: Known issues / missing features61608
-Node: How it works63133
-Node: High-level overview63527
-Node: mu server65024
-Node: Reading from the server66060
-Node: The message s-expression68330
-Ref: The message s-expression-Footnote-171351
-Node: Logging and debugging71538
-Node: GNU Free Documentation License72608
+Node: Introduction2646
+Node: Why another e-mail client?2871
+Node: Other mail clients3786
+Ref: Other mail clients-Footnote-14561
+Ref: Other mail clients-Footnote-24594
+Ref: Other mail clients-Footnote-34637
+Ref: Other mail clients-Footnote-44673
+Ref: Other mail clients-Footnote-54709
+Node: What mu4e does not do4740
+Ref: What mu4e does not do-Footnote-15657
+Ref: What mu4e does not do-Footnote-25691
+Ref: What mu4e does not do-Footnote-35731
+Node: Getting started5768
+Node: Installation6289
+Ref: Installation-Footnote-18337
+Ref: Installation-Footnote-28391
+Node: Getting mail8497
+Node: Indexing your messages9993
+Ref: Indexing your messages-Footnote-111463
+Node: Basic configuration11580
+Node: Folders11981
+Node: Sending mail12688
+Node: Running mu4e14554
+Node: Main view16319
+Node: Headers view19162
+Ref: Marking messages23315
+Ref: Sort order and threading24361
+Ref: Headers view-Footnote-127838
+Ref: Headers view-Footnote-227941
+Node: Message view27989
+Ref: Viewing images inline32828
+Ref: Message view-Footnote-136133
+Ref: Message view-Footnote-236352
+Ref: Message view-Footnote-336400
+Node: Editor view36442
+Ref: Address autocompletion38225
+Ref: Queuing mail40257
+Node: Searching41385
+Node: Queries42321
+Node: Bookmarks43905
+Ref: Bookmarks-Footnote-146470
+Node: Maildir searches46513
+Node: Other search functionality48558
+Node: Marking50359
+Node: Selecting messages for marking50919
+Node: What to mark for51721
+Ref: What to mark for-Footnote-153420
+Node: Executing the marks53517
+Node: Leaving the headers buffer53782
+Node: Custom mark functions54191
+Node: Some marking examples56223
+Node: Actions56828
+Node: Interaction with other tools61582
+Node: Setting the default emacs mail program62143
+Node: Creating org-mode links62717
+Node: Rich-text messages with org-mode63661
+Ref: Rich-text messages with org-mode-Footnote-165505
+Node: Maintaining an address-book with org-contacts65564
+Ref: Maintaining an address-book with org-contacts-Footnote-166823
+Node: Getting new mail notifications with Sauron66884
+Ref: Getting new mail notifications with Sauron-Footnote-168527
+Node: Speedbar support68670
+Node: Citations with mu-cite69649
+Node: Attaching files with dired70458
+Node: Example configuration71759
+Node: Minimal configuration72091
+Node: Longer configuration73065
+Node: Gmail configuration75736
+Node: FAQ - Frequently Anticipated Questions79986
+Node: Known issues / missing features83365
+Node: How it works84477
+Node: High-level overview84871
+Node: mu server86368
+Node: Reading from the server87404
+Node: The message s-expression89674
+Ref: The message s-expression-Footnote-192791
+Node: Logging and debugging92978
+Node: GNU Free Documentation License94041
 
 End Tag Table
 

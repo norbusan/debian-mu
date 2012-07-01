@@ -39,14 +39,21 @@
   :type 'symbol
   :group 'mu4e-headers)
 
+(defvar mu4e-headers-show-target t
+  "Whether to show targets (such as '-> delete', '-> /archive')
+when marking message. Normally, this is useful information for the
+user, however, when you often mark large numbers (thousands) of
+message, showing the target makes this quite a bit slower (showing
+the target uses an emacs feature called 'overlays', which aren't
+particularly fast).")
 
-;;; marks ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; insert stuff;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defvar mu4e~mark-map nil
   "Map (hash) of docid->markinfo; when a message is marked, the
 information is added here.
 
-markinfo is a list consisting of the following:
-\(mark target)
+markinfo is a cons cell consisting of the following:
+\(mark . target)
 where
    MARK is the type of mark (move, trash, delete)
    TARGET (optional) is the target directory (for 'move')")
@@ -65,19 +72,14 @@ where
 (defconst mu4e~mark-fringe-format (format "%%-%ds" mu4e~mark-fringe-len)
   "Format string to set a mark and leave remaining space.")
 
-
-
-
-
 (defun mu4e~mark-initialize ()
   "Initialize the marks subsystem."
   (make-local-variable 'mu4e~mark-map)
-  (setq mu4e~mark-map (make-hash-table :size 16 :rehash-size 2)))
+  (setq mu4e~mark-map (make-hash-table :size 16)))
 
 (defun mu4e~mark-clear ()
   "Clear the marks subsystem."
   (clrhash mu4e~mark-map))
-
 
 (defun mu4e-mark-at-point (mark &optional target)
   "Mark (or unmark) message at point. MARK specifies the
@@ -94,18 +96,29 @@ The following marks are available, and the corresponding props:
    `delete'   n         remove the message
    `read'     n         mark the message as read
    `unread'   n         mark the message as unread
+   `flag'     n         mark this message for flagging
+   `unflag'   n         mark this message for unflagging
+   `deferred' n         mark this message for *something* (decided later)
    `unmark'   n         unmark this message"
   (interactive)
   (let* ((docid (mu4e~headers-docid-at-point))
-	  (markkar
-	    (case mark ;; the visual mark
-	      ('move    "m")
-	      ('trash   "d")
-	      ('delete  "D")
-	      ('unread  "U")
-	      ('read    "R")
-	      ('unmark  " ")
-	      (t (error "Invalid mark %S" mark)))))
+	  ;; get a cell with the mark char and the 'target' 'move' already has a
+	  ;; target (the target folder) the other ones get a pseudo "target", as
+	  ;; info for the user.
+	  (markcell
+	    (case mark
+	      (move      `("m" . ,target))
+	      (trash     '("d" . "trash"))
+	      (delete    '("D" . "delete"))
+	      (unread    '("o" . "unread"))
+	      (read      '("r" . "read"))
+	      (flag      '("+" . "flag"))
+	      (unflag    '("-" . "unflag"))
+	      (deferred  '("*" . "deferred"))
+	      (unmark    '(" " . nil))
+	      (otherwise (error "Invalid mark %S" mark))))
+	  (markkar (car markcell))
+	  (target (cdr markcell)))
     (unless docid (error "No message on this line"))
     (save-excursion
       (when (mu4e~headers-mark docid markkar)
@@ -114,13 +127,12 @@ The following marks are available, and the corresponding props:
 	(remhash docid mu4e~mark-map)
 	;; remove possible overlays
 	(remove-overlays (line-beginning-position) (line-end-position))
-
 	;; now, let's set a mark (unless we were unmarking)
 	(unless (eql mark 'unmark)
-	  (puthash docid (list mark target) mu4e~mark-map)
+	  (puthash docid (cons mark target) mu4e~mark-map)
 	  ;; when we have a target (ie., when moving), show the target folder in
 	  ;; an overlay
-	  (when target
+	  (when (and target mu4e-headers-show-target)
 	    (let* ((targetstr (propertize (concat "-> " target " ")
 				'face 'mu4e-system-face))
 		    ;; mu4e~headers-goto-docid docid t \will take us just after the
@@ -147,6 +159,13 @@ headers in the region."
     ;; just a single message
     (mu4e-mark-at-point mark target)))
 
+(defun mu4e-mark-restore (docid)
+  "Restore the visual mark for the message with DOCID."
+  (let ((markcell (gethash docid mu4e~mark-map)))
+    (when markcell
+      (save-excursion
+	(when (mu4e~headers-goto-docid docid)
+	  (mu4e-mark-at-point (car markcell) (cdr markcell)))))))
 
 (defun mu4e-mark-for-move-set (&optional target)
   "Mark message at point or, if region is active, all messages in
@@ -167,6 +186,45 @@ provided, function asks for it."
       (mu4e-mark-set 'move target))))
 
 
+(defun mu4e~mark-get-markpair (prompt &optional allow-deferred)
+  "Ask user for a mark; return (MARK . TARGET). If ALLOW-DEFERRED
+is non-nil, allow the 'deferred' pseudo mark as well."
+  (let* ((marks '(("move"	. move)
+		   ("dtrash"	. trash)
+		   ("Delete"	. delete)
+		   ("ounread"	. unread)
+		   ("read"	. read)
+		   ("+flag"	. flag)
+		   ("-unflag"	. unflag)
+		   ("unmark"	. unmark)))
+	  (marks
+	    (if allow-deferred
+	      (append marks (list '("*deferred" . deferred)))
+	      marks))
+	  (mark (mu4e-read-option prompt marks))
+	  (target
+	    (when (eq mark 'move)
+	      (mu4e-ask-maildir-check-exists "Move message to: "))))
+    (cons mark target)))
+
+
+(defun mu4e-mark-resolve-deferred-marks ()
+  "Check if there are any deferred marks. If there are such marks,
+replace them with a _real_ mark (ask the user which one)."
+  (interactive)
+  (let ((markpair))
+    (maphash
+      (lambda (docid val)
+	(let ((mark (car val)) (target (cdr val)))
+	  (when (eql mark 'deferred)
+	    (unless markpair
+	      (setq markpair
+		(mu4e~mark-get-markpair "Set deferred mark to: " nil)))
+	    (save-excursion
+	      (when (mu4e~headers-goto-docid docid)
+		(mu4e-mark-set (car markpair) (cdr markpair)))))))
+      mu4e~mark-map)))
+
 (defun mu4e-mark-execute-all (&optional no-confirmation)
   "Execute the actions for all marked messages in this
 buffer. After the actions have been executed succesfully, the
@@ -183,22 +241,28 @@ If NO-CONFIRMATION is non-nil, don't ask user for confirmation."
   (let ((marknum (hash-table-count mu4e~mark-map)))
     (if (zerop marknum)
       (message "Nothing is marked")
+      (mu4e-mark-resolve-deferred-marks)
       (when (or no-confirmation
 	      (y-or-n-p
 		(format "Are you sure you want to execute %d mark%s?"
 		  marknum (if (> marknum 1) "s" ""))))
 	(maphash
 	  (lambda (docid val)
-	    (let ((mark (nth 0 val)) (target (nth 1 val)))
+	    (let ((mark (car val)) (target (cdr val)))
+	      ;; note: whenever you do something with the message,
+	      ;; it looses its N (new) flag
 	      (case mark
-		(move   (mu4e~proc-move docid target))
+		(move   (mu4e~proc-move docid target "-N"))
 		(read   (mu4e~proc-move docid nil "+S-u-N"))
-		(unread (mu4e~proc-move docid nil "-S+u"))
+		(unread (mu4e~proc-move docid nil "-S+u-N"))
+		(flag   (mu4e~proc-move docid nil "+F-u-N"))
+		(unflag (mu4e~proc-move docid nil "-F-N"))
 		(trash
 		  (unless mu4e-trash-folder
 		    (error "`mu4e-trash-folder' not set"))
-		  (mu4e~proc-move docid mu4e-trash-folder "+T"))
-		(delete (mu4e~proc-remove docid)))))
+		  (mu4e~proc-move docid mu4e-trash-folder "+T-N"))
+		(delete (mu4e~proc-remove docid))
+		(otherwise (error "Unrecognized mark %S" mark)))))
 	  mu4e~mark-map))
       (mu4e-mark-unmark-all)
       (message nil))))
@@ -206,7 +270,7 @@ If NO-CONFIRMATION is non-nil, don't ask user for confirmation."
 (defun mu4e-mark-unmark-all ()
   "Unmark all marked messages."
   (interactive)
-  (when (zerop (hash-table-count mu4e~mark-map))
+  (when (or (null mu4e~mark-map) (zerop (hash-table-count mu4e~mark-map)))
     (error "Nothing is marked"))
   (maphash
     (lambda (docid val)
@@ -238,10 +302,11 @@ action', return nil means 'don't do anything'"
 	(setq what
 	  (let ((what (mu4e-read-option
 			  "There are existing marks; should we: "
-			  '( ("apply marks"   nil apply)
-			     ("ignore marks?" nil ignore)))))
+			  '( ("apply marks"   . apply)
+			     ("ignore marks?" . ignore)))))
 	    ;; we determined what to do... now do it
 	    (when (eq what 'apply)
 	      (mu4e-mark-execute-all t))))))))
 
 (provide 'mu4e-mark)
+;; End of mu4e-mark.el

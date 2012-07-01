@@ -96,7 +96,7 @@ AM_RECURSIVE_TARGETS = $(RECURSIVE_TARGETS:-recursive=) \
 	distdir dist dist-all distcheck
 ETAGS = etags
 CTAGS = ctags
-DIST_SUBDIRS = m4 man src widgets guile emacs contrib toys
+DIST_SUBDIRS = m4 man lib widgets guile mu emacs contrib toys
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
 distdir = $(PACKAGE)-$(VERSION)
 top_distdir = $(distdir)
@@ -288,11 +288,11 @@ TEST_PROGS =
 
 # only build widgets if we have webkit
 @BUILD_WIDGETS_TRUE@widgets = widgets
-@HAVE_GUILE_FALSE@guile = 
-@HAVE_GUILE_TRUE@guile = guile
-@HAVE_EMACS_FALSE@emacs = 
-@HAVE_EMACS_TRUE@emacs = emacs
-SUBDIRS = m4 man src $(widgets) $(guile) $(emacs) contrib toys
+@BUILD_GUILE_FALSE@guile = 
+@BUILD_GUILE_TRUE@guile = guile
+@BUILD_MU4E_FALSE@emacs = 
+@BUILD_MU4E_TRUE@emacs = emacs
+SUBDIRS = m4 man lib $(widgets) $(guile) mu $(emacs) contrib toys
 ACLOCAL_AMFLAGS = -I m4
 EXTRA_DIST = \
 	TODO		\
@@ -845,6 +845,7 @@ tags:
 cc10:
 	@$(PMCCABE) `find -name '*.c' -o -name '*.cc'`		\
 	| grep -v mu-str-normalize.c				\
+	| grep -v mu_str_subject_normalize			\
 	| grep -v tests						\
 	| sort -nr | awk '($$1 > 10)'
 
@@ -855,6 +856,7 @@ cc10:
 line35:
 	@$(PMCCABE) -c `find -name '*.c' -o -name '*.cc'`	\
 	 | grep -v mu-str-normalize.c				\
+	 | grep -v mu_str_subject_normalize			\
 	 | grep -v config_options_group_find			\
 	 | grep -v SCM_DEFINE_PUBLIC				\
 	 | grep -v tests					\

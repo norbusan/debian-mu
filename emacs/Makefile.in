@@ -130,10 +130,10 @@ am__uninstall_files_from_dir = { \
   }
 dist_lispLISP_INSTALL = $(INSTALL_DATA)
 LISP = $(dist_lisp_LISP)
-am__ELFILES = mu4e-actions.el mu4e-compose.el mu4e-headers.el \
-	mu4e-main.el mu4e-mark.el mu4e-meta.el mu4e-proc.el \
-	mu4e-speedbar.el mu4e-utils.el mu4e-vars.el mu4e-view.el \
-	mu4e.el org-mu4e.el
+am__ELFILES = mu4e-about.el mu4e-actions.el mu4e-compose.el \
+	mu4e-headers.el mu4e-main.el mu4e-mark.el mu4e-meta.el \
+	mu4e-proc.el mu4e-speedbar.el mu4e-utils.el mu4e-vars.el \
+	mu4e-view.el mu4e.el org-mu4e.el
 am__ELCFILES = $(am__ELFILES:.el=.elc)
 ELCFILES = $(LISP:.el=.elc)
 elisp_comp = $(top_srcdir)/elisp-comp
@@ -322,6 +322,7 @@ SUBDIRS =
 info_TEXINFOS = mu4e.texi
 mu4e_TEXINFOS = fdl.texi
 dist_lisp_LISP = \
+	mu4e-about.el		\
 	mu4e-actions.el		\
 	mu4e-compose.el		\
 	mu4e-headers.el		\
@@ -336,7 +337,8 @@ dist_lisp_LISP = \
 	mu4e.el			\
 	org-mu4e.el
 
-EXTRA_DIST = $(elisp_DATA)
+EXTRA_DIST = $(elisp_DATA) mu4e-about.org
+CLEANFILES = *.elc ${BUILT_SOURCES}
 all: all-recursive
 
 .SUFFIXES:
@@ -827,6 +829,7 @@ install-strip:
 mostlyclean-generic:
 
 clean-generic:
+	-test -z "$(CLEANFILES)" || rm -f $(CLEANFILES)
 
 distclean-generic:
 	-test -z "$(CONFIG_CLEAN_FILES)" || rm -f $(CONFIG_CLEAN_FILES)
@@ -1036,6 +1039,16 @@ test: all $(TEST_PROGS)
 		done
 
 .PHONY: test gprof
+
+# BUILT_SOURCES=			\
+# 	mu4e-about.el
+
+mu4e-about.el: mu4e-about.org
+	@echo ";; auto-generated"              >   mu4e-about.el
+	@echo -n "(defconst mu4e-about \""     >>  mu4e-about.el
+	@sed 's/"/\\"/g' < mu4e-about.org      >>  mu4e-about.el
+	@echo "\" \"About mu4e.\")"            >>  mu4e-about.el
+	@echo "(provide 'mu4e-about)"          >>  mu4e-about.el
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.

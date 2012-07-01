@@ -23,19 +23,19 @@ else
 widgets=
 endif
 
-if HAVE_GUILE
+if BUILD_GUILE
 guile=guile
 else
 guile=
 endif
 
-if HAVE_EMACS
+if BUILD_MU4E
 emacs=emacs
 else
 emacs=
 endif
 
-SUBDIRS=m4 man src $(widgets) $(guile) $(emacs) contrib toys
+SUBDIRS=m4 man lib $(widgets) $(guile) mu $(emacs) contrib toys
 
 ACLOCAL_AMFLAGS=-I m4
 
@@ -55,6 +55,7 @@ tags:
 cc10:
 	@$(PMCCABE) `find -name '*.c' -o -name '*.cc'`		\
 	| grep -v mu-str-normalize.c				\
+	| grep -v mu_str_subject_normalize			\
 	| grep -v tests						\
 	| sort -nr | awk '($$1 > 10)'
 
@@ -65,6 +66,7 @@ cc10:
 line35:
 	@$(PMCCABE) -c `find -name '*.c' -o -name '*.cc'`	\
 	 | grep -v mu-str-normalize.c				\
+	 | grep -v mu_str_subject_normalize			\
 	 | grep -v config_options_group_find			\
 	 | grep -v SCM_DEFINE_PUBLIC				\
 	 | grep -v tests					\

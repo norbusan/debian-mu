@@ -31,10 +31,13 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; internal vars
 
-(defvar mu4e~proc-buf nil "Buffer for results data.")
-(defconst mu4e~proc-name "*mu4e-proc*" "Name of the server process, buffer.")
-(defvar mu4e~proc-process nil "The mu-server process")
-
+(defvar mu4e~proc-buf nil
+  "Buffer (string) for data received from
+the backend.")
+(defconst mu4e~proc-name " *mu4e-proc*"
+  "Name of the server process, buffer.")
+(defvar mu4e~proc-process nil
+  "The mu-server process.")
 
 ;; dealing with the length cookie that precedes expressions
 (defconst mu4e~cookie-pre "\376"
@@ -74,7 +77,7 @@ the length (in hex).")
 (defun mu4e~proc-kill ()
   "Kill the mu server process."
   (let* ((buf (get-buffer mu4e~proc-name))
-	  (proc (and buf (get-buffer-process buf))))
+	  (proc (and (buffer-live-p buf) (get-buffer-process buf))))
     (when proc
       (let ((delete-exited-processes t))
 	;; the mu server signal handler will make it quit after 'quit'
@@ -88,7 +91,9 @@ the length (in hex).")
 
 (defun mu4e~proc-is-running ()
   "Whether the mu process is running."
-  (and mu4e~proc-process (eq (process-status mu4e~proc-process) 'run)))
+  (and mu4e~proc-process
+    (memq (process-status mu4e~proc-process)
+      '(run open listen connect stop))))
 
 
 (defun mu4e~proc-eat-sexp-from-buf ()
@@ -208,10 +213,15 @@ The server output is as follows:
 	      (plist-get sexp :docid)
 	      (plist-get sexp :path)))
 
-	  ;; receive a pong message
+	  ;; received a pong message
 	  ((plist-get sexp :pong)
 	    (funcall mu4e-pong-func
 	      (plist-get sexp :version) (plist-get sexp :doccount)))
+
+	  ;; received a contacts message
+	  ((plist-get sexp :contacts)
+	    (funcall mu4e-contacts-func
+	      (plist-get sexp :contacts)))
 
 	  ;; something got moved/flags changed
 	  ((plist-get sexp :update)
@@ -273,7 +283,7 @@ terminates."
 	  ((eq code 11)
 	    (mu4e-message "Database is locked by another process"))
 	  ((eq code 19)
-	    (mu4e-message "Database empty or non-existent; try indexing some messages"))
+	    (mu4e-message "Database empty; try indexing some messages"))
 	  (t (mu4e-message "mu server process ended with exit code %d" code))))
       (t
 	(mu4e-message "Something bad happened to the mu server process")))))
@@ -297,19 +307,26 @@ terminates."
 
 (defun mu4e~proc-remove (docid)
   "Remove message identified by docid.
- The results are reporter through either (:update ... ) or (:error
-) sexp, which are handled my `mu4e-error-func', respectively."
+The results are reporter through either (:update ... ) or (:error)
+sexp, which are handled my `mu4e-error-func', respectively."
   (mu4e~proc-send-command "remove docid:%d" docid))
 
-(defun mu4e~proc-find (query &optional maxnum)
-  "Start a database query for QUERY, (optionally) getting up to
-MAXNUM results. For each result found, a function is called,
-depending on the kind of result. The variables `mu4e-error-func'
-contain the function that will be called for, resp., a
-message (header row) or an error."
+(defun mu4e~proc-find (query threads sortfield revert maxnum)
+  "Start a database query for QUERY. If THREADS is non-nil, show
+results in threaded fasion, SORTFIELD is a symmbol describing the
+field to sort by (or nil); see `mu4e~headers-sortfield-choices'. If
+REVERT is non-nil, sort Z->A instead of A->Z. MAXNUM determines the
+maximum number of results to return, or nil for 'unlimited'. For
+each result found, a function is called, depending on the kind of
+result. The variables `mu4e-error-func' contain the function that
+will be called for, resp., a message (header row) or an error."
   (mu4e~proc-send-command
-    "find query:\"%s\"%s" query
-    (if maxnum (format " maxnum:%d" maxnum) "")))
+    "find query:\"%s\" threads:%s sortfield:%s reverse:%s maxnum:%d"
+    query
+    (if threads "true" "false")
+    (format "%S" sortfield)
+    (if revert "true" "false")
+    (if maxnum maxnum -1)))
 
 (defun mu4e~proc-move (docid-or-msgid &optional maildir flags)
   "Move message identified by DOCID-OR-MSGID. At least one of
@@ -354,10 +371,18 @@ or (:error ) sexp, which are handled my `mu4e-update-func' and
       idparam (or flagstr "") (or path ""))))
 
 
-(defun mu4e~proc-index (path)
+
+(defun mu4e~proc-index (path my-addresses)
   "Update the message database for filesystem PATH, which should
-point to some maildir directory structure."
-  (mu4e~proc-send-command "index path:\"%s\"" path))
+point to some maildir directory structure. MY-ADDRESSES is a
+list of my email addresses (see e.g. `mu4e-my-email-addresses')."
+  (let ((addrs
+	  (when my-addresses
+	    (mapconcat 'identity my-addresses ","))))
+    (if addrs
+      (mu4e~proc-send-command "index path:\"%s\" my-addresses:%s"
+	path addrs)
+      (mu4e~proc-send-command "index path:\"%s\"" path))))
 
 (defun mu4e~proc-add (path maildir)
   "Add the message at PATH to the database, with MAILDIR set to the
@@ -421,12 +446,25 @@ mean:
 response."
   (mu4e~proc-send-command "ping"))
 
-(defun mu4e~proc-view (docid-or-msgid)
+(defun mu4e~proc-contacts (personal after)
+  "Sends the contacts command to the mu server, expecting
+a (:contacts (<list>)) in response. If PERSONAL is non-nil, only
+get personal contacts, if AFTER is non-nil, get only contacts
+seen AFTER (the time_t value)."
+  (mu4e~proc-send-command
+    "contacts personal:%s after:%d"
+    (if personal "true" "false")
+    (or after 0)))
+
+(defun mu4e~proc-view (docid-or-msgid &optional images)
   "Get one particular message based on its DOCID-OR-MSGID (keyword
-argument). The result will be delivered to the function registered
-as `mu4e-message-func'."
-  (mu4e~proc-send-command "view %s"
-    (mu4e--docid-msgid-param docid-or-msgid)))
+argument). Optionally, if IMAGES is non-nil, backend will any
+images attached to the message, and return them as temp files.  The
+result will be delivered to the function registered as
+`mu4e-message-func'."
+  (mu4e~proc-send-command "view %s extract-images:%s"
+    (mu4e--docid-msgid-param docid-or-msgid)
+    (if images "true" "false")))
 
 (provide 'mu4e-proc)
 

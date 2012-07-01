@@ -72,7 +72,7 @@ am_mug_OBJECTS = mug.$(OBJEXT) mug-msg-list-view.$(OBJEXT) \
 	mug-shortcuts.$(OBJEXT) dummy.$(OBJEXT)
 mug_OBJECTS = $(am_mug_OBJECTS)
 am__DEPENDENCIES_1 =
-mug_DEPENDENCIES = ${top_builddir}/src/libmu.la $(am__DEPENDENCIES_1)
+mug_DEPENDENCIES = ${top_builddir}/lib/libmu.la $(am__DEPENDENCIES_1)
 AM_V_lt = $(am__v_lt_@AM_V@)
 am__v_lt_ = $(am__v_lt_@AM_DEFAULT_V@)
 am__v_lt_0 = --silent
@@ -316,7 +316,7 @@ TEST_PROGS =
 
 # enforce compiling this dir first before decending into tests/
 SUBDIRS = .
-INCLUDES = -I${top_srcdir}/src $(GTK_CFLAGS) -DICONDIR='"$(icondir)"'
+INCLUDES = -I${top_srcdir}/lib $(GTK_CFLAGS) -DICONDIR='"$(icondir)"'
 
 # don't use -Werror, as it might break on other compilers
 # use -Wno-unused-parameters, because some callbacks may not
@@ -347,7 +347,7 @@ DISTCLEANFILES = \
 	$(BUILT_SOURCES)
 
 mug_LDADD = \
-	${top_builddir}/src/libmu.la	\
+	${top_builddir}/lib/libmu.la	\
 	${GTK_LIBS}
 
 all: $(BUILT_SOURCES)

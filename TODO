@@ -1,34 +1,80 @@
 * TODO (fixes, ideas, etc.)
 
-** For 0.9.8.4
-
-   - check the iso-8859-1 problems (see Emilio's mail)
-
 ** Future stuff
+
+*** mu
+
+  - handling of signed / encrypted messages
+  - maybe use gstringchunk in mu-msg-cache
+  - put threading information in the database, and enable getting the complete
+     threads when searching
+  - refactor fill_database function in test cases
+  - handling of command line options / help
 
 *** mu4e
 
   - identities (see Jacek's 'mu4e: From field in replies' mail)
   - mu4e~view-wrap-lines (use visual-line-mode? see Jacek's mu4e~view-wrap-lines
     mail)
-  - contact completion (see Jacek's 'mu4e: using' mail)
-  - interactive split-view control (Jacek)
-
   - actions for /all/ headers, actions for /all/ attachment
   - custom header fields in headers-view, message-view
+    - 'human' dates
   - guile integration
-
+    - statistics
   - check if we can speed up mu4e-proc parsing by using search rather than
     regexp search
   - show maildirs as a tree, not a list in speed bar
+  - review emacs menus
+  - re-factor / separate window/buffer management
+    - enable keeping message view buffers around
+    - better naming for draft/view buffers
+  - header updating interferes with marks (when updating for 'mark as read',
+    when reading a marked message)
+  - tooltip for flags field
+  - set/unset flag editing command
+  - handling of database upgrades
+  - restore point after rerunning a search
+  - opening urls is too eager
+  - make the mu4e-bookmarks format similar to the other ones
+  - refresh current query after update?
 
-  - put threading information in the database, and enable getting the complete
-    threads when searching
-  - hide/show messages matching a certain pattern
-  - make search results a stack
+** Done
 
-  - fix having multiple header views visible
   - make next/prev header respect prefix argument (Jacek's patch)
+  - make search results a stack (well, multiple stacks)
+  - optionally keep cc with user's email
+  - enable setting/unsetting 'Flagged' on messages
+  - allow narrowing of search results
+  - interactive split-view control (Jacek)
+  - view images inline
+  - *FIX* slow maildirs when there are many
+  - *FIX* ignore unrecognized maildir flag letters
+  - *FIX*: reply-to does not make it to the frontend
+  - *FIX* wrong buffer deleted after sending (see '(non mu) buffer is killed')
+  - rich text composing (with org-mode)
+  - let message-mode deal with burying/killing compose buffers
+  - *FIX* add runtime check for imagemagick
+  - *FIX* no error note if target message already exists (when moving)
+  - sorting + show / hide threads
+  - *FIX* having multiple header views visible
+  - *FIX* fix for strings where len (g_utf8_strdown (str)) > len (str)
+  - make sure marks correspond to the *current* message in message view (see
+    https://github.com/djcb/mu/issues/26)
+  - *FIX* don't remove unknown message flags when moving
+  - make guile/gtk/webkit dependency optional
+  - improve fringe marks (see https://github.com/djcb/mu/issues/21)
+  - mark message, decide what to do with them later (i.e.. 'deferred marking')
+  - custom predicate functions for marking
+  - make mu4e buffer killing less aggressive (i.e.., DWIM)
+  - about mu4e
+  - hide some headers when composing
+  - fix sorting subjects with ':' (but not 'Re:' or 'Fwd:')
+  - strip signature from original when replying
+  - make refresh after changing sort, threads the default
+  - contact completion (see Jacek's 'mu4e: using' mail)
+  - *FIX* emacs23 mailto: handling
+  - *FIX* message interference
+  - *FIX* emacs23.2+ auto-completion
 
 # Local Variables:
 # mode: org; org-startup-folded: nil

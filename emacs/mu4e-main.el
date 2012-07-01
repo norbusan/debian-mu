@@ -33,7 +33,7 @@
   (let ((map (make-sparse-keymap)))
 
     (define-key map "b" 'mu4e-headers-search-bookmark)
-    (define-key map "B" 'mu4e-headers-search-bookmark-edit-first)
+    (define-key map "B" 'mu4e-headers-search-bookmark-edit)
 
     (define-key map "s" 'mu4e-headers-search)
     (define-key map "q" 'mu4e-quit)
@@ -45,6 +45,7 @@
     (define-key map "U" 'mu4e-update-mail-show-window)
 
     (define-key map "$" 'mu4e-show-log)
+    (define-key map "A" 'mu4e-about)
     (define-key map "H" 'mu4e-display-manual)
     map)
 
@@ -129,12 +130,11 @@ clicked."
 	      'smtpmail-send-queued-mail))
 	  "")
 	"\n"
-
+	(mu4e~main-action-str "\t* [A]bout mu4e\n" 'mu4e-about)
 	(mu4e~main-action-str "\t* [H]elp\n" 'mu4e-display-manual)
 	(mu4e~main-action-str "\t* [q]uit\n" 'mu4e-quit))
       (mu4e-main-mode)
-      (switch-to-buffer buf)
-      (delete-other-windows))))
+      (switch-to-buffer buf))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Interactive functions
@@ -148,6 +148,5 @@ clicked."
     (concat "Outgoing mail will now be "
       (if smtpmail-queue-mail "queued" "sent directly")))
   (mu4e~main-view))
-
-
+ 
 (provide 'mu4e-main)

@@ -70,7 +70,7 @@ PROGRAMS = $(noinst_PROGRAMS)
 am_msg2pdf_OBJECTS = msg2pdf.$(OBJEXT) dummy.$(OBJEXT)
 msg2pdf_OBJECTS = $(am_msg2pdf_OBJECTS)
 am__DEPENDENCIES_1 =
-msg2pdf_DEPENDENCIES = ${top_builddir}/src/libmu.la \
+msg2pdf_DEPENDENCIES = ${top_builddir}/lib/libmu.la \
 	$(am__DEPENDENCIES_1) $(am__DEPENDENCIES_1)
 AM_V_lt = $(am__v_lt_@AM_V@)
 am__v_lt_ = $(am__v_lt_@AM_DEFAULT_V@)
@@ -315,7 +315,7 @@ TEST_PROGS =
 
 # enforce compiling this dir first before decending into tests/
 SUBDIRS = .
-INCLUDES = -I${top_srcdir}/src $(GTK_CFLAGS) $(WEBKIT_CFLAGS) -DICONDIR='"$(icondir)"'
+INCLUDES = -I${top_srcdir}/lib $(GTK_CFLAGS) $(WEBKIT_CFLAGS) -DICONDIR='"$(icondir)"'
 
 # don't use -Werror, as it might break on other compilers
 # use -Wno-unused-parameters, because some callbacks may not
@@ -338,8 +338,8 @@ DISTCLEANFILES = \
 	$(BUILT_SOURCES)
 
 msg2pdf_LDADD = \
-	${top_builddir}/src/libmu.la    \
-	$(GTK_LIBS)			\
+	${top_builddir}/lib/libmu.la			\
+	$(GTK_LIBS)					\
 	${WEBKIT_LIBS}
 
 all: $(BUILT_SOURCES)
