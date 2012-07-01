@@ -1,3 +1,10 @@
+maildir-utils (0.9.8.5-1) unstable; urgency=low
+
+  * new upstream release
+  * add the necessary replace for mailutils << 1:2.99.97-3
+
+ -- Norbert Preining <preining@debian.org>  Mon, 02 Jul 2012 07:45:55 +0900
+
 maildir-utils (0.9.8.4-3) unstable; urgency=high
 
   * conflict with mailutils << 1:2.99.97-3 (same files) (Closes: #678484)

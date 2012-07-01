@@ -14,6 +14,7 @@ Priority: optional
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}, dpkg (>= 1.15.4) | install-info
 Conflicts: mailutils (<< 1:2.99.97-3)
+Replaces: mailutils (<< 1:2.99.97-3)
 Description: Set of utilities to deal with Maildirs (upstream name mu)
  mu is a set of utilities to deal with Maildirs, specifically, 
  indexing and searching. 
