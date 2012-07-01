@@ -72,7 +72,7 @@ am_mug2_OBJECTS = mug.$(OBJEXT) mug-msg-list-view.$(OBJEXT) \
 	mug-shortcuts.$(OBJEXT) dummy.$(OBJEXT)
 mug2_OBJECTS = $(am_mug2_OBJECTS)
 am__DEPENDENCIES_1 =
-mug2_DEPENDENCIES = ${top_builddir}/src/libmu.la \
+mug2_DEPENDENCIES = ${top_builddir}/lib/libmu.la \
 	${top_builddir}/widgets/libmuwidgets.la $(am__DEPENDENCIES_1)
 AM_V_lt = $(am__v_lt_@AM_V@)
 am__v_lt_ = $(am__v_lt_@AM_DEFAULT_V@)
@@ -317,7 +317,7 @@ TEST_PROGS =
 
 # enforce compiling this dir first before decending into tests/
 SUBDIRS = .
-INCLUDES = -I${top_srcdir} -I${top_srcdir}/src $(GTK_CFLAGS) $(WEBKIT_CFLAGS) -DICONDIR='"$(icondir)"' \
+INCLUDES = -I${top_srcdir} -I${top_srcdir}/lib $(GTK_CFLAGS) $(WEBKIT_CFLAGS) -DICONDIR='"$(icondir)"' \
 	 -DMUG2DIR='"$(abs_srcdir)"' -DGTK_DISABLE_DEPRECATED -DGSEAL_ENABLE
 
 
@@ -350,7 +350,7 @@ DISTCLEANFILES = \
 	$(BUILT_SOURCES)
 
 mug2_LDADD = \
-	${top_builddir}/src/libmu.la		\
+	${top_builddir}/lib/libmu.la		\
 	${top_builddir}/widgets/libmuwidgets.la	\
 	${GTK_LIBS}
 

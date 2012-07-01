@@ -67,7 +67,7 @@ CONFIG_CLEAN_FILES =
 CONFIG_CLEAN_VPATH_FILES =
 LTLIBRARIES = $(noinst_LTLIBRARIES)
 am__DEPENDENCIES_1 =
-libmuwidgets_la_DEPENDENCIES = ${top_builddir}/src/libmu.la \
+libmuwidgets_la_DEPENDENCIES = ${top_builddir}/lib/libmu.la \
 	$(am__DEPENDENCIES_1) $(am__DEPENDENCIES_1) \
 	$(am__DEPENDENCIES_1)
 am_libmuwidgets_la_OBJECTS = mu-widget-util.lo mu-msg-attach-view.lo \
@@ -300,7 +300,7 @@ TEST_PROGS =
 
 # enforce compiling this dir first before decending into tests/
 SUBDIRS = .
-INCLUDES = -I${top_srcdir}/src $(GTK_CFLAGS)  $(WEBKIT_CFLAGS) $(GIO_CFLAGS) -DICONDIR='"$(icondir)"' \
+INCLUDES = -I${top_srcdir}/lib $(GTK_CFLAGS)  $(WEBKIT_CFLAGS) $(GIO_CFLAGS) -DICONDIR='"$(icondir)"' \
          -DGTK_DISABLE_DEPRECATED -DGSEAL_ENABLE
 
 
@@ -325,7 +325,7 @@ libmuwidgets_la_SOURCES = \
 	mu-msg-view.c
 
 libmuwidgets_la_LIBADD = \
-	${top_builddir}/src/libmu.la	\
+	${top_builddir}/lib/libmu.la	\
 	${GTK_LIBS}			\
 	${WEBKIT_LIBS}			\
 	${GIO_LIBS}

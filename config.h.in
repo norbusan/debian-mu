@@ -1,5 +1,8 @@
 /* config.h.in.  Generated from configure.ac by autoheader.  */
 
+/* Whether we have guile 2.0 */
+#undef BUILD_GUILE
+
 /* Path to guile-snarf */
 #undef GUILE_SNARF
 
@@ -12,9 +15,6 @@
 
 /* Whether we have GTK+ 3.x */
 #undef HAVE_GTK3
-
-/* Whether we have guile 2.0 */
-#undef HAVE_GUILE
 
 /* Define to 1 if you have the <inttypes.h> header file. */
 #undef HAVE_INTTYPES_H

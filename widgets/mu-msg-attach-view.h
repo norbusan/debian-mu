@@ -65,4 +65,3 @@ int  mu_msg_attach_view_set_message (MuMsgAttachView *self, MuMsg *msg);
 G_END_DECLS
 
 #endif /* __MU_MSG_ATTACH_VIEW_H__ */
-
