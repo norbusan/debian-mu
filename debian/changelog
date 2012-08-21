@@ -1,3 +1,11 @@
+maildir-utils (0.9.8.5-2) unstable; urgency=low
+
+  * cherry pick git commit 4fa0c57d from upstream that fixes encoding
+    problems due to optimizations (Closes: #685472)
+    (thanks to Olaf Meeuwissen for the detailed analysis)
+
+ -- Norbert Preining <preining@debian.org>  Tue, 21 Aug 2012 14:52:44 +0900
+
 maildir-utils (0.9.8.5-1) unstable; urgency=low
 
   * new upstream release
