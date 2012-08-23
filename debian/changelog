@@ -1,3 +1,10 @@
+maildir-utils (0.9.8.5-3) unstable; urgency=low
+
+  * restrict mu4e and m-u-e's dependency on maildir-utils to the same 
+    version (and including bin-nmus for mu4e)
+
+ -- Norbert Preining <preining@debian.org>  Thu, 23 Aug 2012 09:22:35 +0900
+
 maildir-utils (0.9.8.5-2) unstable; urgency=low
 
   * cherry pick git commit 4fa0c57d from upstream that fixes encoding

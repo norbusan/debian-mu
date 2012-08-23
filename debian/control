@@ -31,7 +31,7 @@ Priority: optional
 Architecture: all
 Replaces: maildir-utils (<< 0.9.8.4)
 Conflicts: maildir-utils (<< 0.9.8.4)
-Depends: ${misc:Depends}, maildir-utils, emacs23 | emacsen, dpkg (>= 1.15.4) | install-info
+Depends: ${misc:Depends}, maildir-utils (>= ${source:Version}), maildir-utils (<< ${source:Version}.1~), emacs23 | emacsen, dpkg (>= 1.15.4) | install-info
 Description: e-mail client for Emacs based on mu (maildir-utils)
  mu4e (mu-for-emacs) is an e-mail client for GNU-Emacs version 23 and
  later, built on top of the mu e-mail search engine. mu4e is optimized
@@ -41,7 +41,7 @@ Package: maildir-utils-extra
 Section: mail
 Priority: optional
 Architecture: any
-Depends: maildir-utils, xdg-utils, ${shlibs:Depends}, ${misc:Depends}
+Depends: maildir-utils (= ${source:Version}), xdg-utils, ${shlibs:Depends}, ${misc:Depends}
 Replaces: maildir-utils (<= 0.9.6-1), maildir-utils-gtk
 Conflicts: maildir-utils-gtk
 Description: Extra utilities for maildir-utils
