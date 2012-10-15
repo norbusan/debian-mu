@@ -32,11 +32,7 @@
 #include "mu-config.h"
 #include "mu-cmd.h"
 
-
 static MuConfig MU_CONFIG;
-
-#define DEFAULT_SUMMARY_LEN 5
-
 
 static MuConfigFormat
 get_output_format (const char *formatstr)
@@ -86,9 +82,8 @@ set_group_mu_defaults (void)
 	if (g_getenv (MU_NOCOLOR) != NULL)
 		MU_CONFIG.nocolor = TRUE;
 
-	if (!isatty(fileno(stdout)))
+	if (!isatty(fileno(stdout)) || !isatty(fileno(stderr)))
 		MU_CONFIG.nocolor = TRUE;
-
 }
 
 static GOptionGroup*
@@ -103,11 +98,13 @@ config_options_group_mu (void)
 		{"version", 'v', 0, G_OPTION_ARG_NONE, &MU_CONFIG.version,
 		 "display version and copyright information (false)", NULL},
 		{"muhome", 0, 0, G_OPTION_ARG_FILENAME, &MU_CONFIG.muhome,
-		 "specify an alternative mu directory", NULL},
+		 "specify an alternative mu directory", "<dir>"},
 		{"log-stderr", 0, 0, G_OPTION_ARG_NONE, &MU_CONFIG.log_stderr,
 		 "log to standard error (false)", NULL},
 		{"nocolor", 0, 0, G_OPTION_ARG_NONE, &MU_CONFIG.nocolor,
-		 "don't use ANSI-colors in some output (false)", NULL},
+		 "don't use ANSI-colors in output (false)", NULL},
+		{"verbose", 'v', 0, G_OPTION_ARG_NONE, &MU_CONFIG.verbose,
+		 "verbose output (false)", NULL},
 
 		{G_OPTION_REMAINING, 0, 0, G_OPTION_ARG_STRING_ARRAY,
 		 &MU_CONFIG.params, "parameters", NULL},
@@ -120,21 +117,26 @@ config_options_group_mu (void)
 	return og;
 }
 
+
+#define expand_dir(D)			                     	\
+	if ((D)) {						\
+		char *exp;					\
+		exp = mu_util_dir_expand((D));			\
+		if (exp) {					\
+			g_free((D));				\
+			(D) = exp;				\
+		}						\
+	}
+
+
+
 static void
 set_group_index_defaults (void)
 {
-	char *exp;
-
 	if (!MU_CONFIG.maildir)
 		MU_CONFIG.maildir = mu_util_guess_maildir ();
 
-	if (MU_CONFIG.maildir) {
-		exp = mu_util_dir_expand(MU_CONFIG.maildir);
-		if (exp) {
-			g_free(MU_CONFIG.maildir);
-			MU_CONFIG.maildir = exp;
-		}
-	}
+	expand_dir (MU_CONFIG.maildir);
 }
 
 static GOptionGroup*
@@ -143,26 +145,31 @@ config_options_group_index (void)
 	GOptionGroup *og;
 	GOptionEntry entries[] = {
 		{"maildir", 'm', 0, G_OPTION_ARG_FILENAME, &MU_CONFIG.maildir,
-		 "top of the maildir", NULL},
+		 "top of the maildir", "<maildir>"},
 		{"reindex", 0, 0, G_OPTION_ARG_NONE, &MU_CONFIG.reindex,
 		 "index even already indexed messages (false)", NULL},
 		{"rebuild", 0, 0, G_OPTION_ARG_NONE, &MU_CONFIG.rebuild,
 		 "rebuild the database from scratch (false)", NULL},
-		{"my-address", 0, 0, G_OPTION_ARG_STRING_ARRAY,&MU_CONFIG.my_addresses,
-		 "my e-mail address (regexp); can be used multiple times", NULL},
-		{"autoupgrade", 0, 0, G_OPTION_ARG_NONE, &MU_CONFIG.autoupgrade,
-		 "auto-upgrade the database with new mu versions (false)", NULL},
+		{"my-address", 0, 0, G_OPTION_ARG_STRING_ARRAY,
+		 &MU_CONFIG.my_addresses,
+		 "my e-mail address (regexp); can be used multiple times",
+		 "<address>"},
+		{"autoupgrade", 0, 0, G_OPTION_ARG_NONE,
+		 &MU_CONFIG.autoupgrade,
+		 "auto-upgrade the database with new mu versions (false)",
+		 NULL},
 		{"nocleanup", 0, 0, G_OPTION_ARG_NONE, &MU_CONFIG.nocleanup,
 		 "don't clean up the database after indexing (false)", NULL},
 		{"xbatchsize", 0, 0, G_OPTION_ARG_INT, &MU_CONFIG.xbatchsize,
 		 "set transaction batchsize for xapian commits (0)", NULL},
-		{"max-msg-size", 0, 0, G_OPTION_ARG_INT, &MU_CONFIG.max_msg_size,
-		 "set the maximum size for message files", NULL},
+		{"max-msg-size", 0, 0, G_OPTION_ARG_INT,
+		 &MU_CONFIG.max_msg_size,
+		 "set the maximum size for message files", "<size>"},
 		{NULL, 0, 0, 0, NULL, NULL, NULL}
 	};
 
 	og = g_option_group_new("index",
-				"options for the 'index' command",
+				"Options for the 'index' command",
 				"", NULL, NULL);
 	g_option_group_add_entries(og, entries);
 
@@ -187,18 +194,7 @@ set_group_find_defaults (void)
 		MU_CONFIG.format =
 			get_output_format (MU_CONFIG.formatstr);
 
-	if (MU_CONFIG.linksdir) {
-		gchar *old = MU_CONFIG.linksdir;
-		MU_CONFIG.linksdir = mu_util_dir_expand(MU_CONFIG.linksdir);
-		if (!MU_CONFIG.linksdir)	/* we'll check the dir later */
-			MU_CONFIG.linksdir = old;
-		else
-			g_free(old);
-	}
-
-	if ((MU_CONFIG.summary && !MU_CONFIG.summary_len)||
-	    (MU_CONFIG.summary_len < 1))
-		MU_CONFIG.summary_len = DEFAULT_SUMMARY_LEN;
+	expand_dir (MU_CONFIG.linksdir);
 }
 
 static GOptionGroup*
@@ -207,36 +203,33 @@ config_options_group_find (void)
 	GOptionGroup *og;
 	GOptionEntry entries[] = {
 		{"fields", 'f', 0, G_OPTION_ARG_STRING, &MU_CONFIG.fields,
-		 "fields to display in the output", NULL},
-		{"sortfield", 's', 0, G_OPTION_ARG_STRING, &MU_CONFIG.sortfield,
-		 "field to sort on", NULL},
+		 "fields to display in the output", "<fields>"},
+		{"sortfield", 's', 0, G_OPTION_ARG_STRING,
+		 &MU_CONFIG.sortfield,
+		 "field to sort on", "<field>"},
 		{"threads", 't', 0, G_OPTION_ARG_NONE, &MU_CONFIG.threads,
 		 "show message threads", NULL},
 		{"bookmark", 'b', 0, G_OPTION_ARG_STRING, &MU_CONFIG.bookmark,
-		 "use a bookmarked query", NULL},
+		 "use a bookmarked query", "<bookmark>"},
 		{"reverse", 'z', 0, G_OPTION_ARG_NONE, &MU_CONFIG.reverse,
 		 "sort in reverse (descending) order (z -> a)", NULL},
-		{"summary", 'k', 0, G_OPTION_ARG_NONE, &MU_CONFIG.summary,
-		 "include a short summary of the message (false)", NULL},
-		{"summary-len", 0, 0, G_OPTION_ARG_INT, &MU_CONFIG.summary_len,
-		 "use up to <n> lines for the summary (5)", NULL},
 		{"linksdir", 0, 0, G_OPTION_ARG_STRING, &MU_CONFIG.linksdir,
-		 "output as symbolic links to a target maildir", NULL},
+		 "output as symbolic links to a target maildir", "<dir>"},
 		{"clearlinks", 0, 0, G_OPTION_ARG_NONE, &MU_CONFIG.clearlinks,
 		 "clear old links before filling a linksdir (false)", NULL},
 		{"format", 'o', 0, G_OPTION_ARG_STRING, &MU_CONFIG.formatstr,
 		 "output format ('plain'(*), 'links', 'xml',"
-		 "'sexp', 'xquery')", NULL},
+		 "'sexp', 'xquery')", "<format>"},
 		{"exec", 'e', 0, G_OPTION_ARG_STRING, &MU_CONFIG.exec,
-		 "execute command on each match message", NULL},
-		{"include-unreable", 0, 0, G_OPTION_ARG_NONE,
-		 &MU_CONFIG.include_unreadable,
-		 "don't ignore messages without a disk file (false)", NULL},
+		 "execute command on each match message", "<command>"},
+		{"after", 0, 0, G_OPTION_ARG_INT, &MU_CONFIG.after,
+		 "only show messages whose m_time > T (t_time)",
+		 "<timestamp>"},
 		{NULL, 0, 0, 0, NULL, NULL, NULL}
 	};
 
 	og = g_option_group_new("find",
-				"options for the 'find' command",
+				"Options for the 'find' command",
 				"", NULL, NULL);
 	g_option_group_add_entries(og, entries);
 
@@ -249,14 +242,14 @@ config_options_group_mkdir (void)
 	GOptionGroup *og;
 	GOptionEntry entries[] = {
 		{"mode", 0, 0, G_OPTION_ARG_INT, &MU_CONFIG.dirmode,
-		 "set the mode (as in chmod), in octal notation", NULL},
+		 "set the mode (as in chmod), in octal notation", "<mode>"},
 		{NULL, 0, 0, 0, NULL, NULL, NULL}
 	};
 
 	/* set dirmode before, because '0000' is a valid mode */
 	MU_CONFIG.dirmode = 0755;
 
-	og = g_option_group_new("mkdir", "options for the 'mkdir' command",
+	og = g_option_group_new("mkdir", "Options for the 'mkdir' command",
 				"", NULL, NULL);
 	g_option_group_add_entries(og, entries);
 
@@ -281,15 +274,15 @@ config_options_group_cfind (void)
 	GOptionEntry entries[] = {
 		{"format", 'o', 0, G_OPTION_ARG_STRING, &MU_CONFIG.formatstr,
 		 "output format ('plain'(*), 'mutt', 'wanderlust',"
-		 "'org-contact', 'csv')", NULL},
+		 "'org-contact', 'csv')", "<format>"},
 		{"personal", 0, 0, G_OPTION_ARG_NONE, &MU_CONFIG.personal,
 		 "whether to only get 'personal' contacts", NULL},
 		{"after", 0, 0, G_OPTION_ARG_INT, &MU_CONFIG.after,
-		 "only get addresses last seen after T", NULL},
+		 "only get addresses last seen after T", "<timestamp>"},
 		{NULL, 0, 0, 0, NULL, NULL, NULL}
 	};
 
-	og = g_option_group_new("cfind", "options for the 'cfind' command",
+	og = g_option_group_new("cfind", "Options for the 'cfind' command",
 				"", NULL, NULL);
 	g_option_group_add_entries(og, entries);
 
@@ -304,33 +297,59 @@ set_group_view_defaults (void)
 		MU_CONFIG.format = MU_CONFIG_FORMAT_PLAIN;
 	else
 		MU_CONFIG.format  = get_output_format (MU_CONFIG.formatstr);
-
-	if ((MU_CONFIG.summary && !MU_CONFIG.summary_len)||
-	    (MU_CONFIG.summary_len < 1))
-		MU_CONFIG.summary_len = DEFAULT_SUMMARY_LEN;
 }
+
+
+/* crypto options are used in a few different commands */
+static GOptionEntry*
+crypto_option_entries (void)
+{
+	static GOptionEntry entries[] = {
+		{"auto-retrieve", 'r', 0, G_OPTION_ARG_NONE,
+		 &MU_CONFIG.auto_retrieve,
+		 "attempt to retrieve keys online (false)", NULL},
+		{"use-agent", 'a', 0, G_OPTION_ARG_NONE, &MU_CONFIG.use_agent,
+		 "attempt to use the GPG agent (false)", NULL},
+		{"decrypt", 0, 0, G_OPTION_ARG_NONE, &MU_CONFIG.decrypt,
+		 "attempt to decrypt the message", NULL},
+		{NULL, 0, 0, 0, NULL, NULL, NULL}
+	};
+
+	return entries;
+}
+
 
 static GOptionGroup *
 config_options_group_view (void)
 {
 	GOptionGroup *og;
 	GOptionEntry entries[] = {
-		{"summary", 0, 0, G_OPTION_ARG_NONE, &MU_CONFIG.summary,
-		 "only show a short summary of the message (false)", NULL},
 		{"summary-len", 0, 0, G_OPTION_ARG_INT, &MU_CONFIG.summary_len,
-		 "use up to <n> lines for the summary (5)", NULL},
+		 "use up to <n> lines for the summary, or 0 for none (0)",
+		 "<len>"},
 		{"terminate", 0, 0, G_OPTION_ARG_NONE, &MU_CONFIG.terminator,
-		 "terminate messages with ascii-0x07 (\\f, form-feed)", NULL},
+		 "terminate messages with ascii-0x07 (\\f, form-feed)",
+		 "<term>"},
 		{"format", 'o', 0, G_OPTION_ARG_STRING, &MU_CONFIG.formatstr,
-		 "output format ('plain'(*), 'sexp')", NULL},
+		 "output format ('plain'(*), 'sexp')", "<format>"},
 		{NULL, 0, 0, 0, NULL, NULL, NULL}
 	};
 
-	og = g_option_group_new("view", "options for the 'view' command",
+	og = g_option_group_new("view", "Options for the 'view' command",
 				"", NULL, NULL);
+
 	g_option_group_add_entries(og, entries);
+	g_option_group_add_entries(og, crypto_option_entries());
 
 	return og;
+}
+
+
+
+static void
+set_group_extract_defaults (void)
+{
+	expand_dir (MU_CONFIG.targetdir);
 }
 
 
@@ -346,9 +365,10 @@ config_options_group_extract (void)
 		{"save-all", 0, 0, G_OPTION_ARG_NONE, &MU_CONFIG.save_all,
 		 "save all parts (incl. non-attachments) (false)", NULL},
 		{"parts", 0, 0, G_OPTION_ARG_STRING, &MU_CONFIG.parts,
-		 "save specific parts (comma-separated list)", NULL},
-		{"target-dir", 0, 0, G_OPTION_ARG_FILENAME, &MU_CONFIG.targetdir,
-		 "target directory for saving", NULL},
+		 "save specific parts (comma-separated list)", "<parts>"},
+		{"target-dir", 0, 0, G_OPTION_ARG_FILENAME,
+		 &MU_CONFIG.targetdir,
+		 "target directory for saving", "<dir>"},
 		{"overwrite", 0, 0, G_OPTION_ARG_NONE, &MU_CONFIG.overwrite,
 		 "overwrite existing files (false)", NULL},
 		{"play", 0, 0, G_OPTION_ARG_NONE, &MU_CONFIG.play,
@@ -356,12 +376,26 @@ config_options_group_extract (void)
 		{NULL, 0, 0, 0, NULL, NULL, NULL}
 	};
 
-	MU_CONFIG.targetdir = g_strdup(".");	/* default is the current dir */
+	MU_CONFIG.targetdir = g_strdup("."); /* default is the current dir */
 
 	og = g_option_group_new("extract",
-				"options for the 'extract' command",
+				"Options for the 'extract' command",
 				"", NULL, NULL);
 	g_option_group_add_entries(og, entries);
+	g_option_group_add_entries(og, crypto_option_entries());
+
+	return og;
+}
+
+
+static GOptionGroup*
+config_options_group_verify (void)
+{
+	GOptionGroup *og;
+	og = g_option_group_new("verify",
+				"Options for the 'verify' command",
+				"", NULL, NULL);
+	g_option_group_add_entries(og, crypto_option_entries());
 
 	return og;
 }
@@ -373,12 +407,12 @@ config_options_group_server (void)
 	GOptionGroup *og;
 	GOptionEntry entries[] = {
 		{"maildir", 'm', 0, G_OPTION_ARG_FILENAME, &MU_CONFIG.maildir,
-		 "top of the maildir", NULL},
+		 "top of the maildir", "<maildir>"},
 		{NULL, 0, 0, 0, NULL, NULL, NULL}
 	};
 
 	og = g_option_group_new("server",
-				"options for the 'server' command",
+				"Options for the 'server' command",
 				"", NULL, NULL);
 	g_option_group_add_entries(og, entries);
 
@@ -386,26 +420,42 @@ config_options_group_server (void)
 }
 
 
+static MuConfigCmd
+cmd_from_string (const char *str)
+{
+	int i;
+	struct {
+		const gchar*	name;
+		MuConfigCmd	cmd;
+	} cmd_map[] = {
+		{ "add",     MU_CONFIG_CMD_ADD },
+		{ "cfind",   MU_CONFIG_CMD_CFIND },
+		{ "extract", MU_CONFIG_CMD_EXTRACT },
+		{ "find",    MU_CONFIG_CMD_FIND },
+		{ "help",    MU_CONFIG_CMD_HELP },
+		{ "index",   MU_CONFIG_CMD_INDEX },
+		{ "mkdir",   MU_CONFIG_CMD_MKDIR },
+		{ "remove",  MU_CONFIG_CMD_REMOVE },
+		{ "server",  MU_CONFIG_CMD_SERVER },
+		{ "verify",  MU_CONFIG_CMD_VERIFY },
+		{ "view",    MU_CONFIG_CMD_VIEW }
+	};
+
+	if (!str)
+		return MU_CONFIG_CMD_UNKNOWN;
+
+	for (i = 0; i != G_N_ELEMENTS(cmd_map); ++i)
+		if (strcmp (str, cmd_map[i].name) == 0)
+			return cmd_map[i].cmd;
+
+	return MU_CONFIG_CMD_UNKNOWN;
+}
+
+
 
 static gboolean
 parse_cmd (int *argcp, char ***argvp)
 {
-	int i;
-	struct {
-		const gchar*	_name;
-		MuConfigCmd	_cmd;
-	} cmd_map[] = {
-		{ "cfind",   MU_CONFIG_CMD_CFIND },
-		{ "extract", MU_CONFIG_CMD_EXTRACT },
-		{ "find",    MU_CONFIG_CMD_FIND },
-		{ "index",   MU_CONFIG_CMD_INDEX },
-		{ "mkdir",   MU_CONFIG_CMD_MKDIR },
-		{ "view",    MU_CONFIG_CMD_VIEW },
-		{ "add",     MU_CONFIG_CMD_ADD },
-		{ "remove",  MU_CONFIG_CMD_REMOVE },
-		{ "server",  MU_CONFIG_CMD_SERVER }
-	};
-
 	MU_CONFIG.cmd	 = MU_CONFIG_CMD_NONE;
 	MU_CONFIG.cmdstr = NULL;
 
@@ -417,71 +467,174 @@ parse_cmd (int *argcp, char ***argvp)
 		 * etc.)*/
 		return TRUE;
 
-	MU_CONFIG.cmd    = MU_CONFIG_CMD_UNKNOWN;
 	MU_CONFIG.cmdstr = (*argvp)[1];
-
-	for (i = 0; i != G_N_ELEMENTS(cmd_map); ++i)
-		if (strcmp (MU_CONFIG.cmdstr, cmd_map[i]._name) == 0)
-			MU_CONFIG.cmd = cmd_map[i]._cmd;
+	MU_CONFIG.cmd    = cmd_from_string (MU_CONFIG.cmdstr);
 
 	return TRUE;
 }
 
 
-static void
-add_context_group (GOptionContext *context)
+static GOptionGroup*
+get_option_group (MuConfigCmd cmd)
 {
-	GOptionGroup *group;
-
-	switch (MU_CONFIG.cmd) {
+	switch (cmd) {
 	case MU_CONFIG_CMD_INDEX:
-		group = config_options_group_index();
-		break;
+		return config_options_group_index();
 	case MU_CONFIG_CMD_FIND:
-		group = config_options_group_find();
-		break;
+		return config_options_group_find();
 	case MU_CONFIG_CMD_MKDIR:
-		group = config_options_group_mkdir();
-		break;
+		return config_options_group_mkdir();
 	case MU_CONFIG_CMD_EXTRACT:
-		group = config_options_group_extract();
-		break;
+		return config_options_group_extract();
 	case MU_CONFIG_CMD_CFIND:
-		group = config_options_group_cfind();
-		break;
+		return config_options_group_cfind();
+	case MU_CONFIG_CMD_VERIFY:
+		return config_options_group_verify ();
 	case MU_CONFIG_CMD_VIEW:
-		group = config_options_group_view();
-		break;
+		return config_options_group_view();
 	case MU_CONFIG_CMD_SERVER:
-		group = config_options_group_server();
-		break;
+		return config_options_group_server();
 	default:
-		return; /* no group to add */
+		return NULL; /* no group to add */
+	}
+}
+
+
+
+/* ugh yuck massaging the GOption text output; glib prepares some text
+ * which has a 'Usage:' for the 'help' commmand. However, we need the
+ * help for the command we're asking help for. So, we remove the Usage:
+ * from what glib generates. :-( */
+static gchar*
+massage_help (const char *help)
+{
+	GRegex *rx;
+	char *str;
+
+	rx = g_regex_new ("^Usage:.*\n.*\n",
+			  0, G_REGEX_MATCH_NEWLINE_ANY, NULL);
+	str = g_regex_replace (rx, help,
+			       -1, 0, "",
+			       G_REGEX_MATCH_NEWLINE_ANY, NULL);
+	g_regex_unref (rx);
+	return str;
+}
+
+
+
+static const gchar*
+get_help_string (MuConfigCmd cmd, gboolean long_help)
+{
+	unsigned u;
+
+	/* this include gets us MU_HELP_STRINGS */
+#include "mu-help-strings.h"
+
+	for (u = 0; u != G_N_ELEMENTS(MU_HELP_STRINGS); ++u)
+		if (cmd == MU_HELP_STRINGS[u].cmd) {
+			if (long_help)
+				return MU_HELP_STRINGS[u].long_help;
+			else
+				return MU_HELP_STRINGS[u].usage ;
+		}
+
+	g_return_val_if_reached ("");
+	return "";
+}
+
+
+void
+mu_config_show_help (MuConfigCmd cmd)
+{
+	GOptionContext *ctx;
+	GOptionGroup *group;
+	char *cleanhelp;
+
+	g_return_if_fail (mu_config_cmd_is_valid(cmd));
+
+	ctx = g_option_context_new ("");
+	g_option_context_set_main_group	(ctx, config_options_group_mu());
+
+	group = get_option_group (cmd);
+	if (group)
+		g_option_context_add_group (ctx, group);
+
+	g_option_context_set_description (ctx,
+					  get_help_string (cmd, TRUE));
+	cleanhelp = massage_help
+		(g_option_context_get_help (ctx, TRUE, group));
+
+	g_print ("usage:\n\t%s\n%s",
+		 get_help_string (cmd, FALSE), cleanhelp);
+
+	g_free (cleanhelp);
+}
+
+
+
+static gboolean
+cmd_help (void)
+{
+	MuConfigCmd cmd;
+
+	cmd = cmd_from_string (MU_CONFIG.params[1]);
+	if (cmd == MU_CONFIG_CMD_UNKNOWN) {
+		mu_config_show_help (MU_CONFIG_CMD_HELP);
+		return TRUE;
 	}
 
-	g_option_context_add_group(context, group);
+	mu_config_show_help (cmd);
+	return TRUE;
+}
+
+
+static void
+show_usage (void)
+{
+	g_print ("usage: mu <command> [options] [parameters]\n");
+	g_print ("try 'mu help <command>', or ");
+	g_print ("see the mu, mu-<command> or mu-easy manpages.\n");
 }
 
 
 static gboolean
 parse_params (int *argcp, char ***argvp)
 {
-	GError *err = NULL;
+	GError *err;
 	GOptionContext *context;
 	gboolean rv;
 
-	context = g_option_context_new("- mu general option");
+	context = g_option_context_new("- mu general options");
 	g_option_context_set_main_group(context, config_options_group_mu());
+	g_option_context_set_help_enabled (context, TRUE);
 
-	add_context_group (context);
+	err = NULL;
 
-	rv = g_option_context_parse (context, argcp, argvp, &err);
+	if (MU_CONFIG.cmd == MU_CONFIG_CMD_NONE) {
+		show_usage ();
+		return TRUE;
+	}
+
+	/* help is special */
+	if (MU_CONFIG.cmd == MU_CONFIG_CMD_HELP) {
+		rv = g_option_context_parse (context, argcp, argvp, &err) &&
+			cmd_help ();
+	} else {
+		GOptionGroup *group;
+		group = get_option_group (MU_CONFIG.cmd);
+		if (group)
+			g_option_context_add_group(context, group);
+		rv = g_option_context_parse (context, argcp, argvp, &err);
+	}
+
 	g_option_context_free (context);
 	if (!rv) {
-		g_printerr ("mu: error in options: %s\n", err->message);
-		g_error_free (err);
+		g_printerr ("mu: error in options: %s\n",
+			    err ? err->message : "?");
+		g_clear_error (&err);
 		return FALSE;
 	}
+
 	return TRUE;
 }
 
@@ -493,11 +646,11 @@ mu_config_init (int *argcp, char ***argvp)
 
 	memset (&MU_CONFIG, 0, sizeof(MU_CONFIG));
 
-	if (!parse_cmd (argcp, argvp) ||
-	    !parse_params(argcp, argvp)) {
-		mu_config_uninit (&MU_CONFIG);
-		return NULL;
-	}
+	if (!parse_cmd (argcp, argvp))
+		goto errexit;
+
+	if (!parse_params(argcp, argvp))
+		goto errexit;
 
 	/* fill in the defaults if user did not specify */
 	set_group_mu_defaults();
@@ -505,9 +658,14 @@ mu_config_init (int *argcp, char ***argvp)
 	set_group_find_defaults();
 	set_group_cfind_defaults();
 	set_group_view_defaults();
+	set_group_extract_defaults();
 	/* set_group_mkdir_defaults (config); */
 
 	return &MU_CONFIG;
+
+errexit:
+	mu_config_uninit (&MU_CONFIG);
+	return NULL;
 }
 
 
@@ -537,4 +695,26 @@ mu_config_param_num (MuConfig *opts)
 	for (n = 0; opts->params[n]; ++n);
 
 	return n;
+}
+
+
+MuMsgOptions
+mu_config_get_msg_options (MuConfig *muopts)
+{
+	MuMsgOptions opts;
+
+	opts = MU_MSG_OPTION_NONE;
+
+	if (muopts->decrypt)
+		opts |= MU_MSG_OPTION_DECRYPT;
+	if (muopts->verify)
+		opts |= MU_MSG_OPTION_VERIFY;
+	if (muopts->use_agent)
+		opts |= MU_MSG_OPTION_USE_AGENT;
+	if (muopts->auto_retrieve)
+		opts |= MU_MSG_OPTION_AUTO_RETRIEVE;
+	if (muopts->overwrite)
+		opts |= MU_MSG_OPTION_OVERWRITE;
+
+	return opts;
 }

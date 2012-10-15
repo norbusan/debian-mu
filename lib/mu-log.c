@@ -1,7 +1,7 @@
 /* -*-mode: c; tab-width: 8; indent-tabs-mode: t; c-basic-offset: 8 -*-*/
 
 /*
-** Copyright (C) 2008-2011 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+** Copyright (C) 2008-2012 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 **
 ** This program is free software; you can redistribute it and/or modify
 ** it under the terms of the GNU General Public License as published by
@@ -43,9 +43,10 @@
 struct _MuLog {
 	int _fd;           /* log file descriptor */
 
-	gboolean _own;     /* close _fd with log_destroy? */
-	gboolean _debug;   /* add debug-level stuff? */
-	gboolean _quiet;   /* don't write non-error to stdout/stderr */
+	MuLogOptions _opts;
+
+	gboolean _color_stdout;   /* whether to use color */
+	gboolean _color_stderr;
 
 	GLogFunc _old_log_func;
 };
@@ -80,9 +81,10 @@ mu_log_init_silence (void)
 {
 	g_return_val_if_fail (!MU_LOG, FALSE);
 
-        MU_LOG	     = g_new(MuLog, 1);
-        MU_LOG->_fd  = -1;
-	MU_LOG->_own = FALSE;	/* nobody owns silence */
+        MU_LOG	      = g_new0 (MuLog, 1);
+        MU_LOG->_fd   = -1;
+
+	mu_log_options_set (MU_LOG_OPTIONS_NONE);
 
 	MU_LOG->_old_log_func =
 		g_log_set_default_handler ((GLogFunc)silence, NULL);
@@ -94,31 +96,38 @@ static void
 log_handler (const gchar* log_domain, GLogLevelFlags log_level,
 	     const gchar* msg)
 {
-	if ((log_level & G_LOG_LEVEL_DEBUG) && !(MU_LOG->_debug))
+	if ((log_level & G_LOG_LEVEL_DEBUG) &&
+	    !(MU_LOG->_opts & MU_LOG_OPTIONS_DEBUG))
 	 	return;
 
 	log_write (log_domain ? log_domain : "mu", log_level, msg);
 }
 
 
-gboolean
-mu_log_init_with_fd (int fd, gboolean doclose,
-		     gboolean quiet, gboolean debug)
+void
+mu_log_options_set (MuLogOptions opts)
 {
-	g_return_val_if_fail (!MU_LOG, FALSE);
+	g_return_if_fail (MU_LOG);
 
-        MU_LOG = g_new(MuLog, 1);
+	MU_LOG->_opts = opts;
 
-	MU_LOG->_fd	      = fd;
-	MU_LOG->_quiet	      = quiet;
-	MU_LOG->_debug	      = debug;
-        MU_LOG->_own	      = doclose; /* if we now own the fd, close it
-					  * in _destroy */
-	MU_LOG->_old_log_func =
-		g_log_set_default_handler ((GLogFunc)log_handler, NULL);
+	/* when color is, only enable it when output is to a tty */
+	if (MU_LOG->_opts & MU_LOG_OPTIONS_COLOR) {
+		MU_LOG->_color_stdout = isatty(fileno(stdout));
+		MU_LOG->_color_stderr = isatty(fileno(stderr));
 
-	return TRUE;
+	}
 }
+
+
+MuLogOptions
+mu_log_options_get (void)
+{
+	g_return_val_if_fail (MU_LOG, MU_LOG_OPTIONS_NONE);
+
+	return MU_LOG->_opts;
+}
+
 
 static gboolean
 move_log_file (const char *logfile)
@@ -165,8 +174,7 @@ log_file_backup_maybe (const char *logfile)
 
 
 gboolean
-mu_log_init (const char* logfile, gboolean backup,
-	     gboolean quiet, gboolean debug)
+mu_log_init (const char* logfile, MuLogOptions opts)
 {
 	int fd;
 
@@ -174,20 +182,28 @@ mu_log_init (const char* logfile, gboolean backup,
 	g_return_val_if_fail (!MU_LOG, FALSE);
 	g_return_val_if_fail (logfile, FALSE);
 
-	if (backup && !log_file_backup_maybe(logfile)) {
-		g_warning ("failed to backup log file");
-		return FALSE;
-	}
+	if (opts & MU_LOG_OPTIONS_BACKUP)
+		if (!log_file_backup_maybe(logfile)) {
+			g_warning ("failed to backup log file");
+			return FALSE;
+		}
 
 	fd = open (logfile, O_WRONLY|O_CREAT|O_APPEND, 00600);
-	if (fd < 0)
+	if (fd < 0) {
 		g_warning ("%s: open() of '%s' failed: %s",  __FUNCTION__,
 			   logfile, strerror(errno));
-
-	if (fd < 0 || !mu_log_init_with_fd (fd, FALSE, quiet, debug)) {
-		try_close (fd);
 		return FALSE;
 	}
+
+	MU_LOG = g_new0 (MuLog, 1);
+	MU_LOG->_fd = fd;
+
+	mu_log_options_set (opts);
+
+	MU_LOG->_old_log_func =
+		g_log_set_default_handler ((GLogFunc)log_handler, NULL);
+
+	MU_WRITE_LOG ("logging started");
 
 	return TRUE;
 }
@@ -198,9 +214,9 @@ mu_log_uninit (void)
 	if (!MU_LOG)
 		return;
 
-	if (MU_LOG->_own)
-		try_close (MU_LOG->_fd);
+	MU_WRITE_LOG ("logging stopped");
 
+	try_close (MU_LOG->_fd);
 	g_free (MU_LOG);
 
 	MU_LOG = NULL;
@@ -208,57 +224,96 @@ mu_log_uninit (void)
 
 
 static const char*
-pfx (GLogLevelFlags level)
+levelstr (GLogLevelFlags level)
 {
 	switch (level) {
-	case G_LOG_LEVEL_WARNING:  return  "WARN";
-	case G_LOG_LEVEL_ERROR :   return  "ERR ";
-	case G_LOG_LEVEL_DEBUG:	   return  "DBG ";
-	case G_LOG_LEVEL_CRITICAL: return  "CRIT";
-	case G_LOG_LEVEL_MESSAGE:  return  "MSG ";
-	case G_LOG_LEVEL_INFO :	   return  "INFO";
-	default:		   return  "LOG ";
+	case G_LOG_LEVEL_WARNING:  return  " [WARN] ";
+	case G_LOG_LEVEL_ERROR :   return  " [ERR ] ";
+	case G_LOG_LEVEL_DEBUG:	   return  " [DBG ] ";
+	case G_LOG_LEVEL_CRITICAL: return  " [CRIT] ";
+	case G_LOG_LEVEL_MESSAGE:  return  " [MSG ] ";
+	case G_LOG_LEVEL_INFO :	   return  " [INFO] ";
+	default:		   return  " [LOG ] ";
 	}
 }
 
+
+
+#define color_stdout_maybe(C)					    \
+	do{if (MU_LOG->_color_stdout) fputs ((C),stdout);} while (0)
+#define color_stderr_maybe(C)					    \
+	do{if (MU_LOG->_color_stderr) fputs ((C),stderr);} while (0)
+
+
+
 static void
-log_write (const char* domain, GLogLevelFlags level,
-	   const gchar *msg)
+log_write_fd (GLogLevelFlags level, const gchar *msg)
 {
 	time_t now;
-	ssize_t len;
-
-	/* log lines will be truncated at 768 chars */
-	char buf [768], timebuf [22];
-
-	g_return_if_fail (MU_LOG);
+	char timebuf [22];
+	const char *mylevel;
 
 	/* get the time/date string */
 	now = time(NULL);
 	strftime (timebuf, sizeof(timebuf), "%Y-%m-%d %H:%M:%S",
 		  localtime(&now));
 
-	/* now put it all together */
-	len = snprintf (buf, sizeof(buf), "%s [%s] %s\n", timebuf,
-			pfx(level), msg);
+	if (write (MU_LOG->_fd, timebuf, strlen (timebuf)) < 0)
+		goto err;
 
-	if (write (MU_LOG->_fd, buf, (size_t)len) < 0)
-		fprintf (stderr, "%s: failed to write to log: %s\n",
-			 __FUNCTION__,  strerror(errno));
+	mylevel = levelstr (level);
+	if (write (MU_LOG->_fd, mylevel, strlen (mylevel)) < 0)
+		goto err;
 
-	if (!(MU_LOG->_quiet) && (level & G_LOG_LEVEL_MESSAGE)) {
-		fputs ("mu: ", stdout);
+	if (write (MU_LOG->_fd, msg, strlen (msg)) < 0)
+		goto err;
+
+	if (write (MU_LOG->_fd, "\n", strlen ("\n")) < 0)
+		goto err;
+
+	return; /* all went well */
+
+err:
+	fprintf (stderr, "%s: failed to write to log: %s\n",
+		 __FUNCTION__,  strerror(errno));
+}
+
+
+static void
+log_write_stdout_stderr (GLogLevelFlags level, const gchar *msg)
+{
+	const char *mu;
+
+	mu = MU_LOG->_opts & MU_LOG_OPTIONS_NEWLINE ?
+		"\nmu: " : "mu: ";
+
+	if (!(MU_LOG->_opts & MU_LOG_OPTIONS_QUIET) &&
+	    (level & G_LOG_LEVEL_MESSAGE)) {
+		color_stdout_maybe (MU_COLOR_GREEN);
+		fputs (mu, stdout);
 		fputs (msg,    stdout);
 		fputs ("\n",   stdout);
+		color_stdout_maybe (MU_COLOR_DEFAULT);
 	}
 
-	/* for serious errors, log them to stderr as well */
+	/* for errors, log them to stderr as well */
 	if (level & G_LOG_LEVEL_ERROR ||
 	    level & G_LOG_LEVEL_CRITICAL ||
-	    level & G_LOG_LEVEL_WARNING ||
-	    level & G_LOG_LEVEL_DEBUG) {
-		fputs ("mu: ", stderr);
+	    level & G_LOG_LEVEL_WARNING) {
+		color_stderr_maybe (MU_COLOR_RED);
+		fputs (mu,     stderr);
 		fputs (msg,    stderr);
 		fputs ("\n",   stderr);
+		color_stderr_maybe (MU_COLOR_DEFAULT);
 	}
+}
+
+
+static void
+log_write (const char* domain, GLogLevelFlags level, const gchar *msg)
+{
+	g_return_if_fail (MU_LOG);
+
+	log_write_fd (level, msg);
+	log_write_stdout_stderr (level, msg);
 }

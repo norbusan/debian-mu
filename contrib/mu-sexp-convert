@@ -1,0 +1,204 @@
+#!/bin/sh
+exec guile -e main -s $0 $@
+!#
+
+;; Copyright (C) 2012 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+;;
+;; This program is free software; you can redistribute it and/or modify it
+;; under the terms of the GNU General Public License as published by the
+;; Free Software Foundation; either version 3, or (at your option) any
+;; later version.
+;;
+;; This program is distributed in the hope that it will be useful,
+;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+;; GNU General Public License for more details.
+;;
+
+;; You should have received a copy of the GNU General Public License
+;; along with this program; if not, write to the Free Software Foundation,
+;; Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
+
+;;
+;; a little hack to convert the output of
+;;    mu find <expr> --format=sexp
+;; and
+;;    mu view <expr>  --format=sexp
+;; into XML or JSON
+
+(use-modules (ice-9 getopt-long) (ice-9 format) (ice-9 regex))
+(use-modules (sxml simple))
+
+(define (mapconcat func lst sepa)
+  "Apply FUNC to elements of LST, concat the result as strings
+separated by SEPA."
+  (if (null? lst)
+    ""
+    (string-append
+      (func (car lst))
+      (if (null? (cdr lst))
+	""
+	(string-append sepa (mapconcat func (cdr lst) sepa))))))
+
+(define (property-list? obj)
+  "Is OBJ a elisp-style property list (ie. a list of the
+form (:symbol1 something :symbol2 somethingelse), as in an elisp
+proplilst."
+  (and (list? obj)
+    (not (null? obj))
+    (symbol? (car obj))
+    (string= ":" (substring (symbol->string (car obj)) 0 1))))
+
+(define (plist->pairs plist)
+  "Convert an elisp-style property list; e.g:
+   (:prop1 foo :prop2: bar ...)
+into a list of pairs
+   ((prop1 . foo) (prop2 . bar) ...)."
+  (if (null? plist)
+    '()
+    (cons
+      (cons
+	(substring (symbol->string (car plist)) 1)
+	(cadr plist))
+      (plist->pairs (cddr plist)))))
+
+(define (string->xml str)
+  "XML-encode STR."
+  ;; sneakily re-using sxml->xml
+  (call-with-output-string (lambda (port) (sxml->xml str port))))
+
+(define (string->json str)
+  "Convert string into a JSON-encoded string."
+  (letrec ((convert
+	     (lambda (lst)
+	       (if (null? lst)
+		 ""
+		 (string-append
+		   (cond
+		     ((equal? (car lst) #\")  "\\\"")
+		     ((equal? (car lst) #\\)  "\\\\")
+		     ((equal? (car lst) #\/)  "\\/")
+		     ((equal? (car lst) #\bs) "\\b")
+		     ((equal? (car lst) #\ff) "\\f")
+		     ((equal? (car lst) #\lf) "\\n")
+		     ((equal? (car lst) #\cr) "\\r")
+		     ((equal? (car lst) #\ht) "\\t")
+		     (#t (string (car lst))))
+		   (convert (cdr lst)))))))
+    (convert (string->list str))))
+
+(define (etime->time_t t)
+  "Convert elisp time object T into a time_t value."
+  (logior (ash (car t) 16) (car t)))
+
+(define (sexp->xml)
+  "Convert string INPUT to XML, return the XML (string)."
+  (letrec ((convert-xml
+	     (lambda* (expr #:optional parent)
+	    (cond
+	      ((property-list? expr)
+		(mapconcat
+		  (lambda (pair)
+		    (format #f "\t<~a>~a</~a>\n"
+		      (car pair) (convert-xml (cdr pair) (car pair)) (car pair)))
+		  (plist->pairs expr) " "))
+	      ((list? expr)
+		(cond
+		  ((member parent '("from" "to" "cc" "bcc"))
+		    (mapconcat (lambda (addr)
+				 (format #f "<address>~a~a</address>"
+				   (if (string? (car addr))
+				     (format #f "<name>~a</name>"
+				       (string->xml (car addr))) "")
+				   (if (string? (cdr addr))
+				     (format #f "<email>~a</email>"
+				       (string->xml (cdr addr))) "")))
+		      expr " "))
+		  ((string= parent "parts") "<!-- message parts -->") ;; for now, ignore
+		  ;; convert the crazy emacs time thingy to time_t...
+		  ((string= parent "date") (format #f "~a" (etime->time_t expr)))
+		  (#t
+		    (mapconcat
+		      (lambda (elm) (format #f "<item>~a</item>" (convert-xml elm))) expr ""))))
+	      ((string? expr) (string->xml expr))
+	      ((symbol? expr) (format #f "~a" expr))
+	      ((number? expr) (number->string expr))
+	      (#t "."))))
+	    (msg->xml
+	      (lambda ()
+		(let ((expr (read)))
+		  (if (not (eof-object? expr))
+		    (string-append (format #f "<message>\n~a</message>\n" (convert-xml expr)) (msg->xml))
+		    "")))))
+    (format #f "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<messages>\n~a</messages>" (msg->xml))))
+
+
+(define (sexp->json)
+  "Convert string INPUT to JSON, return the JSON (string)."
+  (letrec ((convert-json
+	     (lambda* (expr #:optional parent)
+	    (cond
+	      ((property-list? expr)
+		(mapconcat
+		  (lambda (pair)
+		    (format #f "\n\t\"~a\": ~a"
+		      (car pair) (convert-json (cdr pair) (car pair)))) 
+		  (plist->pairs expr) ", "))
+	      ((list? expr)
+		(cond
+		  ((member parent '("from" "to" "cc" "bcc"))
+		    (string-append "["
+		      (mapconcat (lambda (addr)
+				   (format #f "{~a~a}"
+				     (if (string? (car addr))
+				       (format #f "\"name\": \"~a\","
+					 (string->json (car addr))) "")
+				     (if (string? (cdr addr))
+				       (format #f "\"email\": \"~a\""
+					 (string->json (cdr addr))) "")))
+			expr " ")
+		      "]"))
+		  ((string= parent "parts") "[]") ;; todo 
+		  ;; convert the crazy emacs time thingy to time_t...
+		  ((string= parent "date")
+		    (format #f "~a" (format #f "~a" (etime->time_t expr))))
+		  (#t
+		    (string-append "["
+		      (mapconcat (lambda (elm) (format #f "~a" (convert-json elm))) expr ",") "]")))) 
+	      ((string? expr)
+		(format #f "\"~a\"" (string->json expr)))
+	      ((symbol? expr)
+		(format #f "\"~a\"" expr))	       
+	      ((number? expr) (number->string expr))
+	      (#t "."))))
+	    (msg->json
+	      (lambda (first)
+		(let ((expr (read)))
+		  (if (not (eof-object? expr))
+		    (string-append (format #f "~a{~a\n}"
+				     (if first "" ",\n")
+				     (convert-json expr)) (msg->json #f))
+		    "")))))
+    (format #f "[\n~a\n]" (msg->json #t))))
+ 
+(define (main args)
+  (let* ((optionspec '((format  (value #t))))
+	  (options (getopt-long args optionspec))
+	  (msg (string-append
+		 "usage: mu-sexp-convert "
+		 "--format=<xml|json>\n"
+		 "reads from standard-input and prints to standard output\n"))
+	  (outformat (or (option-ref options 'format #f)
+		       (begin (display msg) (exit 1)))))
+    (cond
+      ((string= outformat "xml")
+	(format #t "~a\n" (sexp->xml)))
+      ((string= outformat "json")
+	(format #t "~a\n" (sexp->json)))
+      (#t (begin
+	    (display msg)
+	    (exit 1))))))
+
+;; Local Variables:
+;; mode: scheme
+;; End:

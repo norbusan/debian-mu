@@ -40,22 +40,11 @@
 #include "mu-bookmarks.h"
 #include "mu-runtime.h"
 
-
 #include "mu-util.h"
 #include "mu-cmd.h"
 #include "mu-threader.h"
 
-
-static gboolean output_links (MuMsgIter *iter, const char* linksdir,
-			      gboolean clearlinks, GError **err);
-static gboolean output_sexp (MuMsgIter *iter, gboolean threads,
-			     gboolean include_unreadable, GError **err);
-static gboolean output_xml (MuMsgIter *iter,gboolean include_unreadable,
-			    GError **err);
-static gboolean output_plain (MuMsgIter *iter, const char *fields,
-			      int summary_len, gboolean threads,
-			      gboolean color,  gboolean include_unreadable,
-			      GError **err);
+typedef gboolean (OutputFunc) (MuMsg *msg, MuMsgIter *iter, MuConfig *opts, GError **err);
 
 static gboolean
 print_xapian_query (MuQuery *xapian, const gchar *query, GError **err)
@@ -92,32 +81,34 @@ sort_field_from_string (const char* fieldstr, GError **err)
 }
 
 
-static gboolean
-output_query_results (MuMsgIter *iter, MuConfig *opts, GError **err)
+static MuMsg*
+get_message (MuMsgIter *iter, time_t after)
 {
-	switch (opts->format) {
-	case MU_CONFIG_FORMAT_LINKS:
-		return output_links (iter, opts->linksdir, opts->clearlinks, err);
-	case MU_CONFIG_FORMAT_PLAIN:
-		return output_plain (iter, opts->fields,
-				     opts->summary ? opts->summary_len : 0,
-				     opts->threads, !opts->nocolor,
-				     opts->include_unreadable, err);
-	case MU_CONFIG_FORMAT_XML:
-		return output_xml (iter, opts->include_unreadable, err);
-	case MU_CONFIG_FORMAT_SEXP:
-		return output_sexp (iter, opts->threads,
-				    opts->include_unreadable, err);
-	default:
-		g_assert_not_reached ();
-		return FALSE;
+	MuMsg *msg;
+
+	if (mu_msg_iter_is_done (iter))
+		return NULL;
+
+	msg = mu_msg_iter_get_msg_floating (iter);
+	if (!msg)
+		return NULL; /* error */
+
+	if (!mu_msg_is_readable (msg)) {
+		mu_msg_iter_next (iter);
+		return get_message (iter, after);
 	}
+
+
+	if (after != 0 && after > mu_msg_get_timestamp (msg)) {
+		mu_msg_iter_next (iter);
+		return get_message (iter, after);
+	}
+
+	return msg;
 }
 
-
 static MuMsgIter*
-run_query (MuQuery *xapian, const gchar *query, MuConfig *opts,
-	   GError **err)
+run_query (MuQuery *xapian, const gchar *query, MuConfig *opts,  GError **err)
 {
 	MuMsgIter *iter;
 	MuMsgFieldId sortid;
@@ -136,137 +127,23 @@ run_query (MuQuery *xapian, const gchar *query, MuConfig *opts,
 
 
 static gboolean
-process_query (MuQuery *xapian, const gchar *query, MuConfig *opts, GError **err)
-{
-	MuMsgIter *iter;
-	gboolean rv;
-
-	iter = run_query (xapian, query, opts, err);
-	if (!iter)
-		return FALSE;
-
-	rv = output_query_results (iter, opts, err);
-	mu_msg_iter_destroy (iter);
-
-	return rv;
-}
-
-
-static gboolean
-exec_cmd (const char *path, const char *cmd, GError **err)
+exec_cmd (MuMsg *msg, MuMsgIter *iter, MuConfig *opts,  GError **err)
 {
 	gint status;
 	char *cmdline, *escpath;
 	gboolean rv;
 
-	if (access (path, R_OK) != 0) {
-		g_set_error (err, MU_ERROR_DOMAIN, MU_ERROR_FILE_CANNOT_READ,
-			     "cannot read %s: %s", path, strerror(errno));
-		return FALSE;
-	}
+	escpath = g_strescape (mu_msg_get_path (msg), NULL);
+	cmdline = g_strdup_printf ("%s %s", opts->exec, escpath);
 
-	escpath = g_strescape (path, NULL);
+	rv = g_spawn_command_line_sync (cmdline, NULL, NULL, &status, err);
 
-	cmdline = g_strdup_printf ("%s %s", cmd, escpath);
-	err = NULL;
-	rv = g_spawn_command_line_sync (cmdline, NULL, NULL,
-					&status, err);
 	g_free (cmdline);
 	g_free (escpath);
 
 	return rv;
 }
 
-
-static gboolean
-exec_cmd_on_query (MuQuery *xapian, const gchar *query, MuConfig *opts,
-		   GError **err)
-{
-	MuMsgIter *iter;
-	gboolean rv;
-	size_t count;
-
-	if (!(iter = run_query (xapian, query, opts, err)))
-		return FALSE;
-
-	for (rv = TRUE, count = 0; !mu_msg_iter_is_done (iter);
-	     mu_msg_iter_next(iter)) {
-		const char *path;
-		MuMsg *msg;
-
-		msg = mu_msg_iter_get_msg_floating (iter);
-		if (!msg)
-			continue;
-
-		path = mu_msg_get_path (msg);
-		if (!msg) {
-			g_warning ("cannot get path for msg");
-			continue;
-		}
-
-		rv = exec_cmd (path, opts->exec, err);
-		if (rv)
-			++count;
-	}
-
-	if (count == 0) {
-		g_set_error (err, MU_ERROR_DOMAIN, MU_ERROR_NO_MATCHES,
-			     "no matches for search expression");
-		return FALSE;
-	}
-
-	mu_msg_iter_destroy (iter);
-	return rv;
-}
-
-
-
-static gboolean
-format_params_valid (MuConfig *opts, GError **err)
-{
-	switch (opts->format) {
-	case MU_CONFIG_FORMAT_PLAIN:
-	case MU_CONFIG_FORMAT_SEXP:
-	case MU_CONFIG_FORMAT_LINKS:
-	case MU_CONFIG_FORMAT_XML:
-	case MU_CONFIG_FORMAT_XQUERY:
-		break;
-	default:
-		g_set_error (err, MU_ERROR_DOMAIN, MU_ERROR_IN_PARAMETERS,
-			     "invalid output format %s",
-			     opts->formatstr ? opts->formatstr : "<none>");
-		return FALSE;
-	}
-
-	if (opts->format == MU_CONFIG_FORMAT_LINKS && !opts->linksdir) {
-		g_set_error (err, MU_ERROR_DOMAIN, MU_ERROR_IN_PARAMETERS,
-			     "missing --linksdir argument");
-		return FALSE;
-	}
-
-	if (opts->linksdir && opts->format != MU_CONFIG_FORMAT_LINKS) {
-		g_set_error (err, MU_ERROR_DOMAIN, MU_ERROR_IN_PARAMETERS,
-			     "--linksdir is only valid with --format=links");
-		return FALSE;
-	}
-
-	return TRUE;
-}
-
-static gboolean
-query_params_valid (MuConfig *opts, GError **err)
-{
-	const gchar *xpath;
-
-	xpath = mu_runtime_path (MU_RUNTIME_PATH_XAPIANDB);
-
-	if (mu_util_check_dir (xpath, TRUE, FALSE))
-		return TRUE;
-
-	g_set_error (err, MU_ERROR_DOMAIN, MU_ERROR_FILE_CANNOT_READ,
-		     "'%s' is not a readable Xapian directory", xpath);
-	return FALSE;
-}
 
 
 static gchar*
@@ -388,102 +265,37 @@ get_query_obj (MuStore *store, GError **err)
 	return mquery;
 }
 
-/* create a linksdir if it not exist yet; if it already existed,
- * remove old links if opts->clearlinks was specified */
-static gboolean
-create_linksdir_maybe (const char *linksdir, gboolean clearlinks)
-{
-	GError *err;
 
-	err = NULL;
+static gboolean
+prepare_links (MuConfig *opts, GError **err)
+{
 	/* note, mu_maildir_mkdir simply ignores whatever part of the
 	 * mail dir already exists */
-	if (!mu_maildir_mkdir (linksdir, 0700, TRUE, &err))
-		goto fail;
 
-	if (clearlinks && !mu_maildir_clear_links (linksdir, &err))
-		goto fail;
-
-	return TRUE;
-
-fail:
-	g_warning ("%s", err->message ? err->message : "unknown error");
-	g_clear_error (&err);
-
-	return FALSE;
-}
-
-static gboolean
-link_message (const char *src, const char *destdir)
-{
-	GError *err;
-
-	if (access (src, R_OK) != 0) {
-		if (errno == ENOENT)
-			g_warning ("cannot find source message %s", src);
-		else
-			g_warning ("cannot read source message %s: %s", src,
-				   strerror (errno));
+	if (!mu_maildir_mkdir (opts->linksdir, 0700, TRUE, err)) {
+		mu_util_g_set_error (err, MU_ERROR_FILE_CANNOT_MKDIR,
+				     "error creating %s", opts->linksdir);
 		return FALSE;
 	}
 
-	err = NULL;
-	if (!mu_maildir_link (src, destdir, &err)) {
-		g_warning ("%s", err->message ? err->message :
-			   "unknown error");
-		g_clear_error (&err);
-		return FALSE;
+	if (opts->clearlinks &&
+	    !mu_maildir_clear_links (opts->linksdir, err)) {
+			mu_util_g_set_error (err, MU_ERROR_FILE,
+					     "error clearing links under %s",
+					     opts->linksdir);
+			return FALSE;
 	}
 
 	return TRUE;
 }
-
 
 
 static gboolean
-output_links (MuMsgIter *iter, const char* linksdir, gboolean clearlinks,
-	      GError **err)
+output_link (MuMsg *msg, MuMsgIter *iter, MuConfig *opts,  GError **err)
 {
-	size_t count, errcount;
-	MuMsgIter *myiter;
-
-	g_return_val_if_fail (iter, FALSE);
-	g_return_val_if_fail (linksdir, FALSE);
-
-	/* note: we create the linksdir even if there are no search results */
-	if (!create_linksdir_maybe (linksdir, clearlinks))
-		return FALSE;
-
-	for (myiter = iter, count = errcount = 0; !mu_msg_iter_is_done (myiter);
-	     mu_msg_iter_next (myiter)) {
-
-		const char* path;
-		MuMsg *msg;
-
-		msg = mu_msg_iter_get_msg_floating (iter);
-		if (!msg)
-			continue;
-
-		path = mu_msg_get_path (msg);
-		if (access (path, R_OK) == 0)  /* only link to readable */
-			link_message (path, linksdir) ? ++count : ++errcount;
-	}
-
-	if (errcount > 0) {
-		g_set_error (err, MU_ERROR_DOMAIN, MU_ERROR_FILE_CANNOT_LINK,
-			     "error linking %u message(s)", (unsigned)errcount);
-		return FALSE;
-	}
-
-	if (count == 0) {
-		g_set_error (err, MU_ERROR_DOMAIN, MU_ERROR_NO_MATCHES,
-			     "no matches for search expression");
-		return FALSE;
-	}
-
-	return TRUE;
+	return mu_maildir_link (mu_msg_get_path (msg),
+				opts->linksdir, err);
 }
-
 
 
 static void
@@ -568,14 +380,19 @@ display_field (MuMsg *msg, MuMsgFieldId mfid)
 
 
 static void
-print_summary (MuMsg *msg, int summary_len)
+print_summary (MuMsg *msg, MuConfig *opts)
 {
 	const char* body;
 	char *summ;
+	MuMsgOptions msgopts;
 
-	body = mu_msg_get_body_text(msg);
+	msgopts = mu_config_get_msg_options (opts);
+	body = mu_msg_get_body_text(msg, msgopts);
 
-	summ = body ? mu_str_summarize (body, (unsigned)summary_len) : NULL;
+	if (body)
+		summ = mu_str_summarize (body, (unsigned)opts->summary_len);
+	else
+		summ = NULL;
 
 	g_print ("Summary: ");
 	mu_util_fputs_encoded (summ ? summ : "<none>", stdout);
@@ -655,47 +472,35 @@ output_plain_fields (MuMsg *msg, const char *fields,
 }
 
 static gboolean
-output_plain (MuMsgIter *iter, const char *fields, int summary_len,
-	      gboolean threads, gboolean color, gboolean include_unreadable,  GError **err)
+output_plain (MuMsg *msg, MuMsgIter *iter, MuConfig *opts, GError **err)
 {
-	MuMsgIter *myiter;
-	size_t count;
+	/* we reuse the color (whatever that may be)
+	 * for message-priority for threads, too */
+	ansi_color_maybe (MU_MSG_FIELD_ID_PRIO, !opts->nocolor);
+	if (opts->threads)
+		thread_indent (iter);
 
-	g_return_val_if_fail (iter, FALSE);
-	g_return_val_if_fail (fields, FALSE);
+	output_plain_fields (msg, opts->fields, !opts->nocolor, opts->threads);
 
-	for (myiter = iter, count = 0; !mu_msg_iter_is_done (myiter);
-	     mu_msg_iter_next (myiter)) {
+	if (opts->summary_len > 0)
+		print_summary (msg, opts);
 
-		MuMsg *msg;
-		msg = mu_msg_iter_get_msg_floating (iter); /* don't unref */
-		if (!msg)
-			continue;
+	return TRUE;
+}
 
-		/* only return messages if they're actually
-		 * readable (ie, live also outside the database) */
-		if (!include_unreadable && !mu_msg_is_readable (msg))
-			continue;
 
-		/* we reuse the color (whatever that may be)
-		 * for message-priority for threads, too */
-		ansi_color_maybe (MU_MSG_FIELD_ID_PRIO, color);
-		if (threads)
-			thread_indent (iter);
 
-		output_plain_fields (msg, fields, color, threads);
+static gboolean
+output_sexp (MuMsg *msg, MuMsgIter *iter, MuConfig *opts, GError **err)
+{
+	char *sexp;
+	const MuMsgIterThreadInfo *ti;
 
-		if (summary_len > 0)
-			print_summary (msg, summary_len);
-
-		++count;
-	}
-
-	if (count == 0) {
-		g_set_error (err, MU_ERROR_DOMAIN, MU_ERROR_NO_MATCHES,
-			     "no existing matches for search expression");
-		return FALSE;
-	}
+	ti   = opts->threads ? mu_msg_iter_get_thread_info (iter) : NULL;
+	sexp = mu_msg_to_sexp (msg, mu_msg_iter_get_docid (iter),
+			       ti, MU_MSG_OPTION_HEADERS_ONLY);
+	fputs (sexp, stdout);
+	g_free (sexp);
 
 	return TRUE;
 }
@@ -714,55 +519,8 @@ print_attr_xml (const char* elm, const char *str)
 }
 
 
-
 static gboolean
-output_sexp (MuMsgIter *iter, gboolean threads,
-	     gboolean include_unreadable, GError **err)
-{
-	MuMsgIter *myiter;
-	size_t count;
-
-	g_return_val_if_fail (iter, FALSE);
-
-	for (myiter = iter, count = 0; !mu_msg_iter_is_done (myiter);
-	     mu_msg_iter_next (myiter)) {
-
-		MuMsg *msg;
-		char *sexp;
-		const MuMsgIterThreadInfo *ti;
-
-		msg = mu_msg_iter_get_msg_floating (iter);
-		if (!msg)
-			return FALSE;
-
-		/* only return messages if they're actually
-		 * readable (ie, live also outside the database) */
-		if (!include_unreadable && !mu_msg_is_readable (msg))
-			continue;
-
-		ti   = threads ? mu_msg_iter_get_thread_info (iter) : NULL;
-		sexp = mu_msg_to_sexp (msg,
-				       mu_msg_iter_get_docid (iter),
-				       ti, TRUE, FALSE);
-
-		fputs (sexp, stdout);
-		g_free (sexp);
-
-		++count;
-	}
-
-	if (count == 0) {
-		g_set_error (err, MU_ERROR_DOMAIN, MU_ERROR_NO_MATCHES,
-			     "no existing matches for search expression");
-		return FALSE;
-	}
-
-	return TRUE;
-}
-
-
-static void
-output_xml_msg (MuMsg *msg)
+output_xml (MuMsg *msg, MuMsgIter *iter, MuConfig *opts, GError **err)
 {
 	g_print ("\t<message>\n");
 	print_attr_xml ("from", mu_msg_get_from (msg));
@@ -776,46 +534,100 @@ output_xml_msg (MuMsg *msg)
 	print_attr_xml ("path", mu_msg_get_path (msg));
 	print_attr_xml ("maildir", mu_msg_get_maildir (msg));
 	g_print ("\t</message>\n");
+
+	return TRUE;
+}
+
+
+static OutputFunc*
+output_prepare (MuConfig *opts, GError **err)
+{
+	switch (opts->format) {
+	case MU_CONFIG_FORMAT_EXEC:
+		return exec_cmd;
+	case MU_CONFIG_FORMAT_LINKS:
+		if (!prepare_links (opts, err))
+			return NULL;
+		else
+			return output_link;
+	case MU_CONFIG_FORMAT_PLAIN:
+		return output_plain;
+	case MU_CONFIG_FORMAT_XML:
+		g_print ("<?xml version=\"1.0\" encoding=\"UTF-8\" ?>\n");
+		g_print ("<messages>\n");
+		return output_xml;
+	case MU_CONFIG_FORMAT_SEXP:
+		return output_sexp;
+
+	default:
+		g_return_val_if_reached (NULL);
+		return NULL;
+	}
+}
+
+static void
+output_finish (MuConfig *opts)
+{
+	if (opts->format == MU_CONFIG_FORMAT_XML)
+		g_print ("</messages>\n");
 }
 
 
 static gboolean
-output_xml (MuMsgIter *iter, gboolean include_unreadable, GError **err)
+output_query_results (MuMsgIter *iter, MuConfig *opts, GError **err)
 {
-	MuMsgIter *myiter;
-	size_t count;
+	unsigned count;
+	gboolean rv;
+	OutputFunc *output_func;
 
-	g_return_val_if_fail (iter, FALSE);
+	output_func = output_prepare (opts, err);
+	if (!output_func)
+		return FALSE;
 
-	g_print ("<?xml version=\"1.0\" encoding=\"UTF-8\" ?>\n");
-	g_print ("<messages>\n");
+	for (count = 0, rv = TRUE; !mu_msg_iter_is_done(iter);
+	     mu_msg_iter_next (iter)) {
 
-	for (myiter = iter, count = 0; !mu_msg_iter_is_done (myiter);
-	     mu_msg_iter_next (myiter)) {
 		MuMsg *msg;
-		msg = mu_msg_iter_get_msg_floating (iter); /* don't unref */
+
+		msg = get_message (iter, opts->after);
 		if (!msg)
-			return FALSE;
+			break;
 
-		/* only return messages if they're actually
-		 * readable (ie, live also outside the database) */
-		if (!include_unreadable && !mu_msg_is_readable (msg))
-			continue;
-
-		output_xml_msg (msg);
-		++count;
-
+		rv = output_func (msg, iter, opts, err);
+		if (!rv)
+			break;
+		else
+			++count;
 	}
-	g_print ("</messages>\n");
 
-	if (count == 0) {
-		g_set_error (err, MU_ERROR_DOMAIN, MU_ERROR_NO_MATCHES,
-			     "no existing matches for search expression");
+	output_finish (opts);
+
+	if (rv && count == 0) {
+		mu_util_g_set_error (err, MU_ERROR_NO_MATCHES,
+				     "no matches for search expression");
 		return FALSE;
 	}
 
-	return TRUE;
+	return rv;
 }
+
+
+static gboolean
+process_query (MuQuery *xapian, const gchar *query, MuConfig *opts, GError **err)
+{
+	MuMsgIter *iter;
+	gboolean rv;
+
+	iter = run_query (xapian, query, opts, err);
+	if (!iter)
+		return FALSE;
+
+	rv = output_query_results (iter, opts, err);
+	mu_msg_iter_destroy (iter);
+
+	return rv;
+}
+
 
 static gboolean
 execute_find (MuStore *store, MuConfig *opts, GError **err)
@@ -836,8 +648,6 @@ execute_find (MuStore *store, MuConfig *opts, GError **err)
 
 	if (opts->format == MU_CONFIG_FORMAT_XQUERY)
 		rv = print_xapian_query (oracle, query_str, err);
-	else if (opts->exec)
-		rv = exec_cmd_on_query (oracle, query_str, opts, err);
 	else
 		rv = process_query (oracle, query_str, opts, err);
 
@@ -847,10 +657,65 @@ execute_find (MuStore *store, MuConfig *opts, GError **err)
 	return rv;
 }
 
-static void
-show_usage (void)
+
+static gboolean
+format_params_valid (MuConfig *opts, GError **err)
 {
-	g_print ("%s", "usage: mu find [options] <search expression>\n");
+	switch (opts->format) {
+	case MU_CONFIG_FORMAT_EXEC:
+		break;
+	case MU_CONFIG_FORMAT_PLAIN:
+	case MU_CONFIG_FORMAT_SEXP:
+	case MU_CONFIG_FORMAT_LINKS:
+	case MU_CONFIG_FORMAT_XML:
+	case MU_CONFIG_FORMAT_XQUERY:
+		if (opts->exec) {
+			mu_util_g_set_error
+				(err, MU_ERROR_IN_PARAMETERS,
+				 "--exec and --format cannot be combined");
+			return FALSE;
+		}
+		break;
+	default:  mu_util_g_set_error (err, MU_ERROR_IN_PARAMETERS,
+				       "invalid output format %s",
+			 opts->formatstr ? opts->formatstr : "<none>");
+		return FALSE;
+	}
+
+	if (opts->format == MU_CONFIG_FORMAT_LINKS && !opts->linksdir) {
+		mu_util_g_set_error (err, MU_ERROR_IN_PARAMETERS,
+				     "missing --linksdir argument");
+		return FALSE;
+	}
+
+	if (opts->linksdir && opts->format != MU_CONFIG_FORMAT_LINKS) {
+		mu_util_g_set_error (err, MU_ERROR_IN_PARAMETERS,
+			 "--linksdir is only valid with --format=links");
+		return FALSE;
+	}
+
+	return TRUE;
+}
+
+static gboolean
+query_params_valid (MuConfig *opts, GError **err)
+{
+	const gchar *xpath;
+
+	if (!opts->params[1]) {
+		mu_util_g_set_error (err, MU_ERROR_IN_PARAMETERS,
+				     "missing query");
+		return FALSE;
+	}
+
+	xpath = mu_runtime_path (MU_RUNTIME_PATH_XAPIANDB);
+	if (mu_util_check_dir (xpath, TRUE, FALSE))
+		return TRUE;
+
+	mu_util_g_set_error (err, MU_ERROR_FILE_CANNOT_READ,
+			     "'%s' is not a readable Xapian directory",
+			     xpath);
+	return FALSE;
 }
 
 
@@ -861,13 +726,12 @@ mu_cmd_find (MuStore *store, MuConfig *opts, GError **err)
 	g_return_val_if_fail (opts->cmd == MU_CONFIG_CMD_FIND,
 			      MU_ERROR_INTERNAL);
 
-	if (!query_params_valid (opts, err) || !format_params_valid(opts, err)) {
+	if (opts->exec)
+		opts->format = MU_CONFIG_FORMAT_EXEC; /* pseudo format */
 
-		if (MU_G_ERROR_CODE(err) == MU_ERROR_IN_PARAMETERS)
-			show_usage ();
-
+	if (!query_params_valid (opts, err) ||
+	    !format_params_valid(opts, err))
 		return MU_G_ERROR_CODE (err);
-	}
 
 	if (!execute_find (store, opts, err))
 		return MU_G_ERROR_CODE(err);

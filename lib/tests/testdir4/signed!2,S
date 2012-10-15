@@ -5,7 +5,6 @@ Received: from localhost.roma.net([127.0.0.1] helo=borealis)
 	by borealis with esmtp (Exim 4.77)
 	id 1SSpnB-00038a-55
 	for djcb@localhost; Fri, 11 May 2012 16:21:57 +0300
-Delivered-To: diggler@gmail.com
 From: Skipio <skipio@roma.net>
 To: Hannibal <hanni@carthago.net> 
 Subject: signed

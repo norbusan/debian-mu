@@ -1,7 +1,7 @@
 /* -*-mode: c; tab-width: 8; indent-tabs-mode: t; c-basic-offset: 8 -*-*/
 
 /*
-** Copyright (C) 2008-2010 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+** Copyright (C) 2008-2012 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 **
 ** This program is free software; you can redistribute it and/or modify
 ** it under the terms of the GNU General Public License as published by
@@ -26,6 +26,16 @@
 #include <stdio.h>
 #include <dirent.h>
 #include <sys/stat.h> /* for mode_t */
+
+/* hopefully, this should get us a sane PATH_MAX */
+#include <limits.h>
+/* not all systems provide PATH_MAX in limits.h */
+#ifndef PATH_MAX
+#include <sys/param.h>
+#ifndef PATH_MAX
+#define PATH_MAX MAXPATHLEN
+#endif /*!PATH_MAX*/
+#endif /*PATH_MAX*/
 
 G_BEGIN_DECLS
 
@@ -73,8 +83,8 @@ gchar* mu_util_guess_mu_homedir (void)
  * @return TRUE if a read/writeable directory `path' exists after
  * leaving this function, FALSE otherwise
  */
-gboolean mu_util_create_dir_maybe (const gchar *path, mode_t mode, gboolean nowarn)
-    G_GNUC_WARN_UNUSED_RESULT;
+gboolean mu_util_create_dir_maybe (const gchar *path, mode_t mode,
+				   gboolean nowarn) G_GNUC_WARN_UNUSED_RESULT;
 
 /**
  * check whether path is a directory, and optionally, if it's readable
@@ -168,6 +178,16 @@ gboolean mu_util_print_encoded (const char *frm, ...) G_GNUC_PRINTF(1,2);
 gboolean mu_util_printerr_encoded (const char *frm, ...) G_GNUC_PRINTF(1,2);
 
 
+
+/**
+ * read a password from stdin (without echoing), and return it.
+ *
+ * @param prompt the prompt text before the password
+ *
+ * @return the password (free with g_free), or NULL
+ */
+char* mu_util_read_password (const char *prompt)
+	   G_GNUC_MALLOC G_GNUC_WARN_UNUSED_RESULT;
 
 /**
  * Try to 'play' (ie., open with it's associated program) a file. On
@@ -404,7 +424,8 @@ enum _MuError {
 	MU_ERROR_XAPIAN_STORE_FAILED	      = 20,
 	/* could not remove */
 	MU_ERROR_XAPIAN_REMOVE_FAILED	      = 21,
-
+	/* database was modified; reload */
+	MU_ERROR_XAPIAN_MODIFIED              = 22,
 
 	/* GMime related errors */
 
@@ -414,6 +435,9 @@ enum _MuError {
 	/* contacts related errors */
 	MU_ERROR_CONTACTS                     = 50,
 	MU_ERROR_CONTACTS_CANNOT_RETRIEVE     = 51,
+
+	/* crypto related errors */
+	MU_ERROR_CRYPTO		              = 60,
 
 
 	/* File errors */

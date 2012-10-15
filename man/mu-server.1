@@ -1,15 +1,19 @@
-.TH MU-SERVER 1 "June 2012" "User Manuals"
+.TH MU-SERVER 1 "September 2012" "User Manuals"
 
 .SH NAME
 
 mu server \- the mu backend for the mu4e e-mail client
 
+.SH SYNOPSIS
+
+.B mu server [options]
+
 .SH DESCRIPTION
 
-\fBmu server\fR starts a simple shell in which can manipulate the mu
-database. The output of the commands is terms of Lisp symbolic expressions
-(s-exps). \fBmu server\fR is not meant for use by humans; instead, it is
-designed specifically for the \fBmu4e\fR e-mail client.
+\fBmu server\fR starts a simple shell in which one can query and manipulate
+the mu database. The output of the commands is terms of Lisp symbolic
+expressions (s-exps). \fBmu server\fR is not meant for use by humans; instead,
+it is designed specifically for the \fBmu4e\fR e-mail client.
 
 In this man-page, we document the commands \fBmu server\fR accepts, as well as
 their responses. In general, the commands sent to the server are of the form
@@ -120,7 +124,7 @@ is sent.
 If the action is 'temp', the arguments 'what' is required. The attachment will
 saved to a temporary file, and the following message is sent:
 .nf
-<- (:temp :what <what> :param <param)
+<- (:temp :what <what> :param <param :docid 12345)
 .fi
 The front-end can then take action on the temp file, based on what :what and
 :param contain. \fBmu4e\fR uses this mechanism e.g. for piping an attachment
@@ -159,6 +163,11 @@ and finally, we receive:
 .nf
 <- (:found <number-of-matches>)
 .fi
+
+
+.TP
+.B guile
+The \fBguile\fR command is reserved for future use.
 
 
 .TP
@@ -235,14 +244,27 @@ update the database accordingly.
 .TP
 .B view
 
-Using the \fBview\fR command, we can all information (including the body) of a
-particular e-mail message.
+Using the \fBview\fR command, we can retrieve all information (including the
+body) of a particular e-mail message.
 
 If the optional parameter \fBextract-images\fR is \fBtrue\fR, extract images
 to temp files, and include links to them in the returned s-exp.
 
+If the optional parameter \fBuse-agent\fR is \fBtrue\fR, try to use
+\fBgpg-agent\fR when verifying PGP/GPG message parts.
+
+If the optional parameter \fBauto-retrieve-key\fR is \fBtrue\fR, attempt to
+retrieve public keys online automatically.
+
 .nf
--> view docid:<docid>|msgid:<msgid> [extract-images:true]
+-> view docid:<docid>|msgid:<msgid> [extract-images:true] [use-agent:false] [auto-retrieve-key:false]
+<- (:view <s-exp>)
+.fi
+
+or, alternatively:
+
+.nf
+-> view path:<path-to-msg> [extract-images:true] [use-agent:false] [auto-retrieve-key:false]
 <- (:view <s-exp>)
 .fi
 

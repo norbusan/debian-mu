@@ -26,6 +26,9 @@
 #include <xapian.h>
 #include <cstring>
 #include <stdexcept>
+#include <limits.h>
+#include <stdlib.h>
+#include <errno.h>
 
 #include "mu-store.h"
 #include "mu-store-priv.hh" /* _MuStore */
@@ -46,20 +49,30 @@ _MuStore::get_uid_term (const char* path)
 {
 	// combination of DJB, BKDR hash functions to get a 64 bit
 	// value
-
 	unsigned djbhash, bkdrhash, bkdrseed;
 	unsigned u;
+
+	char real_path[PATH_MAX + 1];
 	static char hex[18];
 	static const char uid_prefix =
 		mu_msg_field_xapian_prefix(MU_MSG_FIELD_ID_UID);
+
+	/* check profile to see if realpath is expensive; we need
+	 * realpath here (and in mu-msg-file) to ensure that the same
+	 * messages are only considered ones (ignore e.g. symlinks and
+	 * '//' in paths) */
+
+	// note: realpath fails when there's no file at path
+	if (!realpath (path, real_path))
+		strcpy (real_path, path);
 
 	djbhash  = 5381;
 	bkdrhash = 0;
 	bkdrseed = 1313;
 
-	for(u = 0; path[u]; ++u) {
-		djbhash  = ((djbhash << 5) + djbhash) + path[u];
-		bkdrhash = bkdrhash * bkdrseed + path[u];
+	for(u = 0; real_path[u]; ++u) {
+		djbhash  = ((djbhash << 5) + djbhash) + real_path[u];
+		bkdrhash = bkdrhash * bkdrseed + real_path[u];
 	}
 
 	snprintf (hex, sizeof(hex), "%c%08x%08x",
@@ -79,7 +92,7 @@ mu_store_new_read_only (const char* xpath, GError **err)
 
 	} catch (const MuStoreError& merr) {
 		mu_util_g_set_error (err, merr.mu_error(), "%s",
-				merr.what().c_str());
+				     merr.what().c_str());
 
 	} MU_XAPIAN_CATCH_BLOCK_G_ERROR(err, MU_ERROR_XAPIAN);
 
@@ -127,8 +140,7 @@ mu_store_needs_upgrade (MuStore *store)
 	g_return_val_if_fail (store, TRUE);
 
 	return  (g_strcmp0 (mu_store_version (store),
-			    MU_STORE_SCHEMA_VERSION)  == 0) ? FALSE : TRUE;
-
+			    MU_STORE_SCHEMA_VERSION) == 0) ? FALSE : TRUE;
 }
 
 
@@ -197,7 +209,7 @@ mu_store_get_docid_for_path (MuStore *store, const char* path, GError **err)
 
 
 time_t
-mu_store_get_timestamp (MuStore *store, const char* msgpath, GError **err)
+mu_store_get_timestamp (MuStore *store, const char *msgpath, GError **err)
 {
 	char *stampstr;
 	time_t rv;

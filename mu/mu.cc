@@ -33,35 +33,46 @@
 
 
 static void
-handle_error (GError *err)
+show_version (void)
 {
-	const char *advise;
+	const char* blurb =
+		"mu (mail indexer/searcher) version " VERSION "\n"
+		"Copyright (C) 2008-2012 Dirk-Jan C. Binnema\n"
+		"License GPLv3+: GNU GPL version 3 or later "
+		"<http://gnu.org/licenses/gpl.html>.\n"
+		"This is free software: you are free to change "
+		"and redistribute it.\n"
+		"There is NO WARRANTY, to the extent permitted by law.";
 
+	g_print ("%s\n", blurb);
+}
+
+
+static void
+handle_error (MuConfig *conf, GError *err)
+{
 	if (!err)
 		return; /* nothing to do */
 
-	advise = NULL;
-
 	switch (err->code) {
-
 	case MU_ERROR_XAPIAN_CANNOT_GET_WRITELOCK:
-		advise = "maybe mu is already running?";
+		g_print ("maybe mu is already running?\n");
 		break;
-
 	case MU_ERROR_XAPIAN_CORRUPTION:
 	case MU_ERROR_XAPIAN_NOT_UP_TO_DATE:
-		advise = "please try 'mu index --rebuild'";
+		g_print ("database needs update; try 'mu index --rebuild'\n");
 		break;
 	case MU_ERROR_XAPIAN_IS_EMPTY:
-		advise = "please try 'mu index'";
+		g_print ("database is empty; try 'mu index'");
 		break;
-	default:
-		break; /* nothing to do */
+	case MU_ERROR_IN_PARAMETERS:
+		if (mu_config_cmd_is_valid(conf->cmd))
+			mu_config_show_help (conf->cmd);
+		break;
+	default:break; /* nothing to do */
 	}
 
 	g_warning ("%s", err->message);
-	if (advise)
-		g_message ("%s", advise);
 }
 
 
@@ -78,6 +89,14 @@ main (int argc, char *argv[])
 	conf = mu_config_init (&argc, &argv);
 	if (!conf)
 		return 1;
+	else if (conf->version) {
+		show_version ();
+		return 0;
+	}
+
+	/* nothing to do */
+	if (conf->cmd == MU_CONFIG_CMD_NONE)
+		return 0;
 
 	if (!mu_runtime_init (conf->muhome, PACKAGE_NAME)) {
 		mu_config_uninit (conf);
@@ -87,7 +106,7 @@ main (int argc, char *argv[])
 	err = NULL;
 	rv = mu_cmd_execute (conf, &err);
 
-	handle_error (err);
+	handle_error (conf, err);
 	g_clear_error (&err);
 
 

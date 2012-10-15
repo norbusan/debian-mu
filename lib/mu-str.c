@@ -1,7 +1,6 @@
 /* -*-mode: c; tab-width: 8; indent-tabs-mode: t; c-basic-offset: 8 -*-*/
-
 /*
-** Copyright (C) 2008-2011 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+** Copyright (C) 2008-2012 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 **
 ** This program is free software; you can redistribute it and/or modify
 ** it under the terms of the GNU General Public License as published by
@@ -19,7 +18,6 @@
 **
 */
 
-
 #if HAVE_CONFIG_H
 #include "config.h"
 #endif /*HAVE_CONFIG_H*/
@@ -31,16 +29,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-/* hopefully, this should get us a sane PATH_MAX */
-#include <limits.h>
-/* not all systems provide PATH_MAX in limits.h */
-#ifndef PATH_MAX
-#include <sys/param.h>
-#ifndef PATH_MAX
-#define PATH_MAX MAXPATHLEN
-#endif /*!PATH_MAX*/
-#endif /*PATH_MAX*/
-
+#include "mu-util.h" /* PATH_MAX */
 #include "mu-str.h"
 #include "mu-msg-fields.h"
 
@@ -614,11 +603,18 @@ mu_str_convert_to_utf8 (const char* buffer, const char *charset)
 	utf8 = g_convert_with_fallback (buffer, -1, "UTF-8",
 					charset, NULL,
 					NULL, NULL, &err);
+	if (!utf8) /* maybe the charset lied; try 8859-15 */
+		utf8 = g_convert_with_fallback (buffer, -1, "UTF-8",
+						"ISO8859-15", NULL,
+						NULL, NULL, &err);
+	/* final attempt, maybe it was utf-8 already */
+	if (!utf8 && g_utf8_validate (buffer, -1, NULL))
+		utf8 = g_strdup (buffer);
+
 	if (!utf8) {
-		g_debug ("%s: conversion failed from %s: %s",
+		g_warning ("%s: conversion failed from %s: %s",
 			 __FUNCTION__, charset, err ? err->message : "");
-		if (err)
-			g_error_free (err);
+		g_clear_error (&err);
 	}
 
 	return utf8;

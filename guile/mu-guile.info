@@ -196,26 +196,13 @@ under certain conditions; type `,show c' for details.
 Enter `,help' for help.
 scheme@(guile-user)>
 
-   Now, the first thing we need to do is load the mu-guile modules;
-currently, there are six available:
-
-   * `mu' - initialization, functions to get messages, contacts
-
-   * `mu message' - functions to deal with messages
-
-   * `mu contact' - functions to deal with contacts
-
-   * `mu part' - functions to deal with message-parts / attachments
-
-   * `mu stats' - some functions for doing statistics on your messages
-
-   * `mu plot' - functions to draw graphs from the statistics (requires
-     gnuplot
+   The first thing we need to do is loading the modules. All the basics
+are in the (mu) module, with some statistical extras in (mu stats), and
+some graph plotting functionality in (mu plot).
 
    Let's simply load all of them:
 
-scheme@(guile-user)> (use-modules (mu) (mu message) (mu contact) (mu part)
-                        (mu stats) (mu plot))
+scheme@(guile-user)> (use-modules (mu) (mu stats) (mu plot))
 
    Assuming you have installed everything correctly, the first time you
 do this, guile will probably respond by showing some message about
@@ -291,7 +278,7 @@ _all_ messages if the search expression is omitted).
 
 scheme@(guile-user)> (mu:for-each-message
                        (lambda(msg)
-                         (display (subject msg))
+                         (display (mu:subject msg))
                          (newline))
                       "subject:coffee")
 Re: best coffee ever!
@@ -364,7 +351,10 @@ various flags / properties, please refer to the mu-find man-page.
 
    * `(mu:tags msg)': list of tags for this message
 
-   * `(mu:to msg)': the sender of the message, or #f if there is none.
+   * `(mu:timestamp msg)': the timestamp (mtime) of the message file, or
+     #f if there is none.  message file
+
+   * `(mu:to msg)': the sender of the message, or #f if there is none
 
    With these methods, we can query messages for their properties; for
 example:
@@ -400,34 +390,32 @@ subject_ of any e-mail messages we received in the year 2011.  You can
 try this if you put the following in a separate file, make it
 executable, and run it like any program.
 
-#!/bin/sh
-exec guile -s $0 $@
-!#
+     #!/bin/sh
+     exec guile -s $0 $ !#
 
-(use-modules (mu) (mu message))
-(use-modules (srfi srfi-1))
+     (use-modules (mu))
+     (use-modules (srfi srfi-1))
 
-(mu:initialize)
+     (mu:initialize)
 
-;; note: (subject msg) => #f if there is no subject
-(define list-of-subjects
-  (map (lambda (msg)
-      (or (mu:subject msg) "")) (mu:message-list "date:2011..2011")))
-;; see the mu-find manpage for the date syntax
+     ;; note: (subject msg) => #f if there is no subject
+     (define list-of-subjects
+       (map (lambda (msg)
+           (or (mu:subject msg) "")) (mu:message-list "date:2011..2011")))
+     ;; see the mu-find manpage for the date syntax
 
-(define longest-subject
-  (fold (lambda (subj1 subj2)
-      (if (> (string-length subj1) (string-length subj2))
-	subj1 subj2))
-    "" list-of-subjects))
+     (define longest-subject
+       (fold (lambda (subj1 subj2)
+           (if (> (string-length subj1) (string-length subj2))
+     	subj1 subj2))
+         "" list-of-subjects))
 
-(format #t "Longest subject: ~s" longest-subject)
-(newline)
+     (format #t "Longest subject: ~s\n" longest-subject)
 
    There are many other ways to solve the same problem, for example by
 using an iterative approach with `mu:for-each-message', but it should
 show how one can easily write little programs to answer specific
-questions about an e-mail corpus.
+questions about your e-mail corpus.
 
 
 File: mu-guile.info,  Node: Contacts,  Next: Attachments and other parts,  Prev: Messages,  Up: Top
@@ -439,10 +427,6 @@ We can retrieve the sender and recipients of an e-mail message using
 methods like `mu:from', `mu:to' etc.; *Note Message methods::. These
 functions return the list of recipients as a single string; however,
 often it is more useful to deal with recipients as separate objects.
-
-   mu-guile offers some functionality for this in the `(mu contact)'
-module. Also, it adds some contact-related methods for `<mu:message>'
-objects.
 
 * Menu:
 
@@ -457,15 +441,12 @@ File: mu-guile.info,  Node: Contact functions and objects,  Next: All contacts, 
 5.1 Contact functions and objects
 =================================
 
-(use-modules (mu contact))
-
-After loading the `(mu contact)', message objects (*note Messages::)
-gain the the contacts-methods:
+Message objects (*note Messages::) have a method mu:contacts:
 
    `(mu:contacts <message-object> [<contact-type>])'
 
    The <contact-type> is a symbol, one of `mu:to', `mu:from', `mu:cc'
-or `mu:bcc'; this will then get the contact objects for the contacts of
+or `mu:bcc'. This will then get the contact objects for the contacts of
 the corresponding type. If you leave out the contact-type (or specify
 #t for it, you will get a list of _all_ contact objects for the message.
 
@@ -478,7 +459,7 @@ the corresponding type. If you leave out the contact-type (or specify
    Let's get a list of all names and e-mail addresses in the 'To:'
 field, of messages matching 'book':
 
-     (use-modules (mu) (mu message) (mu contact))
+     (use-modules (mu))
      (mu:initialize)
      (mu:for-each-message
         (lambda (msg)
@@ -499,10 +480,9 @@ File: mu-guile.info,  Node: All contacts,  Next: Utility functions,  Prev: Conta
 5.2 All contacts
 ================
 
-Sometimes it may also be useful to look at _all_ the different contacts
-in the mu database - that is, all the different contacts. This is
-useful, for example, when exporting contacts to some external format
-that can then be important in an e-mail program.
+Sometimes you may want to inspect _all_ the different contacts in the
+mu database. This is useful, for instance, when exporting contacts to
+some external format that can then be important in an e-mail program.
 
    To enable this, there is the function `mu:for-each-contact', defined
 as
@@ -511,7 +491,7 @@ as
 
    This will aggregate the unique contacts from _all_ messages matching
 <search-expression> (when it is left empty, it will match all messages
-in the database), and execute function for each of these contacts.
+in the database), and execute function for each of them.
 
    The function receives an object of the type <mu:contact-with-stats>,
 which is a _subclass_ of the <mu:contact> class discussed in *Note
@@ -570,7 +550,7 @@ adjust them later by hand, obviously.
      #!/bin/sh
      exec guile -s $0 $ !#
 
-     (use-modules (mu) (mu message) (mu contact))
+     (use-modules (mu))
      (mu:initialize)
 
      ;; Get a list of contacts that were seen at least 20 times since 2010
@@ -660,7 +640,7 @@ attachments in messages about Luxemburg:
      #!/bin/sh
      exec guile -s $0 $ !#
 
-     (use-modules (mu) (mu message) (mu part))
+     (use-modules (mu))
      (mu:initialize)
 
      (define (all-attachments expr)
@@ -697,10 +677,10 @@ File: mu-guile.info,  Node: Statistics,  Next: Plotting data,  Prev: Attachments
 mu-guile offers some convenience functions to determine various
 statistics about the messages in the database.
 
-   `(mu:tabulate-messages <function> [<search-expr>])' applies
-<function> to each message matching <search-expr> (leave empty to match
-_all_ messages), and returns a associative list (a list of pairs) with
-each of the different results of <function> and their frequencies.
+   `(mu:tabulate <function> [<search-expr>])' applies <function> to
+each message matching <search-expr> (leave empty to match _all_
+messages), and returns a associative list (a list of pairs) with each
+of the different results of <function> and their frequencies.
 
    This can best be demonstrated with a little example. Suppose we want
 to know how many messages we receive per weekday:
@@ -708,14 +688,14 @@ to know how many messages we receive per weekday:
      #!/bin/sh
      exec guile -s $0 $ !#
 
-     (use-modules (mu) (mu message) (mu stats) (mu plot))
+     (use-modules (mu) (mu stats) (mu plot))
      (mu:initialize)
 
      ;; create a list like (("Sun" . 13) ("Mon" . 23) ...)
      (define weekday-table
        (mu:weekday-numbers->names
          (sort
-           (mu:tabulate-messages
+           (mu:tabulate
      	(lambda (msg)
      	  (tm:wday (localtime (mu:date msg)))))
            (lambda (a b) (< (car a) (car b))))))
@@ -773,12 +753,12 @@ number of message per hour:
      #!/bin/sh
      exec guile -s $0 $ !#
 
-     (use-modules (mu) (mu message) (mu contact) (mu stats) (mu plot))
+     (use-modules (mu) (mu stats) (mu plot))
      (mu:initialize)
 
      (define (mail-per-hour-table)
        (sort
-         (mu:tabulate-messages
+         (mu:tabulate
            (lambda (msg)
      	(tm:hour (localtime (mu:date msg)))))
          (lambda (x y) (< (car x) (car y)))))
@@ -1254,25 +1234,25 @@ Node: Installation1989
 Node: First steps3864
 Ref: First steps-Footnote-15514
 Node: Initializing mu-guile5554
-Node: Messages7548
-Node: Finding messages7843
-Ref: Finding messages-Footnote-19782
-Node: Message methods10032
-Node: Example - the longest subject12763
-Node: Contacts13963
-Node: Contact functions and objects14624
-Node: All contacts16109
-Node: Utility functions17544
-Node: Example - mutt export18094
-Ref: Example - mutt export-Footnote-119832
-Node: Attachments and other parts19863
-Node: Parts and their methods20182
-Ref: Parts and their methods-Footnote-121292
-Node: Attachment example21384
-Node: Statistics22600
-Node: Plotting data24414
-Ref: Plotting data-Footnote-127340
-Node: GNU Free Documentation License27375
+Node: Messages7178
+Node: Finding messages7473
+Ref: Finding messages-Footnote-19415
+Node: Message methods9665
+Node: Example - the longest subject12509
+Node: Contacts13769
+Node: Contact functions and objects14281
+Node: All contacts15674
+Node: Utility functions17053
+Node: Example - mutt export17603
+Ref: Example - mutt export-Footnote-119315
+Node: Attachments and other parts19346
+Node: Parts and their methods19665
+Ref: Parts and their methods-Footnote-120775
+Node: Attachment example20867
+Node: Statistics22060
+Node: Plotting data23843
+Ref: Plotting data-Footnote-126734
+Node: GNU Free Documentation License26769
 
 End Tag Table
 

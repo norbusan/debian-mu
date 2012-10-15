@@ -18,11 +18,7 @@ include $(top_srcdir)/gtest.mk
 
 # enforce compiling guile (optionally) first,then this dir first
 # before decending into tests/
-SUBDIRS= .
-
-if BUILD_TESTS
-SUBDIRS += tests
-endif
+SUBDIRS= . tests
 
 INCLUDES=-I${top_srcdir}/lib $(GLIB_CFLAGS)
 
@@ -49,6 +45,18 @@ mu_SOURCES=				\
 	mu-cmd.c			\
 	mu-cmd.h
 
+BUILT_SOURCES=				\
+	mu-help-strings.h
+
+mu-help-strings.h: mu-help-strings.txt mu-help-strings.awk
+	$(AWK) -f ${top_srcdir}/mu/mu-help-strings.awk < $< > $@
+
 mu_LDADD=				\
 	${top_builddir}/lib/libmu.la    \
 	$(GLIB_LIBS)
+
+EXTRA_DIST=				\
+	mu-help-strings.awk		\
+	mu-help-strings.txt
+
+CLEANFILES=$(BUILT_SOURCES)

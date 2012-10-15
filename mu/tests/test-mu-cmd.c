@@ -37,6 +37,8 @@
 
 /* tests for the command line interface, uses testdir2 */
 
+static gchar *DBPATH; /* global */
+
 static gchar*
 fill_database (void)
 {
@@ -82,16 +84,13 @@ newlines_in_output (const char* str)
 static void
 search (const char* query, unsigned expected)
 {
-        gchar *muhome, *cmdline, *output, *erroutput;
-
-	muhome = fill_database ();
-	g_assert (muhome);
+        gchar *cmdline, *output, *erroutput;
 
 	cmdline = g_strdup_printf ("%s find --muhome=%s %s",
-				   MU_PROGRAM, muhome, query);
+				   MU_PROGRAM, DBPATH, query);
 
 	if (g_test_verbose())
-		g_printerr ("%s\n", cmdline);
+		g_printerr ("\n$ %s\n", cmdline);
 
 	g_assert (g_spawn_command_line_sync (cmdline,
 					     &output, &erroutput,
@@ -110,7 +109,6 @@ search (const char* query, unsigned expected)
 	g_free (output);
 	g_free (erroutput);
 	g_free (cmdline);
-	g_free (muhome);
 }
 
 /* index testdir2, and make sure it adds two documents */
@@ -118,12 +116,9 @@ static void
 test_mu_index (void)
 {
 	MuStore *store;
-	gchar *muhome, *xpath;
+	gchar *xpath;
 
-	muhome = fill_database ();
-	g_assert (muhome != NULL);
-
-	xpath = g_strdup_printf ("%s%c%s", muhome, G_DIR_SEPARATOR, "xapian");
+	xpath = g_strdup_printf ("%s%c%s", DBPATH, G_DIR_SEPARATOR, "xapian");
 
 	store = mu_store_new_read_only (xpath, NULL);
 	g_assert (store);
@@ -131,7 +126,6 @@ test_mu_index (void)
 	g_assert_cmpuint (mu_store_count (store, NULL), ==, 12);
 	mu_store_unref (store);
 
-	g_free (muhome);
 	g_free (xpath);
 }
 
@@ -222,10 +216,7 @@ test_mu_find_03 (void)
 static void /* error cases */
 test_mu_find_04 (void)
 {
-        gchar *muhome, *cmdline, *erroutput;
-
-	muhome = fill_database ();
-	g_assert (muhome);
+        gchar *cmdline, *erroutput;
 
 	cmdline = g_strdup_printf ("%s --muhome=%cfoo%cbar%cnonexistent "
 				   "find f:socrates",
@@ -242,51 +233,43 @@ test_mu_find_04 (void)
 
 	g_free (erroutput);
 	g_free (cmdline);
-	g_free (muhome);
 }
 
 
 static void
 test_mu_find_links (void)
 {
-	gchar *muhome, *cmdline, *output, *erroutput, *tmpdir;
+	gchar *cmdline, *output, *erroutput, *tmpdir;
 
-
-	muhome = fill_database ();
-	g_assert (muhome);
 	tmpdir = test_mu_common_get_random_tmpdir();
 
 	cmdline = g_strdup_printf (
 		"%s find --muhome=%s --format=links --linksdir=%s "
-		"mime:message/rfc822", MU_PROGRAM, muhome, tmpdir);
+		"mime:message/rfc822", MU_PROGRAM, DBPATH, tmpdir);
 
 	if (g_test_verbose())
-		g_printerr ("%s\n", cmdline);
+		g_print ("cmdline: %s\n", cmdline);
 
 	g_assert (g_spawn_command_line_sync (cmdline,
 					     &output, &erroutput,
 					     NULL, NULL));
-	if (g_test_verbose())
-		g_print ("\nOutput:\n%s", output);
-
-	/* there should be no errors */
+ 	/* there should be no errors */
 	g_assert_cmpuint (newlines_in_output(output),==,0);
 	g_assert_cmpuint (newlines_in_output(erroutput),==,0);
 	g_free (output);
 	g_free (erroutput);
 
+	/* now we try again, we should get a line of error output,
+	 * when we find the first target file already exists */
 
+	if (g_test_verbose())
+		g_print ("cmdline: %s\n", cmdline);
 
-	/* now we try again, we should get 2 + 1 lines of error output,
-	 * because the target files already exist */
 	g_assert (g_spawn_command_line_sync (cmdline,
 					     &output, &erroutput,
 					     NULL, NULL));
-	if (g_test_verbose())
-		g_print ("\nOutput:\n%s", output);
-
-	g_assert_cmpuint (newlines_in_output(output),==,0);
-	g_assert_cmpuint (newlines_in_output(erroutput),==,3);
+ 	g_assert_cmpuint (newlines_in_output(output),==,0);
+	g_assert_cmpuint (newlines_in_output(erroutput),==,1);
 	g_free (output);
 	g_free (erroutput);
 
@@ -295,19 +278,18 @@ test_mu_find_links (void)
 	g_free (cmdline);
 	cmdline = g_strdup_printf (
 		"%s find --muhome=%s --format=links --linksdir=%s --clearlinks "
-		"mime:message/rfc822", MU_PROGRAM, muhome, tmpdir);
+		"mime:message/rfc822", MU_PROGRAM, DBPATH, tmpdir);
 	g_assert (g_spawn_command_line_sync (cmdline,
 					     &output, &erroutput,
 					     NULL, NULL));
 	if (g_test_verbose())
-		g_print ("\nOutput:\n%s", output);
+		g_print ("cmdline: %s\n", cmdline);
 	g_assert_cmpuint (newlines_in_output(output),==,0);
 	g_assert_cmpuint (newlines_in_output(erroutput),==,0);
 	g_free (output);
 	g_free (erroutput);
 
 	g_free (cmdline);
-	g_free (muhome);
 	g_free (tmpdir);
 }
 
@@ -365,9 +347,9 @@ test_mu_extract_01 (void)
 	g_assert_cmpstr (output,
 			 ==,
 			 "MIME-parts in this message:\n"
-			 "  0 <none> text/plain [<none>] (0.0 kB)\n"
-			 "  1 sittingbull.jpg image/jpeg [inline] (23.9 kB)\n"
-			 "  2 custer.jpg image/jpeg [inline] (21.6 kB)\n");
+			 "  1 <none> text/plain [<none>] (0.0 kB)\n"
+			 "  2 sittingbull.jpg image/jpeg [inline] (23.9 kB)\n"
+			 "  3 custer.jpg image/jpeg [inline] (21.6 kB)\n");
 
 	/* we expect zero lines of error output */
 	g_assert_cmpuint (newlines_in_output(erroutput),==,0);
@@ -412,6 +394,9 @@ test_mu_extract_02 (void)
 				   G_DIR_SEPARATOR,
 				   G_DIR_SEPARATOR);
 
+	if (g_test_verbose ())
+		g_print ("$ %s\n", cmdline);
+
 	output = NULL;
 	g_assert (g_spawn_command_line_sync (cmdline, &output, NULL,
 					     NULL, NULL));
@@ -441,7 +426,7 @@ test_mu_extract_03 (void)
 
 	g_assert (g_mkdir_with_parents (tmpdir, 0700) == 0);
 
-	cmdline = g_strdup_printf ("%s extract --muhome=%s --parts 2 "
+	cmdline = g_strdup_printf ("%s extract --muhome=%s --parts 3 "
 				   "--target-dir=%s %s%cFoo%ccur%cmail5",
 				   MU_PROGRAM,
 				   tmpdir,
@@ -451,6 +436,10 @@ test_mu_extract_03 (void)
 				   G_DIR_SEPARATOR,
 				   G_DIR_SEPARATOR);
 	output = NULL;
+
+	if (g_test_verbose ())
+		g_print ("$ %s\n", cmdline);
+
 	g_assert (g_spawn_command_line_sync (cmdline, &output, NULL,
 					     NULL, NULL));
 	g_assert_cmpstr (output, ==, "");
@@ -484,12 +473,18 @@ test_mu_extract_overwrite (void)
 				   MU_TESTMAILDIR2, G_DIR_SEPARATOR,
 				   G_DIR_SEPARATOR, G_DIR_SEPARATOR);
 
+	if (g_test_verbose ())
+		g_print ("$ %s\n", cmdline);
+
 	g_assert (g_spawn_command_line_sync (cmdline, &output, &erroutput,
 					     NULL, NULL));
 	g_assert_cmpstr (output, ==, "");
 	g_assert_cmpstr (erroutput, ==, "");
 	g_free (erroutput);
 	g_free (output);
+
+	if (g_test_verbose ())
+		g_print ("$ %s\n", cmdline);
 
 	/* now, it should fail, because we don't allow overwrites
 	 * without --overwrite */
@@ -507,6 +502,9 @@ test_mu_extract_overwrite (void)
 				   MU_PROGRAM, tmpdir, tmpdir,
 				   MU_TESTMAILDIR2, G_DIR_SEPARATOR,
 				   G_DIR_SEPARATOR, G_DIR_SEPARATOR);
+	if (g_test_verbose ())
+		g_print ("$ %s\n", cmdline);
+
 	g_assert (g_spawn_command_line_sync (cmdline, &output, &erroutput,
 					     NULL, NULL));
 	g_assert_cmpstr (output, ==, "");
@@ -534,6 +532,10 @@ test_mu_extract_by_name (void)
 				   MU_PROGRAM, tmpdir, tmpdir,
 				   MU_TESTMAILDIR2, G_DIR_SEPARATOR,
 				   G_DIR_SEPARATOR, G_DIR_SEPARATOR);
+
+	if (g_test_verbose ())
+		g_print ("$ %s\n", cmdline);
+
 	g_assert (g_spawn_command_line_sync (cmdline, &output, &erroutput,
 					     NULL, NULL));
 	g_assert_cmpstr (output, ==, "");
@@ -570,6 +572,10 @@ test_mu_view_01 (void)
 				   G_DIR_SEPARATOR,
 				   G_DIR_SEPARATOR);
 	output = NULL;
+
+	if (g_test_verbose ())
+		g_print ("$ %s\n", cmdline);
+
 	g_assert (g_spawn_command_line_sync (cmdline, &output, NULL,
 					     NULL, NULL));
 	g_assert_cmpstr  (output, !=, NULL);
@@ -702,14 +708,12 @@ test_mu_view_attach (void)
 	g_assert_cmpstr  (output, !=, NULL);
 
 	len = strlen(output);
-	/* g_print ("\n[%s] (%d)\n", output, len);*/
-	g_assert (len == 170 || len == 168);
+	g_assert (len == 168 || len == 166);
 
 	g_free (output);
 	g_free (cmdline);
 	g_free (tmpdir);
 }
-
 
 
 
@@ -749,6 +753,89 @@ test_mu_mkdir_01 (void)
 
 	g_free (output);
 	g_free (tmpdir);
+	g_free (cmdline);
+}
+
+/* we can only test 'verify' if gpg is installed, and has
+ * djcb@djcbsoftware's key in the keyring */
+G_GNUC_UNUSED static gboolean
+verify_is_testable (void)
+{
+	gchar *gpg, *cmdline;
+	gchar *output, *erroutput;
+	int retval;
+	gboolean rv;
+
+	/* find GPG or return FALSE */
+	if ((gpg = (char*)g_getenv ("MU_GPG_PATH"))) {
+		if (access (gpg, X_OK) != 0)
+			return FALSE;
+		else
+			gpg = g_strdup (gpg);
+
+	} else if (!(gpg = g_find_program_in_path ("gpg")))
+		return FALSE;
+
+	cmdline = g_strdup_printf ("%s --list-keys 017DDA3C", gpg);
+	g_free (gpg);
+
+	output = erroutput = NULL;
+	rv = g_spawn_command_line_sync (cmdline, &output, &erroutput,
+					&retval, NULL);
+	g_free (output);
+	g_free (erroutput);
+	g_free (cmdline);
+
+	return (rv && retval == 0) ? TRUE:FALSE;
+}
+
+G_GNUC_UNUSED static void
+test_mu_verify_good (void)
+{
+        gchar *cmdline, *output;
+	int retval;
+
+	if (!verify_is_testable ())
+		return;
+
+	cmdline = g_strdup_printf ("%s verify %s/signed!2,S",
+				   MU_PROGRAM,
+				   MU_TESTMAILDIR4);
+
+	if (g_test_verbose())
+		g_print ("$ %s\n", cmdline);
+
+	output = NULL;
+	g_assert (g_spawn_command_line_sync (cmdline, &output, NULL,
+					     &retval, NULL));
+	g_free (output);
+	g_assert_cmpuint (retval, ==, 0);
+	g_free (cmdline);
+
+}
+
+
+G_GNUC_UNUSED  static void
+test_mu_verify_bad (void)
+{
+        gchar *cmdline, *output;
+	int retval;
+
+	if (!verify_is_testable ())
+		return;
+
+	cmdline = g_strdup_printf ("%s verify %s/signed-bad!2,S",
+				   MU_PROGRAM,
+				   MU_TESTMAILDIR4);
+
+	if (g_test_verbose())
+		g_print ("$ %s\n", cmdline);
+
+	output = NULL;
+	g_assert (g_spawn_command_line_sync (cmdline, &output, NULL,
+					     &retval, NULL));
+	g_free (output);
+	g_assert_cmpuint (retval, !=, 0);
 	g_free (cmdline);
 }
 
@@ -799,11 +886,19 @@ main (int argc, char *argv[])
 	g_test_add_func ("/mu-cmd/test-mu-view-attach",  test_mu_view_attach);
 	g_test_add_func ("/mu-cmd/test-mu-mkdir-01",  test_mu_mkdir_01);
 
+#ifdef BUILD_CRYPTO
+	g_test_add_func ("/mu-cmd/test-mu-verify-good",  test_mu_verify_good);
+	g_test_add_func ("/mu-cmd/test-mu-verify-bad",  test_mu_verify_bad);
+#endif /*BUILD_CRYPTO*/
+
 	g_log_set_handler (NULL,
 			   G_LOG_LEVEL_MASK | G_LOG_LEVEL_WARNING|
 			   G_LOG_FLAG_FATAL| G_LOG_FLAG_RECURSION,
 			   (GLogFunc)black_hole, NULL);
+
+	DBPATH = fill_database ();
 	rv = g_test_run ();
+	g_free (DBPATH);
 
 	return rv;
 }

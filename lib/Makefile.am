@@ -18,10 +18,12 @@ include $(top_srcdir)/gtest.mk
 
 # enforce compiling guile (optionally) first,then this dir first
 # before decending into tests/
-SUBDIRS= .
+SUBDIRS= . tests
 
-if BUILD_TESTS
-SUBDIRS += tests
+if BUILD_CRYPTO
+crypto=mu-msg-crypto.c
+else
+crypto=
 endif
 
 INCLUDES=$(XAPIAN_CXXFLAGS) $(GMIME_CFLAGS) $(GLIB_CFLAGS)
@@ -52,8 +54,7 @@ libmu_la_SOURCES=			\
 	mu-log.h			\
 	mu-maildir.c			\
 	mu-maildir.h			\
-	mu-msg-cache.c			\
-	mu-msg-cache.h			\
+	${crypto}			\
 	mu-msg-doc.cc			\
 	mu-msg-doc.h			\
 	mu-msg-fields.c			\
@@ -88,8 +89,9 @@ libmu_la_SOURCES=			\
 	mu-util.c			\
 	mu-util.h
 
-
 libmu_la_LIBADD=			\
 	$(XAPIAN_LIBS)			\
 	$(GMIME_LIBS)			\
 	$(GLIB_LIBS)
+
+EXTRA_DIST=mu-msg-crypto.c
