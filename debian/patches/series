@@ -1,8 +1,3 @@
-#fix-maildir-check
-#make-index-silent
-#fix-msgid-search
-#fix-clearlinks
-fix-mug2-build
+fix-mug-build
 fix-manpages
 disable-emacs-compile
-upstream_4fa0c57d_iso-2022-jp

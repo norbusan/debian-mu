@@ -1,48 +1,51 @@
 ---
- man/mu-add.1     |    6 +++---
+ man/mu-add.1     |    4 ++--
  man/mu-cfind.1   |   10 +++++-----
  man/mu-easy.1    |    2 +-
- man/mu-extract.1 |    4 ++--
+ man/mu-extract.1 |    5 ++---
  man/mu-find.1    |    8 ++++----
  man/mu-index.1   |    8 ++++----
  man/mu-mkdir.1   |    4 ++--
  man/mu-remove.1  |    4 ++--
  man/mu-server.1  |    2 +-
  man/mu-view.1    |    4 ++--
- 10 files changed, 26 insertions(+), 26 deletions(-)
+ 10 files changed, 25 insertions(+), 26 deletions(-)
 
-Index: maildir-utils.git/man/mu-add.1
-===================================================================
---- maildir-utils.git.orig/man/mu-add.1	2012-06-24 17:37:37.000000000 +0900
-+++ maildir-utils.git/man/mu-add.1	2012-07-02 07:50:18.187523953 +0900
-@@ -1,8 +1,8 @@
--.TH MU ADD 1 "October 2011" "User Manuals"
-+.TH MU-ADD 1 "October 2011" "User Manuals"
- 
--.SH NAME 
-+.SH NAME
- 
--mu add\-  add one or more messages to the database 
-+mu_add \-  add one or more messages to the database 
- 
- .SH SYNOPSIS
- 
-Index: maildir-utils.git/man/mu-cfind.1
-===================================================================
---- maildir-utils.git.orig/man/mu-cfind.1	2012-07-02 07:44:53.000000000 +0900
-+++ maildir-utils.git/man/mu-cfind.1	2012-07-02 07:51:38.344497585 +0900
-@@ -1,8 +1,8 @@
--.TH MU CFIND 1 "June 2012" "User Manuals"
-+.TH MU-CFIND 1 "June 2012" "User Manuals"
+--- maildir-utils.git.orig/man/mu-add.1
++++ maildir-utils.git/man/mu-add.1
+@@ -1,4 +1,4 @@
+-.TH MU ADD 1 "July 2012" "User Manuals"
++.TH MU-ADD 1 "July 2012" "User Manuals"
  
  .SH NAME
  
--mu cfind \- find contacts in the \fBmu\fR database and export them for use in
-+mu_cfind \- find contacts in the \fBmu\fR database and export them for use in
- other programs.
+@@ -6,7 +6,7 @@
  
  .SH SYNOPSIS
-@@ -98,9 +98,9 @@
+ 
+-.B mu add <file> [<files>]
++.B mu_add <file> [<files>]
+ 
+ .SH DESCRIPTION
+ 
+--- maildir-utils.git.orig/man/mu-cfind.1
++++ maildir-utils.git/man/mu-cfind.1
+@@ -1,4 +1,4 @@
+-.TH MU CFIND 1 "July 2012" "User Manuals"
++.TH MU-CFIND 1 "July 2012" "User Manuals"
+ 
+ .SH NAME
+ 
+@@ -7,7 +7,7 @@
+ 
+ .SH SYNOPSIS
+ 
+-.B mu cfind [options] [<pattern>]
++.B mu_cfind [options] [<pattern>]
+ 
+ .SH DESCRIPTION
+ 
+@@ -100,9 +100,9 @@
  You can use \fBmu cfind\fR as an external address book server for
  \fBmutt\fR. For this to work, add the following to your \fImuttrc\fR:
  
@@ -55,10 +58,8 @@ Index: maildir-utils.git/man/mu-cfind.1
  
  Now, in mutt, you can easily search for e-mail address using the
  \fBquery\fR-command, which is (by default) accessible by pressing \fBQ\fR.
-Index: maildir-utils.git/man/mu-easy.1
-===================================================================
---- maildir-utils.git.orig/man/mu-easy.1	2012-07-02 07:44:53.000000000 +0900
-+++ maildir-utils.git/man/mu-easy.1	2012-07-02 07:50:18.187523953 +0900
+--- maildir-utils.git.orig/man/mu-easy.1
++++ maildir-utils.git/man/mu-easy.1
 @@ -2,7 +2,7 @@
  
  .SH NAME
@@ -68,28 +69,25 @@ Index: maildir-utils.git/man/mu-easy.1
  
  .SH DESCRIPTION
  
-Index: maildir-utils.git/man/mu-extract.1
-===================================================================
---- maildir-utils.git.orig/man/mu-extract.1	2012-07-02 07:44:53.000000000 +0900
-+++ maildir-utils.git/man/mu-extract.1	2012-07-02 07:51:27.844860925 +0900
-@@ -1,8 +1,8 @@
--.TH MU EXTRACT 1 "May 2012" "User Manuals"
-+.TH MU-EXTRACT 1 "May 2012" "User Manuals"
+--- maildir-utils.git.orig/man/mu-extract.1
++++ maildir-utils.git/man/mu-extract.1
+@@ -1,9 +1,8 @@
+-.TH MU EXTRACT 1 "July 2012" "User Manuals"
++.TH MU-EXTRACT 1 "July 2012" "User Manuals"
  
  .SH NAME
  
--mu extract\- display and save message parts (attachments), and open them with
-+mu_extract \- display and save message parts (attachments), and open them with
- other tools.
+-\fBmu extract\fR is the \fBmu\fR command to display and save message parts
+-(attachments), and open them with other tools.
++mu_extract \- display and save message parts (attachments), and open them with other tools.
  
  .SH SYNOPSIS
-Index: maildir-utils.git/man/mu-find.1
-===================================================================
---- maildir-utils.git.orig/man/mu-find.1	2012-07-02 07:44:53.000000000 +0900
-+++ maildir-utils.git/man/mu-find.1	2012-07-02 07:52:10.067451989 +0900
+ 
+--- maildir-utils.git.orig/man/mu-find.1
++++ maildir-utils.git/man/mu-find.1
 @@ -1,8 +1,8 @@
--.TH MU FIND 1 "June 2012" "User Manuals"
-+.TH MU-FIND 1 "June 2012" "User Manuals"
+-.TH MU FIND 1 "August 2012" "User Manuals"
++.TH MU-FIND 1 "August 2012" "User Manuals"
  
  .SH NAME
  
@@ -107,7 +105,7 @@ Index: maildir-utils.git/man/mu-find.1
  character(s) in some string. The string must always start with one or more
  characters before the wildcards. Since version 0.9.6, \fBmu\fR also supports
  wildcard searches for all fields except maildirs and paths. So, to get all
-@@ -402,7 +402,7 @@
+@@ -426,7 +426,7 @@
  file will be prepended to other search queries. See mu-bookmarks(1) for the
  details of the bookmarks file.
  
@@ -116,10 +114,8 @@ Index: maildir-utils.git/man/mu-find.1
  \fB\-t\fR, \fB\-\-threads\fR
  show messages in 'threaded' format -- that is, with indentation and arrows
  showing the conversation threads in the list of matching messages.
-Index: maildir-utils.git/man/mu-index.1
-===================================================================
---- maildir-utils.git.orig/man/mu-index.1	2012-07-02 07:44:53.000000000 +0900
-+++ maildir-utils.git/man/mu-index.1	2012-07-02 07:53:00.793924746 +0900
+--- maildir-utils.git.orig/man/mu-index.1
++++ maildir-utils.git/man/mu-index.1
 @@ -2,7 +2,7 @@
  
  .SH NAME
@@ -156,40 +152,34 @@ Index: maildir-utils.git/man/mu-index.1
  (more than 173000 messages per second)
  
  
-Index: maildir-utils.git/man/mu-mkdir.1
-===================================================================
---- maildir-utils.git.orig/man/mu-mkdir.1	2012-06-24 17:37:37.000000000 +0900
-+++ maildir-utils.git/man/mu-mkdir.1	2012-07-02 07:50:18.191523786 +0900
+--- maildir-utils.git.orig/man/mu-mkdir.1
++++ maildir-utils.git/man/mu-mkdir.1
 @@ -1,8 +1,8 @@
--.TH MU MKDIR 1 "May 2011" "User Manuals"
-+.TH MU-MKDIR 1 "May 2011" "User Manuals"
+-.TH MU MKDIR 1 "July 2012" "User Manuals"
++.TH MU-MKDIR 1 "July 2012" "User Manuals"
  
- .SH NAME 
+ .SH NAME
  
--mu mkdir\-  create a new Maildir 
-+mu_mkdir \-  create a new Maildir 
+-mu mkdir\-  create a new Maildir
++mu_mkdir \- create a new Maildir
  
  .SH SYNOPSIS
  
-Index: maildir-utils.git/man/mu-remove.1
-===================================================================
---- maildir-utils.git.orig/man/mu-remove.1	2012-06-24 17:37:37.000000000 +0900
-+++ maildir-utils.git/man/mu-remove.1	2012-07-02 07:50:18.191523786 +0900
+--- maildir-utils.git.orig/man/mu-remove.1
++++ maildir-utils.git/man/mu-remove.1
 @@ -1,8 +1,8 @@
--.TH MU REMOVE 1 "October 2011" "User Manuals"
-+.TH MU-REMOVE 1 "October 2011" "User Manuals"
+-.TH MU REMOVE 1 "July 2012" "User Manuals"
++.TH MU-REMOVE 1 "July 2012" "User Manuals"
  
- .SH NAME 
+ .SH NAME
  
--mu remove\-  remove one or more messages to the database 
-+mu_remove \-  remove one or more messages to the database 
+-\fBmu remove\fR is the \fBmu\R command to remove messages from the database.
++mu_remove \- remove messages from the database
  
  .SH SYNOPSIS
  
-Index: maildir-utils.git/man/mu-server.1
-===================================================================
---- maildir-utils.git.orig/man/mu-server.1	2012-07-02 07:44:53.000000000 +0900
-+++ maildir-utils.git/man/mu-server.1	2012-07-02 07:50:18.191523786 +0900
+--- maildir-utils.git.orig/man/mu-server.1
++++ maildir-utils.git/man/mu-server.1
 @@ -2,7 +2,7 @@
  
  .SH NAME
@@ -197,15 +187,13 @@ Index: maildir-utils.git/man/mu-server.1
 -mu server \- the mu backend for the mu4e e-mail client
 +mu_server \- the mu backend for the mu4e e-mail client
  
- .SH DESCRIPTION
+ .SH SYNOPSIS
  
-Index: maildir-utils.git/man/mu-view.1
-===================================================================
---- maildir-utils.git.orig/man/mu-view.1	2012-06-24 17:37:37.000000000 +0900
-+++ maildir-utils.git/man/mu-view.1	2012-07-02 07:50:18.191523786 +0900
+--- maildir-utils.git.orig/man/mu-view.1
++++ maildir-utils.git/man/mu-view.1
 @@ -1,8 +1,8 @@
--.TH MU VIEW 1 "April 2012" "User Manuals"
-+.TH MU-VIEW 1 "April 2012" "User Manuals"
+-.TH MU VIEW 1 "September 2012" "User Manuals"
++.TH MU-VIEW 1 "September 2012" "User Manuals"
  
  .SH NAME
  

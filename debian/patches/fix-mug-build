@@ -1,0 +1,27 @@
+---
+ toys/mug/Makefile.am |    2 +-
+ toys/mug/Makefile.in |    2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+--- maildir-utils.git.orig/toys/mug/Makefile.am
++++ maildir-utils.git/toys/mug/Makefile.am
+@@ -20,7 +20,7 @@
+ SUBDIRS= .
+ 
+ INCLUDES=-I${top_srcdir} -I${top_srcdir}/lib $(GTK_CFLAGS) $(WEBKIT_CFLAGS) \
+-	-DICONDIR='"$(icondir)"' -DMUGDIR='"$(abs_srcdir)"' \
++	-DICONDIR='"$(icondir)"' -DMUGDIR='"/usr/share/pixmaps"' \
+ 	-DGTK_DISABLE_DEPRECATED -DGSEAL_ENABLE
+ 
+ # don't use -Werror, as it might break on other compilers
+--- maildir-utils.git.orig/toys/mug/Makefile.in
++++ maildir-utils.git/toys/mug/Makefile.in
+@@ -325,7 +325,7 @@
+ # enforce compiling this dir first before decending into tests/
+ SUBDIRS = .
+ INCLUDES = -I${top_srcdir} -I${top_srcdir}/lib $(GTK_CFLAGS) $(WEBKIT_CFLAGS) \
+-	-DICONDIR='"$(icondir)"' -DMUGDIR='"$(abs_srcdir)"' \
++	-DICONDIR='"$(icondir)"' -DMUGDIR='"/usr/share/pixmaps"' \
+ 	-DGTK_DISABLE_DEPRECATED -DGSEAL_ENABLE
+ 
+ 
