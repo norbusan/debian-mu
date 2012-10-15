@@ -1,4 +1,4 @@
-.TH MU VIEW 1 "April 2012" "User Manuals"
+.TH MU VIEW 1 "September 2012" "User Manuals"
 
 .SH NAME
 
@@ -10,9 +10,9 @@ mu view\- display an e-mail message file
 
 .SH DESCRIPTION
 
-\fBview\fR is the \fBmu\fR sub-command for displaying an e-mail message
-file. It works on message files and does \fInot\fR require the message to be
-indexed in the database.
+\fBmu view\fR is the \fBmu\fR command for displaying e-mail message files. It
+works on message files and does \fInot\fR require the message to be indexed in
+the database.
 
 The command shows some common headers (From:, To:, Cc:, Bcc:, Subject: and
 Date:), the list of attachments and the plain-text body of the message (if
@@ -21,18 +21,19 @@ any).
 .SH OPTIONS
 
 .TP
-\fB\-\-summary\fR
+\fB\-\-summary-len\fR=\fI<number>\fR
 instead of displaying the full message, output a summary based upon the first
-lines of the message.
-
-.TP
-\fB\-\-summary-len=<number>\fR
-Number of lines to use for the summary. Default: 5.
-
+\fI<number>\fR lines of the message.
 
 \fB\-\-terminate\fR
-terminate messaages with a \\f (\fIform-feed\fR) characters when displaying
+terminate messages with a \\f (\fIform-feed\fR) characters when displaying
 them. This is useful when you want to further process them.
+
+\fB\-\-decrypt\fR
+attempt to decrypt encrypted message bodies. This is only possible if \fBmu\fR
+was built with crypto-support. Users are strongle recommended to use
+\fBgpg-agent\fR; however, if needed, \fBmu\fR will request the user password
+from the consol
 
 .SH BUGS
 
@@ -47,3 +48,5 @@ Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 
 .BR mu(1)
 .BR mu-index(1)
+.BR gpg(1)
+.BR gpg-agent(1)

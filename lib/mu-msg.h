@@ -1,6 +1,6 @@
 /* -*- mode: c; tab-width: 8; indent-tabs-mode: t; c-basic-offset: 8 -*-
 **
-** Copyright (C) 2010 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+** Copyright (C) 2010-2012 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 **
 ** This program is free software; you can redistribute it and/or modify
 ** it under the terms of the GNU General Public License as published by
@@ -24,12 +24,46 @@
 #include <mu-flags.h>
 #include <mu-msg-fields.h>
 #include <mu-msg-prio.h>
+/* #include <mu-msg-part.h> */
 #include <mu-util.h> /* for MuError and XapianDocument */
 
 G_BEGIN_DECLS
 
 struct _MuMsg;
 typedef struct _MuMsg MuMsg;
+
+/* options for various functions */
+enum _MuMsgOptions {
+	MU_MSG_OPTION_NONE              = 0,
+/* 1 << 0 is still free! */
+
+	/* for -> sexp conversion */
+	MU_MSG_OPTION_HEADERS_ONLY      = 1 << 1,
+	MU_MSG_OPTION_EXTRACT_IMAGES    = 1 << 2,
+
+	/* below options are for checking signatures; only effective
+	 * if mu was built with crypto support */
+	MU_MSG_OPTION_VERIFY            = 1 << 4,
+	MU_MSG_OPTION_AUTO_RETRIEVE     = 1 << 5,
+	MU_MSG_OPTION_USE_AGENT         = 1 << 6,
+	/* MU_MSG_OPTION_USE_PKCS7         = 1 << 7,   /\* gpg is the default *\/ */
+
+	/* get password from console if needed */
+	MU_MSG_OPTION_CONSOLE_PASSWORD  = 1 << 7,
+
+	MU_MSG_OPTION_DECRYPT           = 1 << 8,
+
+	/* misc */
+	MU_MSG_OPTION_OVERWRITE         = 1 << 9,
+	MU_MSG_OPTION_USE_EXISTING      = 1 << 10,
+
+	/* recurse into submessages */
+	MU_MSG_OPTION_RECURSE_RFC822    = 1 << 11
+
+};
+typedef enum _MuMsgOptions MuMsgOptions;
+
+
 
 /**
  * create a new MuMsg* instance which parses a message and provides
@@ -70,6 +104,18 @@ MuMsg *mu_msg_new_from_doc (XapianDocument* doc, GError **err)
 
 
 /**
+ *  if we don't have a message file yet (because this message is
+ *  database-backed), load it.
+ *
+ * @param msg a MuMsg
+ * @param err receives error information
+ *
+ * @return TRUE if this succceeded, FALSE in case of error
+ */
+gboolean mu_msg_load_msg_file (MuMsg *msg, GError **err);
+
+
+/**
  * close the file-backend, if any; this function is for the use case
  * where you have a large amount of messages where you need some
  * file-backed field (body or attachments). If you don't close the
@@ -79,7 +125,9 @@ MuMsg *mu_msg_new_from_doc (XapianDocument* doc, GError **err)
  *
  * @param msg a message object
  */
-void mu_msg_close_file_backend (MuMsg *msg);
+void mu_msg_unload_msg_file (MuMsg *msg);
+
+
 
 /**
  * increase the reference count for this message
@@ -99,8 +147,6 @@ MuMsg *mu_msg_ref (MuMsg *msg);
  */
 void mu_msg_unref (MuMsg *msg);
 
-
-
 /**
  * cache the values from the backend (file or db), so we don't the
  * backend anymore
@@ -114,23 +160,25 @@ void mu_msg_cache_values (MuMsg *self);
  * get the plain text body of this message
  *
  * @param msg a valid MuMsg* instance
+ * @param opts options for getting the body
  *
  * @return the plain text body or NULL in case of error or if there is no
  * such body. the returned string should *not* be modified or freed.
  * The returned data is in UTF8 or NULL.
  */
-const char*     mu_msg_get_body_text       (MuMsg *msg);
+const char*     mu_msg_get_body_text       (MuMsg *msg, MuMsgOptions opts);
 
 
 /**
  * get the html body of this message
  *
  * @param msg a valid MuMsg* instance
+ * @param opts options for getting the body
  *
  * @return the html body or NULL in case of error or if there is no
  * such body. the returned string should *not* be modified or freed.
  */
-const char*     mu_msg_get_body_html       (MuMsg *msg);
+const char*     mu_msg_get_body_html       (MuMsg *msgMu, MuMsgOptions opts);
 
 /**
  * get the sender (From:) of this message
@@ -164,7 +212,6 @@ const char*     mu_msg_get_to	   (MuMsg *msg);
  * or freed.
  */
 const char*     mu_msg_get_cc	     (MuMsg *msg);
-
 
 /**
  * get the blind carbon-copy recipients (Bcc:) of this message; this
@@ -320,7 +367,6 @@ MuMsgPrio   mu_msg_get_prio        (MuMsg *msg);
 time_t     mu_msg_get_timestamp       (MuMsg *msg);
 
 
-
 /**
  * get a specific header from the message. This value will _not_ be
  * cached
@@ -390,17 +436,24 @@ struct _MuMsgIterThreadInfo;
  * @param msg a valid message
  * @param docid the docid for this message, or 0
  * @param ti thread info for the current message, or NULL
- * @param headers if TRUE, only include message fields which can be
- * obtained from the database (this is much faster if the MuMsg is
- * database-backed, so no file needs to be opened)
- * @param extract_images if TRUE, extract image attachments as temporary
- * files and include links to those in the sexp
+ * @param opts, bitwise OR'ed;
+ *    - MU_MSG_OPTION_HEADERS_ONLY: only include message fields which can be
+ *      obtained from the database (this is much faster if the MuMsg is
+ *      database-backed, so no file needs to be opened)
+ *    - MU_MSG_OPTION_EXTRACT_IMAGES: extract image attachments as temporary
+ *      files and include links to those in the sexp
+ *  and for message parts:
+ *  	MU_MSG_OPTION_CHECK_SIGNATURES: check signatures
+ *	MU_MSG_OPTION_AUTO_RETRIEVE_KEY: attempt to retrieve keys online
+ *	MU_MSG_OPTION_USE_AGENT: attempt to use GPG-agent
+ *	MU_MSG_OPTION_USE_PKCS7: attempt to use PKCS (instead of gpg)
  *
  * @return a string with the sexp (free with g_free) or NULL in case of error
  */
 char* mu_msg_to_sexp (MuMsg *msg, unsigned docid,
 		      const struct _MuMsgIterThreadInfo *ti,
-		      gboolean headers_only, gboolean extract_images);
+		      MuMsgOptions ops)
+	G_GNUC_MALLOC G_GNUC_WARN_UNUSED_RESULT;
 
 /**
  * move a message to another maildir; note that this does _not_ update

@@ -1,7 +1,6 @@
 /* -*-mode: c; tab-width: 8; indent-tabs-mode: t; c-basic-offset: 8 -*-*/
-
 /*
-** Copyright (C) 2008-2011 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+** Copyright (C) 2008-2012 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 **
 ** This program is free software; you can redistribute it and/or modify it
 ** under the terms of the GNU General Public License as published by the
@@ -31,101 +30,176 @@
 #include "mu-msg-priv.h"
 #include "mu-msg-part.h"
 
-struct _FindPartData {
-	guint			 idx, wanted_idx;
-	GMimeObject		*part;
+static gboolean handle_children (MuMsg *msg,
+				 GMimeMessage *mime_msg, MuMsgOptions opts,
+				 unsigned index, MuMsgPartForeachFunc func,
+				 gpointer user_data);
+struct _DoData {
+	GMimeObject *mime_obj;
+	unsigned    index;
 };
-typedef struct _FindPartData FindPartData;
+typedef struct _DoData DoData;
 
-
-/* is this either a leaf part or an embedded message? */
-static gboolean
-is_part_or_message_part (GMimeObject *part)
+static void
+do_it_with_index (MuMsg *msg, MuMsgPart *part, DoData *ddata)
 {
-	return GMIME_IS_PART(part) || GMIME_IS_MESSAGE_PART (part);
+	if (ddata->mime_obj)
+		return;
+
+	if (part->index == ddata->index)
+		ddata->mime_obj = (GMimeObject*)part->data;
+}
+
+static GMimeObject*
+get_mime_object_at_index (MuMsg *msg, MuMsgOptions opts, unsigned index)
+{
+	DoData ddata;
+
+	ddata.mime_obj  = NULL;
+	ddata.index     = index;
+
+	mu_msg_part_foreach (msg, opts,
+			     (MuMsgPartForeachFunc)do_it_with_index,
+			     &ddata);
+
+	return ddata.mime_obj;
+}
+
+
+typedef gboolean (*MuMsgPartMatchFunc) (MuMsgPart *, gpointer);
+struct _MatchData {
+	MuMsgPartMatchFunc match_func;
+	gpointer user_data;
+	int index;
+};
+typedef struct _MatchData MatchData;
+
+static void
+check_match (MuMsg *msg, MuMsgPart *part, MatchData *mdata)
+{
+	if (mdata->index != -1)
+		return;
+
+	if (mdata->match_func (part, mdata->user_data))
+		mdata->index = part->index;
+}
+
+static int
+get_matching_part_index (MuMsg *msg, MuMsgOptions opts,
+			 MuMsgPartMatchFunc func, gpointer user_data)
+{
+	MatchData mdata;
+
+	mdata.match_func = func;
+	mdata.user_data  = user_data;
+	mdata.index      = -1;
+
+	mu_msg_part_foreach (msg, opts,
+			     (MuMsgPartForeachFunc)check_match,
+			     &mdata);
+	return mdata.index;
 }
 
 
 static void
-find_part_cb (GMimeObject *parent, GMimeObject *part, FindPartData *fpdata)
+accumulate_text_message (MuMsg *msg, MuMsgPart *part, GString **gstrp)
 {
-	/* ignore other parts */
-	if (!is_part_or_message_part (part))
-		return;
+	const gchar *str;
+	char *adrs;
+	GMimeMessage *mimemsg;
+	InternetAddressList *addresses;
 
-	/* g_printerr ("%u Type-name: %s\n", */
-	/* 	    fpdata->idx, G_OBJECT_TYPE_NAME((GObject*)part)); */
-
-	if (fpdata->part || fpdata->wanted_idx != fpdata->idx++)
-		return; /* not yet found */
-
-	fpdata->part = part;
+	/* put sender, recipients and subject in the string, so they
+	 * can be indexed as well */
+	mimemsg = GMIME_MESSAGE (part->data);
+	str = g_mime_message_get_sender (mimemsg);
+	g_string_append_printf
+		(*gstrp, "%s%s", str ? str : "", str ? "\n" : "");
+	str = g_mime_message_get_subject (mimemsg);
+	g_string_append_printf
+		(*gstrp, "%s%s", str ? str : "", str ? "\n" : "");
+		addresses = g_mime_message_get_all_recipients (mimemsg);
+		adrs = internet_address_list_to_string (addresses, FALSE);
+		g_object_unref (addresses);
+		g_string_append_printf
+			(*gstrp, "%s%s", adrs ? adrs : "", adrs ? "\n" : "");
+		g_free (adrs);
 }
 
-static GMimeObject*
-find_part (MuMsg* msg, guint partidx)
+static void
+accumulate_text_part (MuMsg *msg, MuMsgPart *part, GString **gstrp)
 {
-	FindPartData fpdata;
-
-	fpdata.wanted_idx = partidx;
-	fpdata.idx	  = 0;
-	fpdata.part	  = NULL;
-
-	g_mime_message_foreach (msg->_file->_mime_msg,
-				(GMimeObjectForeachFunc)find_part_cb,
-				&fpdata);
-	return fpdata.part;
+	GMimeContentType *ctype;
+	gboolean err;
+	char *txt;
+	ctype = g_mime_object_get_content_type ((GMimeObject*)part->data);
+	if (!g_mime_content_type_is_type (ctype, "text", "plain"))
+		return; /* not plain text */
+	txt = mu_msg_mime_part_to_string
+		((GMimePart*)part->data, &err);
+	if (txt)
+		g_string_append (*gstrp, txt);
+	g_free (txt);
 }
 
-struct _PartData {
-	MuMsg			*_msg;
-	unsigned		_idx;
-	MuMsgPartForeachFunc	_func;
-	gpointer		_user_data;
-	GMimePart               *_body_part;
-	gboolean                _recurse_rfc822;
-};
-typedef struct _PartData PartData;
+static void
+accumulate_text (MuMsg *msg, MuMsgPart *part, GString **gstrp)
+{
+	if (GMIME_IS_MESSAGE(part->data))
+		accumulate_text_message (msg, part, gstrp);
+	else if (GMIME_IS_PART (part->data))
+		accumulate_text_part (msg, part, gstrp);
+}
+
+static char*
+get_text_from_mime_msg (MuMsg *msg, GMimeMessage *mmsg, MuMsgOptions opts,
+			unsigned index)
+{
+	GString *gstr;
+
+	gstr = g_string_sized_new (4096);
+	handle_children (msg, mmsg, opts, index,
+			 (MuMsgPartForeachFunc)accumulate_text,
+			 &gstr);
+
+	return g_string_free (gstr, FALSE);
+}
 
 
 char*
-mu_msg_part_get_text (MuMsgPart *self, gboolean *err)
+mu_msg_part_get_text (MuMsg *msg, MuMsgPart *self, MuMsgOptions opts)
 {
-	GMimeObject *mobj;
+	GMimeObject  *mobj;
+	GMimeMessage *mime_msg;
+	gboolean err;
 
+	g_return_val_if_fail (msg, NULL);
 	g_return_val_if_fail (self && self->data, NULL);
 
 	mobj = (GMimeObject*)self->data;
 
-	if (GMIME_IS_PART(mobj))
-		return mu_msg_mime_part_to_string ((GMimePart*)mobj, err);
-	else if (GMIME_IS_MESSAGE(mobj)) {
-		/* when it's an (embedded) message, the text is just
-		 * of the message metadata, so we can index it.
-		 */
-		GString *data;
-		GMimeMessage *msg;
-		InternetAddressList *addresses;
-		gchar *adrs;
+	err = FALSE;
+	if (GMIME_IS_PART (mobj)) {
+		if (self->part_type & MU_MSG_PART_TYPE_TEXT_PLAIN)
+			return mu_msg_mime_part_to_string ((GMimePart*)mobj,
+							   &err);
+		else
+			return NULL; /* non-text MimePart */
+	}
 
-		msg = (GMimeMessage*)mobj;
-		data = g_string_sized_new (512); /* just a guess */
+	mime_msg = NULL;
 
-		g_string_append (data, g_mime_message_get_sender(msg));
-		g_string_append_c (data, '\n');
-		g_string_append (data, g_mime_message_get_subject(msg));
-		g_string_append_c (data, '\n');
+	if (GMIME_IS_MESSAGE_PART (mobj))
+		mime_msg = g_mime_message_part_get_message
+			((GMimeMessagePart*)mobj);
+	else if (GMIME_IS_MESSAGE (mobj))
+		mime_msg = (GMimeMessage*)mobj;
 
-		addresses = g_mime_message_get_all_recipients (msg);
-		adrs = internet_address_list_to_string (addresses, FALSE);
-		g_object_unref(G_OBJECT(addresses));
-
-		g_string_append (data, adrs);
-		g_free (adrs);
-
-		return g_string_free (data, FALSE);
-	} else
-
+	/* apparently, g_mime_message_part_get_message may still
+	 * return NULL */
+ 	if (mime_msg)
+		return get_text_from_mime_msg (msg, mime_msg,
+					       opts, self->index);
 	return NULL;
 }
 
@@ -139,7 +213,7 @@ get_part_size (GMimePart *part)
 	GMimeStream *stream;
 
 	wrapper = g_mime_part_get_content_object (part);
-	if (!wrapper)
+	if (!GMIME_IS_DATA_WRAPPER(wrapper))
 		return -1;
 
 	stream = g_mime_data_wrapper_get_stream (wrapper);
@@ -148,188 +222,363 @@ get_part_size (GMimePart *part)
 	else
 		return g_mime_stream_length (stream);
 
-	/* NOTE: it seems we shouldn't unref stream/wrapper */
+	/* NOTE: stream/wrapper are owned by gmime, no unreffing */
 }
 
 
+static void
+cleanup_filename (char *fname)
+{
+	gchar *cur;
+
+	/* remove slashes, spaces, colons... */
+	for (cur = fname; *cur; ++cur)
+		if (*cur == '/' || *cur == ' ' || *cur == ':')
+			*cur = '-';
+}
+
+
+static char*
+mime_part_get_filename (GMimeObject *mobj, unsigned index,
+			gboolean construct_if_needed)
+{
+	gchar *fname;
+
+	fname = NULL;
+
+	if (GMIME_IS_PART (mobj)) {
+		/* the easy case: the part has a filename */
+		fname = (gchar*)g_mime_part_get_filename (GMIME_PART(mobj));
+		if (fname) /* don't include directory components */
+			fname = g_path_get_basename (fname);
+	}
+
+	if (!fname && !construct_if_needed)
+		return NULL;
+
+	if (GMIME_IS_MESSAGE_PART(mobj)) {
+		GMimeMessage *msg;
+		const char *subj;
+		msg  = g_mime_message_part_get_message
+			(GMIME_MESSAGE_PART(mobj));
+		subj = g_mime_message_get_subject (msg);
+		fname = g_strdup_printf ("%s.eml", subj ? subj : "message");
+	}
+
+	if (!fname)
+		fname =	g_strdup_printf ("%u.part", index);
+
+	/* remove slashes, spaces, colons... */
+	cleanup_filename (fname);
+	return fname;
+}
+
+
+char*
+mu_msg_part_get_filename (MuMsgPart *mpart, gboolean construct_if_needed)
+{
+	g_return_val_if_fail (mpart, NULL);
+	g_return_val_if_fail (GMIME_IS_OBJECT(mpart->data), NULL);
+
+	return mime_part_get_filename ((GMimeObject*)mpart->data,
+				       mpart->index, construct_if_needed);
+}
+
+
+static MuMsgPartType
+get_disposition (GMimeObject *mobj)
+{
+	const char *disp;
+
+	disp = g_mime_object_get_disposition (mobj);
+	if (!disp)
+		return MU_MSG_PART_TYPE_NONE;
+
+	if (strcasecmp (disp, GMIME_DISPOSITION_ATTACHMENT) == 0)
+		return MU_MSG_PART_TYPE_ATTACHMENT;
+
+	if (strcasecmp (disp, GMIME_DISPOSITION_INLINE) == 0)
+		return MU_MSG_PART_TYPE_INLINE;
+
+	return MU_MSG_PART_TYPE_NONE;
+}
+
+/* declaration, so we can use it in handle_encrypted_part */
+static gboolean handle_mime_object (MuMsg *msg,
+				    GMimeObject *mobj, GMimeObject *parent,
+				    MuMsgOptions opts,
+				    unsigned index, MuMsgPartForeachFunc func,
+				    gpointer user_data);
+
+/* if mu is build without crypto support (i.e, gmime < 2.6), the crypto funcs
+ * are no-ops
+ */
+#ifndef BUILD_CRYPTO
+
+#define check_signature(A,B,C) (TRUE)
+#define handle_encrypted_part(A,B,C,D,E,F,G) (TRUE)
+
+#else /* BUILD_CRYPTO */
+
+#define SIG_STATUS_REPORT "sig-status-report"
+
+/* call 'func' with information about this MIME-part */
+static gboolean
+check_signature (MuMsg *msg, GMimeMultipartSigned *part, MuMsgOptions opts)
+{
+	/* the signature status */
+	MuMsgPartSigStatusReport *sigrep;
+	GError *err;
+
+	err     = NULL;
+	sigrep = mu_msg_crypto_verify_part (part, opts, &err);
+	if (err) {
+		g_warning ("error verifying signature: %s", err->message);
+		g_clear_error (&err);
+	}
+
+	/* tag this part with the signature status check */
+	g_object_set_data_full
+		(G_OBJECT(part), SIG_STATUS_REPORT,
+		 sigrep,
+		 (GDestroyNotify)mu_msg_part_sig_status_report_destroy);
+
+	return TRUE;
+}
+
+
+/* Note: this is function will be called by GMime when it needs a
+ * password. However, GMime <= 2.6.10 does not handle
+ * getting passwords correctly, so this might fail.  see:
+ * password_requester in mu-msg-crypto.c */
+static gchar*
+get_console_pw (const char* user_id, const char *prompt_ctx,
+		gboolean reprompt, gpointer user_data)
+{
+	char *prompt, *pass;
+
+	if (!g_mime_check_version(2,6,11))
+		g_printerr (
+			"*** the gmime library you are using has version "
+			"%u.%u.%u (<= 2.6.10)\n"
+			"*** this version has a bug in its password "
+			"retrieval routine, and probably won't work.\n",
+			gmime_major_version, gmime_minor_version,
+			gmime_micro_version);
+
+	if (reprompt)
+		g_print ("Authentication failed. Please try again\n");
+
+	prompt = g_strdup_printf ("Password for %s: ", user_id);
+
+	pass = mu_util_read_password (prompt);
+	g_free (prompt);
+
+	return pass;
+}
+
 
 static gboolean
-init_msg_part_from_mime_part (GMimePart *part, MuMsgPart *pi)
+handle_encrypted_part (MuMsg *msg,
+		       GMimeMultipartEncrypted *part, GMimeObject *parent,
+		       MuMsgOptions opts, unsigned index,
+		       MuMsgPartForeachFunc func, gpointer user_data)
 {
-	const gchar *fname, *descr;
+	GError *err;
+	GMimeObject *dec;
+	MuMsgPartPasswordFunc pw_func;
+
+	if (opts & MU_MSG_OPTION_CONSOLE_PASSWORD)
+		pw_func = (MuMsgPartPasswordFunc)get_console_pw;
+	else
+		pw_func = NULL;
+
+
+	err = NULL;
+	dec = mu_msg_crypto_decrypt_part (part, opts, pw_func, NULL, &err);
+	if (err) {
+		g_warning ("error decrypting part: %s", err->message);
+		g_clear_error (&err);
+	}
+
+	if (dec) {
+		gboolean rv;
+		rv = handle_mime_object (msg, dec, parent, opts,
+					 index + 1, func, user_data);
+		g_object_unref (dec);
+		return rv;
+	}
+
+	return TRUE;
+}
+#endif /*BUILD_CRYPTO */
+
+
+/* call 'func' with information about this MIME-part */
+static gboolean
+handle_part (MuMsg *msg, GMimePart *part, GMimeObject *parent,
+	     MuMsgOptions opts, unsigned index,
+	     MuMsgPartForeachFunc func, gpointer user_data)
+{
 	GMimeContentType *ct;
+	MuMsgPart msgpart;
+
+	memset (&msgpart, 0, sizeof(MuMsgPart));
+
+	msgpart.size        = get_part_size (part);
+	msgpart.part_type   = MU_MSG_PART_TYPE_LEAF;
+	msgpart.part_type |= get_disposition ((GMimeObject*)part);
 
 	ct = g_mime_object_get_content_type ((GMimeObject*)part);
 	if (GMIME_IS_CONTENT_TYPE(ct)) {
-		pi->type    = (char*)g_mime_content_type_get_media_type (ct);
-		pi->subtype = (char*)g_mime_content_type_get_media_subtype (ct);
+		msgpart.type    = g_mime_content_type_get_media_type (ct);
+		msgpart.subtype = g_mime_content_type_get_media_subtype (ct);
+		/* store as in the part_type as well, for quick
+		 * checking */
+		if (g_mime_content_type_is_type (ct, "text", "plain"))
+			msgpart.part_type |= MU_MSG_PART_TYPE_TEXT_PLAIN;
+		else if (g_mime_content_type_is_type (ct, "text", "html"))
+			msgpart.part_type |= MU_MSG_PART_TYPE_TEXT_HTML;
 	}
 
-	pi->disposition = (char*)g_mime_object_get_disposition
-		((GMimeObject*)part);
+#ifdef BUILD_CRYPTO
+	/* put the verification info in the pgp-signature part */
+	msgpart.sig_status_report = NULL;
+	if (g_ascii_strcasecmp (msgpart.subtype, "pgp-signature") == 0)
+		msgpart.sig_status_report =
+			(MuMsgPartSigStatusReport*)
+			g_object_get_data (G_OBJECT(parent), SIG_STATUS_REPORT);
+#endif /*BUILD_CRYPTO*/
 
-	fname	      = g_mime_part_get_filename (part);
-	pi->file_name = fname ? mu_str_utf8ify (fname) : NULL;
+	msgpart.data    = (gpointer)part;
+	msgpart.index   = index;
 
-	descr		= g_mime_part_get_content_description (part);
-	pi->description = descr ? mu_str_utf8ify (descr) : NULL;
-
-	pi->size        = get_part_size (part);
-	pi->is_leaf     = TRUE;
-	pi->is_msg      = FALSE;
+	func (msg, &msgpart, user_data);
 
 	return TRUE;
 }
 
-static gchar*
-get_filename_for_mime_message_part (GMimeMessage *mmsg)
-{
-	gchar *name, *cur;
 
-	name = (char*)g_mime_message_get_subject (mmsg);
-	if (!name)
-		name = "message";
-
-	name = g_strconcat (name, ".eml", NULL);
-
-	/* remove slashes... */
-	for (cur = name ; *cur; ++cur) {
-		if (*cur == '/' || *cur == ' ' || *cur == ':')
-			*cur = '-';
-	}
-
-	return name;
-}
-
-
+/* call 'func' with information about this MIME-part */
 static gboolean
-init_msg_part_from_mime_message_part (GMimeMessage *mmsg, MuMsgPart *pi)
-{
-	pi->disposition = GMIME_DISPOSITION_ATTACHMENT;
-
-	/* pseudo-file name... */
-	pi->file_name	= get_filename_for_mime_message_part (mmsg);
-	pi->description = g_strdup ("message");
-
-	pi->type        = "message";
-	pi->subtype     = "rfc822";
-
-	pi->size        = 0;
-	pi->is_leaf     = TRUE;
-	pi->is_msg      = TRUE;
-
-	return TRUE;
-}
-
-
-
-static void
-msg_part_free (MuMsgPart *pi)
-{
-	if (!pi)
-		return;
-
-	g_free (pi->file_name);
-	g_free (pi->description);
-}
-
-
-
-static void
-part_foreach_cb (GMimeObject *parent, GMimeObject *mobj, PartData *pdata)
-{
-	MuMsgPart pi;
-	gboolean rv;
-
-	/* ignore non-leaf / message parts */
-	if (!is_part_or_message_part (mobj))
-		return;
-
-	memset (&pi, 0, sizeof(pi));
-	pi.index      = pdata->_idx++;
-	pi.content_id = (char*)g_mime_object_get_content_id (mobj);
-	pi.data       = (gpointer)mobj;
-	/* check if this is the body part */
-	pi.is_body    = ((void*)pdata->_body_part == (void*)mobj);
-
-	if (GMIME_IS_PART(mobj))
-		rv = init_msg_part_from_mime_part ((GMimePart*)mobj, &pi);
-	else if (GMIME_IS_MESSAGE_PART(mobj)) {
-		GMimeMessage *mmsg;
-		mmsg = g_mime_message_part_get_message ((GMimeMessagePart*)mobj);
-		if (!mmsg)
-			return;
-		rv = init_msg_part_from_mime_message_part (mmsg, &pi);
-		if (rv && pdata->_recurse_rfc822)
-			/* NOTE: this screws up the counting (pdata->_idx) */
-			g_mime_message_foreach /* recurse */
-				(mmsg, (GMimeObjectForeachFunc)part_foreach_cb,
-				 pdata);
-	} else
-		rv = FALSE; /* ignore */
-
-	if (rv)
-		pdata->_func(pdata->_msg, &pi, pdata->_user_data);
-
-	msg_part_free (&pi);
-}
-
-
-static gboolean
-load_msg_file_maybe (MuMsg *msg)
-{
-	GError *err;
-
-	if (msg->_file)
-		return TRUE;
-
-	err = NULL;
-	msg->_file = mu_msg_file_new (mu_msg_get_path(msg), NULL,
-				      &err);
-	if (!msg->_file) {
-		MU_HANDLE_G_ERROR(err); /* will free it */
-		return FALSE;
-	}
-
-	if (!msg->_file->_mime_msg) {
-		mu_msg_file_destroy (msg->_file);
-		msg->_file = NULL;
-		g_warning ("failed to create mime-msg");
-		return FALSE;
-	}
-
-	return TRUE;
-}
-
-
-void
-mu_msg_part_foreach (MuMsg *msg, gboolean recurse_rfc822,
+handle_message_part (MuMsg *msg, GMimeMessagePart *mimemsgpart, GMimeObject *parent,
+		     MuMsgOptions opts, unsigned index,
 		     MuMsgPartForeachFunc func, gpointer user_data)
 {
-	PartData pdata;
-	GMimeMessage *mime_msg;
+	MuMsgPart msgpart;
 
-	g_return_if_fail (msg);
+	memset (&msgpart, 0, sizeof(MuMsgPart));
 
-	if (!load_msg_file_maybe (msg))
-		return;
+	msgpart.type        = "message";
+	msgpart.subtype     = "rfc822";
+	msgpart.index       = index;
 
-	mime_msg = msg->_file->_mime_msg;
+	/* msgpart.size        = 0; /\* maybe calculate this? *\/ */
 
-	pdata._msg	      = msg;
-	pdata._idx	      = 0;
-	pdata._body_part      = mu_msg_mime_get_body_part (mime_msg, FALSE);
-	pdata._func	      = func;
-	pdata._user_data      = user_data;
-	pdata._recurse_rfc822 = recurse_rfc822;
+	msgpart.part_type  = MU_MSG_PART_TYPE_MESSAGE;
+	msgpart.part_type |= get_disposition ((GMimeObject*)mimemsgpart);
 
-	g_mime_message_foreach (msg->_file->_mime_msg,
-				(GMimeObjectForeachFunc)part_foreach_cb,
-				&pdata);
+	msgpart.data        = (gpointer)mimemsgpart;
+	func (msg, &msgpart, user_data);
+
+	if (opts & MU_MSG_OPTION_RECURSE_RFC822) {
+		GMimeMessage *mmsg; /* this may return NULL for some messages */
+		mmsg = g_mime_message_part_get_message (mimemsgpart);
+		if (mmsg)
+			return handle_children
+				(msg, mmsg,
+				 opts, index, func, user_data);
+	}
+
+	return TRUE;
 }
 
 
 static gboolean
+handle_mime_object (MuMsg *msg,
+		    GMimeObject *mobj, GMimeObject *parent, MuMsgOptions opts,
+		    unsigned index, MuMsgPartForeachFunc func, gpointer user_data)
+{
+	if (GMIME_IS_PART (mobj))
+		return handle_part
+			(msg, GMIME_PART(mobj), parent,
+			 opts, index, func, user_data);
+	else if (GMIME_IS_MESSAGE_PART (mobj))
+		return handle_message_part
+			(msg, GMIME_MESSAGE_PART(mobj),
+			 parent, opts, index, func, user_data);
+	else if ((opts & MU_MSG_OPTION_VERIFY) &&
+		 GMIME_IS_MULTIPART_SIGNED (mobj))
+		return check_signature
+			(msg, GMIME_MULTIPART_SIGNED (mobj), opts);
+	else if ((opts & MU_MSG_OPTION_DECRYPT) &&
+		GMIME_IS_MULTIPART_ENCRYPTED (mobj))
+		return handle_encrypted_part
+			(msg, GMIME_MULTIPART_ENCRYPTED (mobj),
+			 parent, opts, index, func, user_data);
+	return TRUE;
+}
+
+struct _ForeachData {
+	MuMsgPartForeachFunc func;
+	gpointer             user_data;
+	MuMsg                *msg;
+	unsigned             index;
+	MuMsgOptions         opts;
+
+};
+typedef struct _ForeachData ForeachData;
+
+static void
+each_child (GMimeObject *parent, GMimeObject *part,
+	    ForeachData *fdata)
+{
+	handle_mime_object (fdata->msg,
+			    part,
+			    parent,
+			    fdata->opts,
+			    fdata->index++,
+			    fdata->func,
+			    fdata->user_data);
+}
+
+
+static gboolean
+handle_children (MuMsg *msg,
+		 GMimeMessage *mime_msg, MuMsgOptions opts,
+		 unsigned index, MuMsgPartForeachFunc func,
+		 gpointer user_data)
+{
+	ForeachData fdata;
+
+ 	fdata.func	= func;
+	fdata.user_data = user_data;
+	fdata.opts	= opts;
+	fdata.msg	= msg;
+	fdata.index	= 0;
+
+	g_mime_message_foreach (mime_msg, (GMimeObjectForeachFunc)each_child,
+				&fdata);
+
+	return TRUE;
+}
+
+
+gboolean
+mu_msg_part_foreach (MuMsg *msg, MuMsgOptions opts,
+		     MuMsgPartForeachFunc func, gpointer user_data)
+{
+	g_return_val_if_fail (msg, FALSE);
+
+	if (!mu_msg_load_msg_file (msg, NULL))
+		return FALSE;
+
+	return handle_children (msg, msg->_file->_mime_msg,
+				opts, 0, func, user_data);
+}
+
+
+gboolean
 write_part_to_fd (GMimePart *part, int fd, GError **err)
 {
 	GMimeStream *stream;
@@ -392,13 +641,16 @@ write_object_to_fd (GMimeObject *obj, int fd, GError **err)
 }
 
 
-
 static gboolean
-save_mime_object (GMimeObject *obj, const char *fullpath,
-		  gboolean overwrite, gboolean use_existing, GError **err)
+save_object (GMimeObject *obj, MuMsgOptions opts, const char *fullpath,
+	     GError **err)
 {
 	int fd;
 	gboolean rv;
+	gboolean use_existing, overwrite;
+
+	use_existing = opts & MU_MSG_OPTION_USE_EXISTING;
+	overwrite    = opts & MU_MSG_OPTION_OVERWRITE;
 
 	/* don't try to overwrite when we already have it; useful when
 	 * you're sure it's not a different file with the same name */
@@ -431,38 +683,25 @@ save_mime_object (GMimeObject *obj, const char *fullpath,
 
 
 gchar*
-mu_msg_part_filepath (MuMsg *msg, const char* targetdir, guint partidx,
-		      GError **err)
+mu_msg_part_get_path (MuMsg *msg, MuMsgOptions opts,
+		      const char* targetdir, unsigned index, GError **err)
 {
 	char *fname, *filepath;
 	GMimeObject* mobj;
 
-	if (!load_msg_file_maybe (msg))
+	g_return_val_if_fail (msg, NULL);
+
+	if (!mu_msg_load_msg_file (msg, NULL))
 		return NULL;
 
-	if (!(mobj = find_part (msg, partidx))) {
-		g_set_error (err, MU_ERROR_DOMAIN, MU_ERROR_GMIME, "cannot find part %u", partidx);
-		return NULL;
-	}
-
-	if (GMIME_IS_PART (mobj)) {
-		/* the easy case: the part has a filename */
-		fname = (gchar*)g_mime_part_get_filename (GMIME_PART(mobj));
-		if (fname) /* security: don't include any directory components... */
-			fname = g_path_get_basename (fname);
-		else
-			fname = g_strdup_printf ("%x-part-%u",
-					 g_str_hash (mu_msg_get_path (msg)),
-						 partidx);
-	} else if (GMIME_IS_MESSAGE_PART(mobj))
-		fname  = get_filename_for_mime_message_part
-			(g_mime_message_part_get_message((GMimeMessagePart*)mobj));
-	else {
-		g_set_error (err, MU_ERROR_DOMAIN, MU_ERROR_GMIME, "part %u cannot be saved",
-			     partidx);
+	mobj = get_mime_object_at_index (msg, opts, index);
+	if (!mobj){
+		mu_util_g_set_error (err, MU_ERROR_GMIME,
+				     "cannot find part %u", index);
 		return NULL;
 	}
 
+	fname = mime_part_get_filename (mobj, index, TRUE);
 	filepath = g_build_path (G_DIR_SEPARATOR_S, targetdir ? targetdir : "",
 				 fname, NULL);
 	g_free (fname);
@@ -472,21 +711,19 @@ mu_msg_part_filepath (MuMsg *msg, const char* targetdir, guint partidx,
 
 
 
-
 gchar*
-mu_msg_part_filepath_cache (MuMsg *msg, guint partid)
+mu_msg_part_get_cache_path (MuMsg *msg, MuMsgOptions opts, guint partid,
+			    GError **err)
 {
 	char *dirname, *filepath;
 	const char* path;
 
 	g_return_val_if_fail (msg, NULL);
 
-	if (!load_msg_file_maybe (msg))
+	if (!mu_msg_load_msg_file (msg, NULL))
 		return NULL;
 
 	path = mu_msg_get_path (msg);
-	if (!path)
-		return NULL;
 
 	/* g_compute_checksum_for_string may be better, but requires
 	 * rel. new glib (2.16) */
@@ -496,60 +733,63 @@ mu_msg_part_filepath_cache (MuMsg *msg, guint partid)
 				   partid);
 
 	if (!mu_util_create_dir_maybe (dirname, 0700, FALSE)) {
+		mu_util_g_set_error (err, MU_ERROR_FILE,
+				     "failed to create dir %s", dirname);
 		g_free (dirname);
 		return NULL;
 	}
 
-	filepath = mu_msg_part_filepath (msg, dirname, partid, NULL);
+	filepath = mu_msg_part_get_path (msg, opts, dirname, partid, err);
 	g_free (dirname);
-	if (!filepath)
-		g_warning ("%s: could not get filename", __FUNCTION__);
 
 	return filepath;
 }
 
 
 gboolean
-mu_msg_part_save (MuMsg *msg, const char *fullpath, guint partidx,
-		  gboolean overwrite, gboolean use_cached, GError **err)
+mu_msg_part_save (MuMsg *msg, MuMsgOptions opts,
+		  const char *fullpath, guint partidx, GError **err)
 {
 	GMimeObject *part;
 
 	g_return_val_if_fail (msg, FALSE);
 	g_return_val_if_fail (fullpath, FALSE);
-	g_return_val_if_fail (!overwrite||!use_cached, FALSE);
+	g_return_val_if_fail (!((opts & MU_MSG_OPTION_OVERWRITE) &&
+			        (opts & MU_MSG_OPTION_USE_EXISTING)), FALSE);
 
-	if (!load_msg_file_maybe (msg))
+	if (!mu_msg_load_msg_file (msg, err))
 		return FALSE;
 
-	part = find_part (msg, partidx);
-	if (!is_part_or_message_part (part)) {
+	part = get_mime_object_at_index (msg, opts, partidx);
+
+	/* special case: convert a message-part into a message */
+	if (GMIME_IS_MESSAGE_PART (part))
+		part = (GMimeObject*)g_mime_message_part_get_message
+			(GMIME_MESSAGE_PART (part));
+
+	if (!GMIME_IS_PART(part) && !GMIME_IS_MESSAGE(part)) {
 		g_set_error (err, MU_ERROR_DOMAIN, MU_ERROR_GMIME,
 			     "unexpected type %s for part %u",
 			     G_OBJECT_TYPE_NAME((GObject*)part),
 			     partidx);
 		return FALSE;
-	} else
-		return save_mime_object (part, fullpath, overwrite, use_cached, err);
+	}
 
+
+	return save_object (part, opts, fullpath, err);
 }
 
 
 gchar*
-mu_msg_part_save_temp (MuMsg *msg, guint partidx, GError **err)
+mu_msg_part_save_temp (MuMsg *msg, MuMsgOptions opts, guint partidx, GError **err)
 {
 	gchar *filepath;
-	gboolean rv;
 
-	filepath = mu_msg_part_filepath_cache (msg, partidx);
-	if (!filepath) {
-		g_set_error (err, MU_ERROR_DOMAIN, MU_ERROR_FILE,
-			     "Could not get temp filepath");
+	filepath = mu_msg_part_get_cache_path (msg, opts, partidx, err);
+	if (!filepath)
 		return NULL;
-	}
 
-	rv = mu_msg_part_save (msg, filepath, partidx, FALSE, TRUE, err);
-	if (!rv) {
+	if (!mu_msg_part_save (msg, opts, filepath, partidx, err)) {
 		g_free (filepath);
 		return NULL;
 	}
@@ -557,140 +797,95 @@ mu_msg_part_save_temp (MuMsg *msg, guint partidx, GError **err)
 	return filepath;
 }
 
-
-
-typedef gboolean (*MatchFunc) (GMimeObject *part, gpointer data);
-
-struct _MatchData {
-	MatchFunc _matcher;
-	gpointer  _user_data;
-	gint      _idx, _found_idx;
-};
-typedef struct _MatchData MatchData;
-
-static void
-part_match_foreach_cb (GMimeObject *parent, GMimeObject *part, MatchData *mdata)
-{
-	if (mdata->_found_idx < 0)
-		if (mdata->_matcher (part, mdata->_user_data))
-			mdata->_found_idx = mdata->_idx;
-
-	++mdata->_idx;
-}
-
-static int
-msg_part_find_idx (GMimeMessage *msg, MatchFunc func, gpointer user_data)
-{
-	MatchData mdata;
-
-	g_return_val_if_fail (msg, -1);
-	g_return_val_if_fail (GMIME_IS_MESSAGE(msg), -1);
-
-	mdata._idx       = 0;
-	mdata._found_idx = -1;
-	mdata._matcher   = func;
-	mdata._user_data = user_data;
-
-	g_mime_message_foreach (msg,
-				(GMimeObjectForeachFunc)part_match_foreach_cb,
-				&mdata);
-
-	return mdata._found_idx;
-}
-
-
 static gboolean
-match_content_id (GMimeObject *part, const char *cid)
+match_cid (MuMsgPart *mpart, const char *cid)
 {
-	return g_strcmp0 (g_mime_object_get_content_id (part),
-			  cid) == 0 ? TRUE : FALSE;
+	const char *this_cid;
+
+	this_cid = g_mime_object_get_content_id ((GMimeObject*)mpart->data);
+
+	return g_strcmp0 (this_cid, cid) ? TRUE : FALSE;
 }
 
 int
-mu_msg_part_find_cid (MuMsg *msg, const char* sought_cid)
+mu_msg_find_index_for_cid (MuMsg *msg, MuMsgOptions opts, const char *sought_cid)
 {
 	const char* cid;
 
 	g_return_val_if_fail (msg, -1);
 	g_return_val_if_fail (sought_cid, -1);
 
-	if (!load_msg_file_maybe (msg))
+	if (!mu_msg_load_msg_file (msg, NULL))
 		return -1;
 
 	cid = g_str_has_prefix (sought_cid, "cid:") ?
 		sought_cid + 4 : sought_cid;
 
-	return msg_part_find_idx (msg->_file->_mime_msg,
-				  (MatchFunc)match_content_id,
-				  (gpointer)(char*)cid);
+	return get_matching_part_index (msg, opts,
+					(MuMsgPartMatchFunc)match_cid,
+					(gpointer)(char*)cid);
 }
 
-struct _MatchData2 {
-	GSList       *_lst;
+struct _RxMatchData {
+ 	GSList       *_lst;
 	const GRegex *_rx;
 	guint         _idx;
 };
-typedef struct _MatchData2 MatchData2;
+typedef struct _RxMatchData RxMatchData;
 
 
 static void
-match_filename_rx (GMimeObject *parent, GMimeObject *part, MatchData2 *mdata)
+match_filename_rx (MuMsg *msg, MuMsgPart *mpart, RxMatchData *mdata)
 {
-	const char *fname;
+	char *fname;
 
-	/* ignore other parts -- we need this guard so the counting of
-	 * parts is the same as in other functions for dealing with
-	 * msg parts (this is needed since we expose the numbers to
-	 * the user) */
-	if (!is_part_or_message_part (part))
+	fname = mu_msg_part_get_filename (mpart, FALSE);
+	if (!fname)
 		return;
-
-	fname = g_mime_part_get_filename (GMIME_PART(part));
-	if (!fname) {
-		++mdata->_idx;
-		return;
-	}
 
 	if (g_regex_match (mdata->_rx, fname, 0, NULL))
 		mdata->_lst = g_slist_prepend (mdata->_lst,
-					       GUINT_TO_POINTER(mdata->_idx++));
+					       GUINT_TO_POINTER(mpart->index));
+	g_free (fname);
 }
 
 
 GSList*
-mu_msg_part_find_files (MuMsg *msg, const GRegex *pattern)
+mu_msg_find_files (MuMsg *msg, MuMsgOptions opts, const GRegex *pattern)
 {
-	MatchData2 mdata;
+	RxMatchData mdata;
 
 	g_return_val_if_fail (msg, NULL);
 	g_return_val_if_fail (pattern, NULL);
 
-	if (!load_msg_file_maybe (msg))
+	if (!mu_msg_load_msg_file (msg, NULL))
 		return NULL;
 
 	mdata._lst = NULL;
 	mdata._rx  = pattern;
 	mdata._idx = 0;
 
-	g_mime_message_foreach (msg->_file->_mime_msg,
-				(GMimeObjectForeachFunc)match_filename_rx,
-				&mdata);
+	mu_msg_part_foreach (msg, opts,
+			     (MuMsgPartForeachFunc)match_filename_rx,
+			     &mdata);
 	return mdata._lst;
 }
 
 
 gboolean
-mu_msg_part_looks_like_attachment (MuMsgPart *part, gboolean include_inline)
+mu_msg_part_maybe_attachment (MuMsgPart *part)
 {
 	g_return_val_if_fail (part, FALSE);
 
-	if (part->is_body||!part->disposition||!part->type)
+	/* attachments must be leaf parts */
+	if (!(part->part_type & MU_MSG_PART_TYPE_LEAF))
 		return FALSE;
 
-	if (include_inline ||
-	    g_ascii_strcasecmp (part->disposition,
-				GMIME_DISPOSITION_ATTACHMENT) == 0)
+	/* parts other than text/plain, text/html are considered
+	 * attachments as well */
+	if (!(part->part_type & MU_MSG_PART_TYPE_TEXT_PLAIN) &&
+	    !(part->part_type & MU_MSG_PART_TYPE_TEXT_HTML))
 		return TRUE;
 
-	return FALSE;
+	return part->part_type & MU_MSG_PART_TYPE_ATTACHMENT ? TRUE : FALSE;
 }

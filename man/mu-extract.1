@@ -1,20 +1,21 @@
-.TH MU EXTRACT 1 "May 2012" "User Manuals"
+.TH MU EXTRACT 1 "July 2012" "User Manuals"
 
 .SH NAME
 
-mu extract\- display and save message parts (attachments), and open them with
-other tools.
+\fBmu extract\fR is the \fBmu\fR command to display and save message parts
+(attachments), and open them with other tools.
 
 .SH SYNOPSIS
 
 .B mu extract [options] <file>
+
 .B mu extract [options] <file> <pattern>
 
 .SH DESCRIPTION
 
 \fBmu extract\fR is the \fBmu\fR sub-command for extracting MIME-parts (e.g.,
-attachments) from mail messages. It works on message files, and does not
-require the message to be indexed in the database.
+attachments) from mail messages. The sub-command works on message files, and
+does not require the message to be indexed in the database.
 
 For attachments, the file name used when saving it, is the name of the
 attachment in the message. If there is no such name, or when saving

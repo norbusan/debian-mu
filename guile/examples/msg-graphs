@@ -2,7 +2,7 @@
 exec guile -e main -s $0 $@
 !#
 ;;
-;; Copyright (C) 2011 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+;; Copyright (C) 2011-2012 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 ;;
 ;; This program is free software; you can redistribute it and/or modify it
 ;; under the terms of the GNU General Public License as published by the
@@ -21,7 +21,8 @@ exec guile -e main -s $0 $@
 (setlocale LC_ALL "")
 
 (use-modules (ice-9 getopt-long) (ice-9 optargs) (ice-9 popen) (ice-9 format))
-(use-modules (mu) (mu message) (mu stats) (mu plot))
+(use-modules (mu) (mu stats) (mu plot))
+;;(use-modules (mu) (mu message) (mu stats) (mu plot))
 
 (define (per-hour expr plain-text)
   "Count the total number of messages for each weekday (0-6 for
@@ -29,7 +30,7 @@ Sun..Sat) that match EXPR. If PLAIN-TEXT is true, use a plain-text
 display, otherwise, use a graphical window."
   (mu:plot
     (sort
-      (mu:tabulate-messages
+      (mu:tabulate
 	(lambda (msg)
 	  (tm:hour (localtime (mu:date msg)))) expr)
       (lambda (x y) (< (car x) (car y))))
@@ -41,7 +42,7 @@ Sun..Sat) that match EXPR. If PLAIN-TEXT is true, use a plain-text
 display, otherwise, use a graphical window."
   (mu:plot
     (mu:weekday-numbers->names
-      (sort (mu:tabulate-messages
+      (sort (mu:tabulate
 	      (lambda (msg)
 		(tm:wday (localtime (mu:date msg)))) expr)
 	(lambda (x y) (< (car x) (car y)))))
@@ -54,7 +55,7 @@ display, otherwise, use a graphical window."
   (mu:plot
     (mu:month-numbers->names
       (sort
-	(mu:tabulate-messages
+	(mu:tabulate
 	  (lambda (msg)
 	    (tm:mon (localtime (mu:date msg)))) expr)
 	(lambda (x y) (< (car x) (car y)))))
@@ -66,10 +67,10 @@ display, otherwise, use a graphical window."
 Sun..Sat) that match EXPR. If PLAIN-TEXT is true, use a plain-text
 display, otherwise, use a graphical window."
   (mu:plot
-    (sort (mu:tabulate-messages
+    (sort (mu:tabulate
 	    (lambda (msg)
 	      (string->number
-		(format #f "~d~2'0d"	
+		(format #f "~d~2'0d"
 		  (+ 1900 (tm:year (localtime (mu:date msg))))
 		  (tm:mon (localtime (mu:date msg))))))
 	    expr)
@@ -84,7 +85,7 @@ display, otherwise, use a graphical window."
 Sun..Sat) that match EXPR. If PLAIN-TEXT is true, use a plain-text
 display, otherwise, use a graphical window."
   (mu:plot
-    (sort (mu:tabulate-messages
+    (sort (mu:tabulate
 	    (lambda (msg)
 	      (+ 1900 (tm:year (localtime (mu:date msg))))) expr)
       (lambda (x y) (< (car x) (car y))))
@@ -118,7 +119,7 @@ display, otherwise, use a graphical window."
       ((string= what "per-hour")  (per-hour expr text))
       ((string= what "per-day")   (per-day expr text))
       ((string= what "per-month") (per-month expr text))
-      ((string= what "per-year-month") (per-year-month expr text)) 
+      ((string= what "per-year-month") (per-year-month expr text))
       ((string= what "per-year")  (per-year expr text))
       (else (begin
 	      (display msg)

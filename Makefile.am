@@ -1,4 +1,4 @@
-## Copyright (C) 2008-2011 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+## Copyright (C) 2008-2012 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 ##
 ## This program is free software; you can redistribute it and/or modify
 ## it under the terms of the GNU General Public License as published by
@@ -16,13 +16,6 @@
 
 include $(top_srcdir)/gtest.mk
 
-# only build widgets if we have webkit
-if BUILD_WIDGETS
-widgets=widgets
-else
-widgets=
-endif
-
 if BUILD_GUILE
 guile=guile
 else
@@ -30,12 +23,12 @@ guile=
 endif
 
 if BUILD_MU4E
-emacs=emacs
+mu4e=mu4e
 else
-emacs=
+mu4e=
 endif
 
-SUBDIRS=m4 man lib $(widgets) $(guile) mu $(emacs) contrib toys
+SUBDIRS=m4 man lib $(guile) mu $(mu4e) contrib toys
 
 ACLOCAL_AMFLAGS=-I m4
 
@@ -68,7 +61,7 @@ line35:
 	 | grep -v mu-str-normalize.c				\
 	 | grep -v mu_str_subject_normalize			\
 	 | grep -v config_options_group_find			\
-	 | grep -v SCM_DEFINE_PUBLIC				\
+	 | grep -v SCM_DEFINE					\
 	 | grep -v tests					\
          | awk '($$5 > 35)'
 

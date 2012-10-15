@@ -29,16 +29,6 @@
 #include <wordexp.h> /* for shell-style globbing */
 #include <stdlib.h>
 
-/* hopefully, this should get us a sane PATH_MAX */
-#include <limits.h>
-/* not all systems provide PATH_MAX in limits.h */
-#ifndef PATH_MAX
-#include <sys/param.h>
-#ifndef PATH_MAX
-#define PATH_MAX MAXPATHLEN
-#endif /*!PATH_MAX*/
-#endif /*PATH_MAX*/
-
 #include <string.h>
 #include <locale.h> /* for setlocale() */
 
@@ -503,4 +493,24 @@ mu_util_printerr_encoded (const char *frm, ...)
 	va_end (args);
 
 	return rv;
+}
+
+
+char*
+mu_util_read_password (const char *prompt)
+{
+	char *pass;
+
+	g_return_val_if_fail (prompt, NULL);
+
+	/* note: getpass is obsolete; replace with something better */
+
+	pass = getpass (prompt); /* returns static mem, don't free */
+	if (!pass) {
+		if (errno)
+			g_warning ("error: %s", strerror(errno));
+		return NULL;
+	}
+
+	return g_strdup (pass);
 }

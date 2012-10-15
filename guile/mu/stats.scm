@@ -18,20 +18,29 @@
 
 (define-module (mu stats)
   :use-module (oop goops)
-  :use-module (mu message)
+  :use-module (mu)
   :use-module (srfi srfi-1)
   :use-module (ice-9 i18n)
-  :export ( mu:tabulate-messages
-	    mu:average-messages
+  :use-module (ice-9 r5rs)
+  :export ( mu:tabulate
+	    mu:count
+	    mu:average
+	    mu:stddev
+	    mu:correl
+	    mu:max
+	    mu:min
 	    mu:weekday-numbers->names
 	    mu:month-numbers->names))
 
-(define* (mu:tabulate-messages func #:optional (expr #t))
+
+(define* (mu:tabulate func #:optional (expr #t))
   "Execute FUNC for each message matching EXPR, and return an alist
 with maps each result of FUNC to its frequency. FUNC is a function
 takes a <mu-message> instance as its argument. For example, to
 tabulate messages by weekday, one could use:
-   (mu:tabulate-messages (lambda(msg) (tm:wday (localtime (date msg)))))."
+   (mu:tabulate (lambda(msg) (tm:wday (localtime (date msg))))), and
+get back a list like
+   ((1 . 2) (2 . 5)(3 . 4)(4 . 4)(5 . 12)(6 . 7)(7. 2))."
   (let ((table '()))
     (mu:for-each-message
       (lambda(msg)
@@ -42,33 +51,85 @@ tabulate messages by weekday, one could use:
     table))
 
 
-(define* (mu:average-messages func #:optional (expr #t))
-  "Execute FUNC for each message matching EXPR, and return the average
-value of the results of FUNC.  FUNC is a function that takes a
-<mu-message> instance as its argument, and returns some number. For
-example, to get the average message size of messages related to
-icecream:  (mu:average (lambda(msg) (size msg)) \"icecream\" ."
-(let ((count 0) (sum 0))
-  (mu:for-each-message
-    (lambda (msg)
-      (set! count (+1 count))
-      (set! sum (+ sum (func msg))))
-    expr)
-  (if (= count 0)
-    0
-    (exact->inexact (/ sum count)))))
+(define* (mu:count #:optional (expr #t))
+  "Count the number of messages matching EXPR. If EXPR is not
+provided, match /all/ messages."
+  (let ((num 0))
+    (mu:for-each-message
+      (lambda (msg) (set! num (1+ num)))
+      expr)
+    num))
+
+
+(define (average lst)
+  "Calculate the average of a list LST of numbers, or #f if undefined."
+  (if (null? lst)
+    #f
+    (/ (apply + lst) (length lst))))
+
+(define (stddev lst)
+  "Calculate the standard deviation of a list LST of numbers or #f if
+undefined."
+  (let* ((avg (average lst))
+	  (sosq (if avg
+		  (apply + (map (lambda (x)(* (- x avg) (- x avg))) lst)))))
+    (if sosq
+      (sqrt (/ sosq (length lst))))))
+
+
+(define* (mu:average func #:optional (expr #t))
+  "Get the average value of FUNC applied to all messages matching
+EXPR (or #t for all). Returns #f if undefined."
+  (average (map func (mu:message-list expr))))
+
+(define* (mu:stddev func #:optional (expr #t))
+  "Get the standard deviation the the values of FUNC applied to all
+messages matching EXPR (or #t for all). This is the 'population' stddev, not the 'sample' stddev. Returns #f if undefined."
+  (stddev (map func (mu:message-list expr))))
+
+(define* (mu:max func #:optional (expr #t))
+  "Get the maximum value of FUNC applied to all messages matching
+EXPR (or #t for all). Returns #f if undefined."
+  (apply max (map func (mu:message-list expr))))
+
+(define* (mu:min func #:optional (expr #t))
+  "Get the minimum value of FUNC applied to all messages matching
+EXPR (or #t for all). Returns #f if undefined."
+  (apply min (map func (mu:message-list expr))))
+
+
+(define (correl lst)
+  "Calculate Pearson's correlation coefficient for a list LST of cons
+pair, where the car and cdr of the pairs are values from data set 1
+and 2, respectively."
+  (let ((n (length lst))
+	 (sx (apply + (map car lst)))
+	 (sy (apply + (map cdr lst)))
+	 (sxy (apply + (map (lambda (cell) (* (car cell) (cdr cell))) lst)))
+	 (sxx (apply + (map (lambda (cell) (* (car cell) (car cell))) lst)))
+	 (syy (apply + (map (lambda (cell) (* (cdr cell) (cdr cell))) lst))))
+    (/ (- (* n sxy) (* sx sy))
+      (sqrt (* (-  (* n sxx) (* sx sx)) (- (* n syy) (* sy sy)))))))
+
+(define* (mu:correl func1 func2 #:optional (expr #t))
+  "Determine Pearson's correlation coefficient between the value for
+functions FUNC1 and FUNC2 to all messages matching EXPR (or #t for
+all). Returns #f if undefined."
+  (let ((data
+	  (map (lambda (msg)
+		 (cons (func1 msg) (func2 msg)))
+	    (mu:message-list expr))))
+    (if data (correl data) #f)))
+
 
 ;; a list of abbreviated, localized day names
 (define day-names
-  (map
-    (lambda (num)
-      (locale-day-short num))
-      (iota 7 1)))
+  (map locale-day-short (iota 7 1)))
 
 (define (mu:weekday-numbers->names table)
   "Convert a list of pairs with the car denoting a day number (0-6)
 into a list of pairs with the car replaced by the corresponding day
-name (abbreviated)."
+name (abbreviated) for the current locale."
     (map
       (lambda (pair)
 	(cons (list-ref day-names (car pair)) (cdr pair)))
@@ -76,10 +137,7 @@ name (abbreviated)."
 
 ;; a list of abbreviated, localized month names
 (define month-names
-  (map
-    (lambda (num)
-      (locale-month-short num))
-      (iota 12 1)))
+  (map locale-month-short (iota 12 1)))
 
 (define (mu:month-numbers->names table)
     "Convert a list of pairs with the car denoting a month number (0-11)

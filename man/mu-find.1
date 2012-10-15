@@ -1,4 +1,4 @@
-.TH MU FIND 1 "June 2012" "User Manuals"
+.TH MU FIND 1 "August 2012" "User Manuals"
 
 .SH NAME
 
@@ -81,14 +81,14 @@ would do in an internet search engine. For example,
 will find all messages that contain both 'monkey' and 'banana' in either body
 or subject or one of the address-fields (to/from/cc).
 
-As mentioned, matching is case-insensitive and accent-insensitive;
-thus
+As mentioned, matching is case-insensitive and accent-insensitive; thus
 
 .nf
   $ mu find Mönkey BÄNAÑå
 .fi
 
 yields the same results as the example above.
+
 
 \fBmu\fR also recognizes prefixes for specific fields in a messages; for
 example:
@@ -116,12 +116,12 @@ search fields and their abbreviations:
 	embed,e         Search inside embedded text parts (messages, attachments)
 	file,j          Attachment filename
 	mime,y          MIME-type of one or more message parts
-	tag,x           Tag for the message (contents of the \fIX-Label\fR field)
+	tag,x           Tags for the message (\fIX-Label\fR and/or \fIX-Keywords\fR)
 .fi
 
 For clarity, this man-page uses the longer versions.
 
-The meaning of most of these fields should be clear, but some require some
+`The meaning of most of these fields should be clear, but some require some
 extra discusion.
 
 First, the message flags field describes certain properties of the message, as
@@ -243,7 +243,21 @@ could use:
   $ mu find size:10K..2M
 .fi
 
-Finally, you can match \fIall\fR messages using "":
+
+It's important to remember that if a search term includes spaces, you should
+\fIquote\fr those parts. Thus, when we look at the following examples:
+
+.nf
+  $ mu find maildir:/Sent Items yoghurt
+  $ mu find maildir:'/Sent Items' yoghurt
+.fi
+
+The first query searches for messages in the \fI/Sent\fR maildir matching
+\fIItems\fR and \fIyoghurt\fR, while the second query searches the \fI/Sent
+Items\fR maildir searching for messages matching \fIyoghurt\fR.
+
+
+You can match \fIall\fR messages using "" (or ''):
 
 .nf
   $ mu find ""
@@ -327,12 +341,8 @@ Note, if you specify a sortfield, by default, messages are sorted in reverse
 choice, but for dates it may be more useful to sort in the opposite direction.
 
 .TP
-\fB\-\-summary\fR
-output a summary based upon the first lines of the message.
-
-.TP
 \fB\-\-summary-len=<number>\fR
-Number of lines to use for the summary. Default: 5.
+If > 0, use that number of lines of the message to provide a summary.
 
 .TP
 \fB\-\-include\-unreadable\fR
@@ -381,6 +391,20 @@ does not exist yet, it will be created.
 Note: when \fBmu\fR creates a Maildir for these links, it automatically
 inserts a \fI.noindex\fR file, to exclude the directory from \fBmu
 index\fR.
+
+.TP
+\fB\-\-after=\fR\fI<timestamp>\fR only show messages whose message files were
+last modified (\fBmtime\fR) after \fI<timestamp>\fR. \fI<timestamp>\fR is a
+UNIX \fBtime_t\fR value, the number of seconds since 1970-01-01 (in UTC).
+
+From the command line, you can use the \fBdate\fR command to get this
+value. For example, only consider messages modified (or created) in the last 5
+minutes, you could specify
+.nf
+  --after=`date +%s --date='5 min ago'`
+.fi
+This is assuming the GNU \fBdate\fR command.
+
 
 .TP
 \fB\-\-exec\fR=\fI<command>\fR
@@ -436,7 +460,7 @@ a simple query just searching for some words.
 Find all messages with both 'bee' and 'bird' (in any field)
 
 .nf
-  $ mu find 'bee AND bird'
+  $ mu find bee AND bird
 .fi
 
 or shorter, because \fBAND\fR is implied:
@@ -485,6 +509,8 @@ Find all messages with attached images:
 Note[1]: the argument needs to be quoted, or the shell will interpret the '*'
 Note[2]: the '*' wild card can only be used as the last (rightmost) part of a
 search term.
+Note[3]: non-word characters (such as € or ☺) are ignore in queries; you
+cannot search for them.
 
 
 .SS Integrating mu find with mail clients

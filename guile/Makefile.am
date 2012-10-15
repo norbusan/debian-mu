@@ -1,4 +1,4 @@
-## Copyright (C) 2011 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+## Copyright (C) 2011-2012 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 ##
 ## This program is free software; you can redistribute it and/or modify
 ## it under the terms of the GNU General Public License as published by
@@ -16,20 +16,17 @@
 
 include $(top_srcdir)/gtest.mk
 
-# don't use -Werror, as it might break on other compilers
-# use -Wno-unused-parameters, because some callbacks may not
-# really need all the params they get
-AM_CFLAGS=-Wall -Wextra -Wno-unused-parameter -Wdeclaration-after-statement
-AM_CXXFLAGS=-Wall -Wextra -Wno-unused-parameter
-
 # note, we need top_builddir for snarfing with 'make distcheck' (ie.,
 # with separate builddir)
-SUBDIRS= . mu examples
+SUBDIRS= . mu examples tests
+
 INCLUDES=-I. -I${top_builddir} -I${top_srcdir}/lib ${GUILE_CFLAGS} ${GLIB_CFLAGS}
 
 # don't use -Werror, as it might break on other compilers
 # use -Wno-unused-parameters, because some callbacks may not
 # really need all the params they get
+AM_CFLAGS=-Wall -Wextra -Wno-unused-parameter -Wdeclaration-after-statement
+AM_CXXFLAGS=-Wall -Wextra -Wno-unused-parameter
 
 lib_LTLIBRARIES=			\
 	libguile-mu.la
@@ -44,6 +41,8 @@ libguile_mu_la_LIBADD=			\
 	${top_builddir}/lib/libmu.la	\
 	${GUILE_LIBS}
 
+libguile_mu_la_LDFLAGS= -export-dynamic
+
 XFILES=					\
 	mu-guile.x			\
 	mu-guile-message.x
@@ -53,13 +52,6 @@ info_TEXINFOS=				\
 mu_guile_TEXINFOS=			\
 	fdl.texi
 
-# FIXME: GUILE_SITEDIR would be better, but that
-# breaks 'make distcheck'
-scmdir=${prefix}/share/guile/site/2.0/
-
-scm_DATA=				\
-	mu.scm
-
 BUILT_SOURCES=$(XFILES)
 
 snarfcppopts= $(DEFS) $(AM_CPPFLAGS) $(CPPFLAGS) $(CFLAGS) $(INCLUDES)
@@ -67,9 +59,14 @@ SUFFIXES = .x .doc
 .c.x:
 	$(GUILE_SNARF) -o $@ $< $(snarfcppopts)
 
+# FIXME: GUILE_SITEDIR would be better, but that
+# breaks 'make distcheck'
+scmdir=${prefix}/share/guile/site/2.0/
+scm_DATA=mu.scm
+
+EXTRA_DIST=$(scm_DATA)
+
 ## Add -MG to make the .x magic work with auto-dep code.
 MKDEP = $(CC) -M -MG $(snarfcppopts)
 
 DISTCLEANFILES=$(XFILES)
-
-EXTRA_DIST=$(scm_DATA)

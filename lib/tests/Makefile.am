@@ -77,13 +77,10 @@ BUILT_SOURCES=					\
 dummy.cc:
 	touch dummy.cc
 
-
 libtestmucommon_la_SOURCES=				\
 	test-mu-common.c				\
 	test-mu-common.h
 libtestmucommon_la_LIBADD= ../libmu.la
-
-
 
 
 # note the question marks; make does not like files with ':', so we
@@ -158,5 +155,6 @@ EXTRA_DIST=						\
 	testdir4/encrypted!2,S				\
 	testdir4/multimime!2,FS				\
 	testdir4/signed!2,S				\
+	testdir4/signed-bad!2,S				\
 	testdir4/signed-encrypted!2,S			\
 	testdir4/special!2,Sabc

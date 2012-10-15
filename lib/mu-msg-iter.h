@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2008-2010 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+** Copyright (C) 2008-2012 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 **
 ** This program is free software; you can redistribute it and/or modify
 ** it under the terms of the GNU General Public License as published by
@@ -48,13 +48,16 @@ typedef struct _MuMsgIter MuMsgIter;
  * @param sorting field when using threads; note, when 'threads' is
  * FALSE, this should be MU_MSG_FIELD_ID_NONE
  * @param if TRUE, revert the sorting order
+ * @param err receives error information. if the error is MU_ERROR_XAPIAN_MODIFIED,
+ * the database should be reloaded.
  *
  * @return a new MuMsgIter, or NULL in case of error
  */
 MuMsgIter *mu_msg_iter_new (XapianEnquire *enq,
 			    size_t batchsize, gboolean threads,
 			    MuMsgFieldId threadsortfield,
-			    gboolean revert) G_GNUC_WARN_UNUSED_RESULT;
+			    gboolean revert,
+			    GError **err) G_GNUC_WARN_UNUSED_RESULT;
 
 /**
  * get the next message (which you got from
@@ -65,8 +68,7 @@ MuMsgIter *mu_msg_iter_new (XapianEnquire *enq,
  * @return TRUE if it succeeded, FALSE otherwise (e.g., because there
  * are no more messages in the query result)
  */
-gboolean         mu_msg_iter_next              (MuMsgIter *iter);
-
+gboolean  mu_msg_iter_next  (MuMsgIter *iter);
 
 
 /**

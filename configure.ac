@@ -14,7 +14,7 @@
 ## along with this program; if not, write to the Free Software Foundation,
 ## Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
 
-AC_INIT([mu],[0.9.8.5],[http://code.google.com/p/mu0/issues/list],[mu])
+AC_INIT([mu],[0.9.9],[http://code.google.com/p/mu0/issues/list],[mu])
 AC_CONFIG_HEADERS([config.h])
 AC_CONFIG_SRCDIR([mu/mu.cc])
 # libtoolize wants to put some stuff in here; if you have an old
@@ -25,25 +25,29 @@ AM_INIT_AUTOMAKE
 # silent build if we have a new enough automake
 m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES([yes])])
 
+AS_IF([test x$prefix = xNONE],[prefix=/usr/local])
+AC_SUBST(prefix)
+
+# AC_PROG_CXX *before* AC_PROG_CC, otherwise configure won't error out
+# when a c++ compiler is not found. Weird, huh?
+AC_PROG_CXX
+AC_PROG_CC
+AC_PROG_CC_STDC
+AC_PROG_INSTALL
+AC_HEADER_STDC
+
 # for now, use AM_PROG_LIBTOOL, as we don't want to require
 # a too new setup for autotools/libtool
 AM_PROG_LIBTOOL
 #LT_INIT([disable-shared])
 
-AS_IF([test x$prefix = xNONE],[prefix=/usr/local])
-AC_SUBST(prefix)
+AC_PROG_AWK
 
-AC_PROG_CC
-AC_PROG_CC_C_O
-AC_PROG_CC_STDC
-AC_PROG_INSTALL
-AC_PROG_CXX
-AC_HEADER_STDC
-
-AC_CHECK_HEADERS([locale.h langinfo.h])
+AC_CHECK_HEADERS([locale.h langinfo.h wordexp.h])
 
 # use the 64-bit versions
 AC_SYS_LARGEFILE
+
 
 # check for makeinfo
 AC_CHECK_PROG(have_makeinfo,makeinfo,yes,no)
@@ -59,7 +63,7 @@ AS_IF([test "x$enable_mu4e" != "xno"], [
   AS_IF([test "x$lispdir" != "xno"], [emacs_version="`$EMACS --version | head -1`"])
   AS_CASE([$emacs_version],[*23*|*24*|*25*],[build_mu4e=yes],
           [AC_WARN([emacs is too old to build mu4e (need emacs >= 23.x)])])
-])  	      
+])
 AM_CONDITIONAL(BUILD_MU4E, test "x$build_mu4e" = "xyes")
 
 # we need some special tricks for filesystems that don't have d_type;
@@ -88,7 +92,7 @@ AS_IF([test "x$ac_cv_member_struct_dirent_d_ino" != "xyes"],
 
 
 # we need these
-AC_CHECK_FUNCS([memset memcpy realpath setlocale strerror])
+AC_CHECK_FUNCS([memset memcpy realpath setlocale strerror getpass])
 
 # require pkg-config
 AC_PATH_PROG([PKG_CONFIG], [pkg-config], [no])
@@ -101,24 +105,12 @@ AS_IF([test "x$PKG_CONFIG" = "xno"],[
 
 # glib2?
 # we need 2.14 at least, because we use GRegex
-PKG_CHECK_MODULES(GLIB,glib-2.0 >= 2.14 gobject-2.0)
+PKG_CHECK_MODULES(GLIB,glib-2.0 >= 2.24 gobject-2.0)
 AC_SUBST(GLIB_CFLAGS)
 AC_SUBST(GLIB_LIBS)
 glib_version="`$PKG_CONFIG --modversion glib-2.0`"
 
-# gtest was introduced in glib 2.16; but we're also using
-# g_test_log_set_fatal_handler, which was introduced in 2.22
-PKG_CHECK_MODULES(g_test,glib-2.0 >= 2.22, [have_gtest=yes],[have_gtest=no])
-AM_CONDITIONAL(BUILD_TESTS, test "x$have_gtest" = "xyes")
-AS_IF([test "x$have_gtest" = "xno"],[
-     AC_MSG_WARN([You need GLIB version >= 2.22 to build the tests])
-])
-
 # gmime 2.4 or 2.6?
-# mu has only been tested with gmime-2.4, but Fedora
-# 14 ships with gmime 2.5.x, which registers itself (pkgconfig) as 2.6
-# it is reported mu works fine with this new gmime as well, so we support
-# both; based on patch by GooseYArd
 PKG_CHECK_MODULES(GMIME,gmime-2.6,[have_gmime_26=yes],[have_gmime_26=no])
 AS_IF([test "x$have_gmime_26" = "xno"],[
    PKG_CHECK_MODULES(GMIME,gmime-2.4,[have_gmime_24=yes],[have_gmime_24=no])
@@ -137,6 +129,10 @@ AS_IF([test "x$have_gmime_26" = "xno"],[
 AC_SUBST(GMIME_CFLAGS)
 AC_SUBST(GMIME_LIBS)
 
+# we need gmime 2.6 for the crypto stuff
+AM_CONDITIONAL(BUILD_CRYPTO,[test "x$have_gmime_26" = "xyes"])
+AS_IF([test "x$have_gmime_26" = "xyes"],
+   AC_DEFINE_UNQUOTED([BUILD_CRYPTO],1,[Whether to build crypto; reqs gmime 2.6]))
 
 # xapian checking - we need 1.2.x at least
 AC_CHECK_PROG(XAPIAN_CONFIG,xapian-config,xapian-config,no)
@@ -150,7 +146,8 @@ AS_IF([test "x$XAPIAN_CONFIG" = "xno"],[
    [xapian_version=$($XAPIAN_CONFIG --version | sed -e 's/.* //')])
 AS_CASE([$xapian_version],
 	[1.[[2-9]].[[0-9]]*], [],
-	[AC_MSG_ERROR([*** xapian version >= 1.2 needed, but version $xapian_version found.])])
+	[AC_MSG_ERROR([*** xapian version >= 1.2 needed,
+	but version $xapian_version found.])])
 
 XAPIAN_CXXFLAGS="`$XAPIAN_CONFIG --cxxflags`"
 XAPIAN_LIBS="`$XAPIAN_CONFIG --libs`"
@@ -246,11 +243,9 @@ AS_IF([test "x$buildgui"="xyes"],[
 ])
 AM_CONDITIONAL(HAVE_GIO, [test "x$have_gio" = "xyes"])
 
-# should we build the widgets/ dir?
-AM_CONDITIONAL(BUILD_WIDGETS, [test "x$build_webkit" = "xyes" -a "x$have_gio" = "xyes"])
+# should we build the gui toys?
+AM_CONDITIONAL(BUILD_GUI, [test "x$build_webkit" = "xyes" -a "x$have_gio" = "xyes"])
 ###############################################################################
-
-
 
 
 
@@ -265,18 +260,25 @@ AS_IF([test "x$enable_guile" != "xno"], [
    AC_SUBST(GUILE_CFLAGS)
    AC_SUBST(GUILE_LIBS)
 
+   GUILE_EXECDIR="`${PKG_CONFIG} guile-2.0 --variable=exec_prefix`/bin"
+
    AS_IF([test "x$build_guile" = "xyes"],[
-      AC_PATH_PROG(GUILE_SNARF, [guile-snarf], [], [$PATH])
-      AS_IF([test "x$GUILE_SNARF" != "x"],
-         [AC_DEFINE_UNQUOTED([GUILE_SNARF], ["$GUILE_SNARF"],[Path to guile-snarf])
-         GUILE_SITEDIR="`${PKG_CONFIG} guile-2.0 --variable=sitedir`"],
+   AC_PATH_PROG(GUILE_BINARY, [guile], [], [$GUILE_EXECDIR])
+      AS_IF([test "x$GUILE_BINARY" != "x"],
+         [AC_DEFINE_UNQUOTED([GUILE_BINARY],["$GUILE_BINARY"],[Path to the guile binary])],
          [AC_MSG_WARN([cannot find guile-snarf])])])
 
+   AS_IF([test "x$build_guile" = "xyes"],[
+      AC_PATH_PROG(GUILE_SNARF, [guile-snarf], [], [$GUILE_EXECDIR])
+      AS_IF([test "x$GUILE_SNARF" != "x"],
+         [AC_DEFINE_UNQUOTED([GUILE_SNARF],["$GUILE_SNARF"],[Path to guile-snarf])
+         GUILE_SITEDIR="`${PKG_CONFIG} guile-2.0 --variable=sitedir`"],
+         [AC_MSG_WARN([cannot find guile-snarf])])])
    AC_SUBST(GUILE_SITEDIR)])
 
 AS_IF([test "x$build_guile" = "xyes" -a "x$GUILE_SNARF" != "x"],
       [guile_version="`${PKG_CONFIG} --modversion guile-2.0`"
-      AC_DEFINE_UNQUOTED([BUILD_GUILE],1,[Whether we have guile 2.0])])
+      AC_DEFINE_UNQUOTED([BUILD_GUILE],1,[Whether we build with guile 2.0 support])])
 AM_CONDITIONAL(BUILD_GUILE, [test "x$build_guile" = "xyes"])
 ###############################################################################
 
@@ -302,23 +304,21 @@ AS_IF([test "x$PMCCABE" = "xno"],[
 ###############################################################################
 
 
-
 AC_CONFIG_FILES([
 Makefile
 mu/Makefile
 mu/tests/Makefile
 lib/Makefile
 lib/tests/Makefile
-widgets/Makefile
-emacs/Makefile
-emacs/mu4e-meta.el
-emacs/version.texi
+mu4e/Makefile
+mu4e/mu4e-meta.el
+mu4e/version.texi
 guile/Makefile
 guile/mu/Makefile
 guile/examples/Makefile
+guile/tests/Makefile
 toys/Makefile
 toys/mug/Makefile
-toys/mug2/Makefile
 toys/msg2pdf/Makefile
 man/Makefile
 m4/Makefile
@@ -336,7 +336,8 @@ if test -e ~/.mu/xapian-0.6; then
    echo "remove the old <muhome>/xapian-0.6 directory to save some disk space"
 fi
 
-
+echo "mu version                           : $VERSION"
+echo
 echo "Xapian version                       : $xapian_version"
 echo "GLib version                         : $glib_version"
 echo "GMime version                        : $gmime_version"
@@ -363,9 +364,8 @@ fi
 
 echo
 echo "Build mu4e emacs frontend            : $build_mu4e"
-echo "Build unit tests (glib >= 2.22)      : $have_gtest"
-echo "Build 'mug' toy-ui (gtk+)            : $buildgui"
-echo "Build 'mug2' toy-ui (gtk+, webkit)   : $build_webkit"
+echo "Build crypto support (gmime >= 2.6)  : $have_gmime_26"
+echo "Build 'mug' toy-ui (gtk+/webkit)     : $buildgui"
 echo "McCabe's Cyclomatic Complexity tool  : $have_pmccabe"
 echo
 

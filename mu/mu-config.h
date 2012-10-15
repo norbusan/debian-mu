@@ -25,6 +25,7 @@
 #include <glib.h>
 #include <sys/types.h> /* for mode_t */
 #include <mu-msg-fields.h>
+#include <mu-msg.h>
 #include <mu-util.h>
 
 G_BEGIN_DECLS
@@ -53,7 +54,9 @@ enum _MuConfigFormat {
 	/* for find */
 	MU_CONFIG_FORMAT_LINKS,		/* output as symlinks */
 	MU_CONFIG_FORMAT_XML,		/* output xml */
-	MU_CONFIG_FORMAT_XQUERY		/* output the xapian query */
+	MU_CONFIG_FORMAT_XQUERY,	/* output the xapian query */
+
+	MU_CONFIG_FORMAT_EXEC		/* execute some command */
 };
 typedef enum _MuConfigFormat MuConfigFormat;
 
@@ -61,19 +64,25 @@ typedef enum _MuConfigFormat MuConfigFormat;
 enum _MuConfigCmd {
 	MU_CONFIG_CMD_UNKNOWN = 0,
 
-	MU_CONFIG_CMD_INDEX,
-	MU_CONFIG_CMD_FIND,
-	MU_CONFIG_CMD_MKDIR,
-	MU_CONFIG_CMD_VIEW,
-	MU_CONFIG_CMD_EXTRACT,
-	MU_CONFIG_CMD_CFIND,
 	MU_CONFIG_CMD_ADD,
+	MU_CONFIG_CMD_CFIND,
+	MU_CONFIG_CMD_EXTRACT,
+	MU_CONFIG_CMD_FIND,
+	MU_CONFIG_CMD_HELP,
+	MU_CONFIG_CMD_INDEX,
+	MU_CONFIG_CMD_MKDIR,
 	MU_CONFIG_CMD_REMOVE,
 	MU_CONFIG_CMD_SERVER,
+	MU_CONFIG_CMD_VERIFY,
+	MU_CONFIG_CMD_VIEW,
 
 	MU_CONFIG_CMD_NONE
 };
 typedef enum _MuConfigCmd MuConfigCmd;
+
+
+#define mu_config_cmd_is_valid(C)					\
+	((C) > MU_CONFIG_CMD_UNKNOWN && (C) < MU_CONFIG_CMD_NONE)
 
 
 /* struct with all configuration options for mu; it will be filled
@@ -85,7 +94,6 @@ struct _MuConfig {
 					 * MU_CONFIG_CMD_NONE */
 	const char	*cmdstr;       /* cmd string, for user
 					* info */
-
 	/* general options */
 	gboolean	quiet;		/* don't give any output */
 	gboolean	debug;		/* spew out debug info */
@@ -95,6 +103,7 @@ struct _MuConfig {
 	gchar**	        params;		/* parameters (for querying) */
 	gboolean        nocolor;        /* don't use use ansi-colors
 					 * in some output */
+	gboolean	verbose;	/* verbose output */
 
 	/* options for indexing */
 	char	        *maildir;	/* where the mails are */
@@ -117,7 +126,7 @@ struct _MuConfig {
 	gboolean	 reverse;	/* sort in revers order (z->a) */
 	gboolean	 threads;       /* show message threads */
 
-	gboolean	 summary;	/* include a summary? */
+	gboolean	 summary;	/* OBSOLETE: use summary_len */
 	int	         summary_len;   /* max # of lines for summary */
 
 	char            *bookmark;	/* use bookmark */
@@ -129,17 +138,28 @@ struct _MuConfig {
 	char		*exec;		/* command to execute on the
 					 * files for the matched
 					 * messages */
-	gboolean        include_unreadable; /* don't ignore messages
-					     * without a disk file */
+	/* for find and cind */
+	time_t            after;          /* only show messages or
+					   * adresses last seen after
+					   * T */
+	/* options for crypto
+	 * ie, 'view', 'extract' */
+	gboolean	 auto_retrieve;	  /* assume we're online */
+	gboolean	 use_agent;	  /* attempt to use the gpg-agent */
+	gboolean	 decrypt;         /* try to decrypt the
+					   * message body, if any */
+	gboolean	 verify;          /* try to crypto-verify the
+					   * message */
 
 	/* options for view */
 	gboolean         terminator;      /* add separator \f between
 					   * multiple messages in mu
 					   * view */
-	/* options for cfind */
+
+
+	/* options for cfind (and 'find' --> "after") */
 	gboolean          personal;       /* only show 'personal' addresses */
-	time_t            after;          /* only show addresses last
-					   * seen after T */
+	/* also 'after' --> see above */
 
 	/* output to a maildir with symlinks */
 	char            *linksdir;	/* maildir to output symlinks */
@@ -202,6 +222,23 @@ MuError mu_config_execute (MuConfig *conf);
  */
 size_t mu_config_param_num (MuConfig *conf);
 
+
+/**
+ * determine MuMsgOptions for command line args
+ *
+ * @param opts a MuConfig struct
+ *
+ * @return the corresponding MuMsgOptions
+ */
+MuMsgOptions mu_config_get_msg_options (MuConfig *opts);
+
+
+/**
+ * print help text for the current command
+ *
+ * @param cmd the command to show help for
+ */
+void mu_config_show_help (MuConfigCmd cmd);
 
 G_END_DECLS
 

@@ -26,22 +26,11 @@
 #include <stdlib.h>
 #include <ctype.h>
 
-/* hopefully, the should get us a sane PATH_MAX */
-#include <limits.h>
-/* not all systems provide PATH_MAX in limits.h */
-#ifndef PATH_MAX
-#include <sys/param.h>
-#ifndef PATH_MAX
-#define PATH_MAX MAXPATHLEN
-#endif 	/*!PATH_MAX */
-#endif 	/*PATH_MAX */
-
 #include <gmime/gmime.h>
 #include "mu-util.h"
 #include "mu-str.h"
 #include "mu-maildir.h"
 #include "mu-msg-priv.h"
-
 
 static gboolean init_file_metadata (MuMsgFile *self, const char* path,
 				    const char *mdir, GError **err);
@@ -80,16 +69,7 @@ mu_msg_file_destroy (MuMsgFile *self)
 	if (self->_mime_msg)
 		g_object_unref (self->_mime_msg);
 
-	mu_str_free_list (self->_free_later);
-
 	g_slice_free (MuMsgFile, self);
-}
-
-static const gchar*
-free_string_later (MuMsgFile *self, gchar *str)
-{
-	self->_free_later = g_slist_prepend (self->_free_later, str);
-	return str;
 }
 
 
@@ -100,31 +80,37 @@ init_file_metadata (MuMsgFile *self, const char* path, const gchar* mdir,
 	struct stat statbuf;
 
 	if (access (path, R_OK) != 0) {
-		g_set_error (err, MU_ERROR_DOMAIN, MU_ERROR_FILE,
-			     "cannot read file %s: %s",
-			     path, strerror(errno));
+		mu_util_g_set_error (err, MU_ERROR_FILE,
+				     "cannot read file %s: %s",
+				     path, strerror(errno));
 		return FALSE;
 	}
 
 	if (stat (path, &statbuf) < 0) {
-		g_set_error (err, MU_ERROR_DOMAIN, MU_ERROR_FILE,
-			     "cannot stat %s: %s",
-			     path, strerror(errno));
+		mu_util_g_set_error (err, MU_ERROR_FILE,
+				     "cannot stat %s: %s",
+				     path, strerror(errno));
 		return FALSE;
 	}
 
 	if (!S_ISREG(statbuf.st_mode)) {
-		g_set_error (err, MU_ERROR_DOMAIN, MU_ERROR_FILE,
-			     "not a regular file: %s", path);
+		mu_util_g_set_error (err, MU_ERROR_FILE,
+				     "not a regular file: %s", path);
 		return FALSE;
 	}
 
 	self->_timestamp = statbuf.st_mtime;
 	self->_size	 = (size_t)statbuf.st_size;
 
-	strncpy (self->_path, path, PATH_MAX);
-	strncpy (self->_maildir, mdir ? mdir : "", PATH_MAX);
+	/* remove double slashes, relative paths etc. from path & mdir */
+	if (!realpath (path, self->_path)) {
+		mu_util_g_set_error (err, MU_ERROR_FILE,
+				     "could not get realpath for %s: %s",
+				     path, strerror(errno));
+		return FALSE;
+	}
 
+	strncpy (self->_maildir, mdir ? mdir : "", PATH_MAX);
 	return TRUE;
 }
 
@@ -216,56 +202,55 @@ get_recipient (MuMsgFile *self, GMimeRecipientType rtype)
 static gboolean
 looks_like_attachment (GMimeObject *part)
 {
-	const char *str;
 	GMimeContentDisposition *disp;
-	GMimeContentType *ct;
+	GMimeContentType *ctype;
 
-	disp = g_mime_object_get_content_disposition (GMIME_OBJECT(part));
+	const char *dispstr;
+
+	disp = g_mime_object_get_content_disposition (part);
+
 	if (!GMIME_IS_CONTENT_DISPOSITION(disp))
 		return FALSE;
 
-	str = g_mime_content_disposition_get_disposition (disp);
-	if (!str)
-		return FALSE;
+	dispstr = g_mime_content_disposition_get_disposition (disp);
 
-	ct = g_mime_object_get_content_type (part);
-	if (!ct)
-		return FALSE; /* ignore this part... */
-
-	/* note, some mailers use ATTACHMENT, INLINE instead of their
-	 * more common lower-case counterparts */
-	if (g_ascii_strcasecmp(str, GMIME_DISPOSITION_ATTACHMENT) == 0)
+	if (g_ascii_strcasecmp (dispstr, "attachment") == 0)
 		return TRUE;
 
-	if (g_ascii_strcasecmp(str, GMIME_DISPOSITION_INLINE) == 0) {
-		/* some inline parts are also considered attachments... */
-		int i;
-		const char* att_types[][2] = {
-			{"image", "*"},
-			{"application", "*"},
-			{"message", "*"}};
+	/* we also consider images, audio, and non-pgp-signature
+	 * application attachments to be attachments... */
+	ctype = g_mime_object_get_content_type (part);
+	if (g_mime_content_type_is_type (ctype, "image", "*"))
+		return TRUE;
+	if (g_mime_content_type_is_type (ctype, "audio", "*"))
+		return TRUE;
+	if ((g_mime_content_type_is_type (ctype, "application", "*")) &&
+	    !g_mime_content_type_is_type (ctype, "*", "pgp-signature"))
+		return TRUE;
 
-		for (i = 0; i != G_N_ELEMENTS (att_types); ++i)
-			if (g_mime_content_type_is_type (ct,
-							 att_types[i][0],
-							 att_types[i][1]))
-				return TRUE; /* looks like an attachment */
-	}
-
-	return FALSE; /* does not look like an attachment */
+	return FALSE;
 }
 
 
 static void
 msg_cflags_cb (GMimeObject *parent, GMimeObject *part, MuFlags *flags)
 {
+	if (GMIME_IS_MULTIPART_SIGNED(part))
+		*flags |= MU_FLAG_SIGNED;
+
+	if (GMIME_IS_MULTIPART_ENCRYPTED(part))
+		*flags |= MU_FLAG_ENCRYPTED;
+
 	if (*flags & MU_FLAG_HAS_ATTACH)
 		return;
 
 	if (!GMIME_IS_PART(part))
 		return;
 
-	if (!(*flags & MU_FLAG_HAS_ATTACH) && looks_like_attachment(part))
+	if (*flags & MU_FLAG_HAS_ATTACH)
+		return;
+
+	if (looks_like_attachment (part))
 		*flags |= MU_FLAG_HAS_ATTACH;
 }
 
@@ -274,40 +259,15 @@ msg_cflags_cb (GMimeObject *parent, GMimeObject *part, MuFlags *flags)
 static MuFlags
 get_content_flags (MuMsgFile *self)
 {
-	GMimeContentType *ctype;
 	MuFlags flags;
-	GMimeObject *part;
 
-	if (!GMIME_IS_MESSAGE(self->_mime_msg))
-		return MU_FLAG_NONE;
+	flags = MU_FLAG_NONE;
 
-	flags = 0;
-	g_mime_message_foreach (self->_mime_msg,
-				(GMimeObjectForeachFunc)msg_cflags_cb,
-				&flags);
-
-	/* note: signed or encrypted status for a message is determined by
-	 *  the top-level mime-part
-	 */
-	if ((part = g_mime_message_get_mime_part(self->_mime_msg))) {
-		ctype = g_mime_object_get_content_type
-			(GMIME_OBJECT(part));
-		if (!ctype) {
-			g_warning ("not a content type!");
-			return 0;
-		}
-
-		if (ctype) {
-			if (g_mime_content_type_is_type
-			    (ctype,"*", "signed"))
-				flags |= MU_FLAG_SIGNED;
-			if (g_mime_content_type_is_type
-			    (ctype,"*", "encrypted"))
-				flags |= MU_FLAG_ENCRYPTED;
-		}
-	} else
-		g_warning ("no top level mime part found");
-
+	if (GMIME_IS_MESSAGE(self->_mime_msg))
+		mu_mime_message_foreach (self->_mime_msg,
+					 FALSE, /* never decrypt for this */
+					 (GMimeObjectForeachFunc)msg_cflags_cb,
+					 &flags);
 	return flags;
 }
 
@@ -335,43 +295,7 @@ static size_t
 get_size (MuMsgFile *self)
 {
 	g_return_val_if_fail (self, 0);
-
 	return self->_size;
-}
-
-
-static char*
-to_lower (char *s)
-{
-	char *t = s;
-	while (t&&*t) {
-		t[0] = g_ascii_tolower(t[0]);
-		++t;
-	}
-	return s;
-}
-
-
-static char*
-get_prio_header_field (MuMsgFile *self)
-{
-	const char *str;
-	GMimeObject *obj;
-
-	obj = GMIME_OBJECT(self->_mime_msg);
-
-	str = g_mime_object_get_header (obj, "Precedence");
-	if (!str)
-		str = g_mime_object_get_header (obj, "X-Priority");
-	if (!str)
-		str = g_mime_object_get_header (obj, "Importance");
-	/* NOTE: "X-MSMail-Priority" is never seen without "X-Priority" */
-	/* if (!str) */
-	/* 	str = g_mime_object_get_header (obj, "X-MSMail-Priority"); */
-	if (str)
-		return (to_lower(g_strdup(str)));
-	else
-		return NULL;
 }
 
 
@@ -398,7 +322,7 @@ parse_prio_str (const char* priostr)
 	};
 
 	for (i = 0; i != G_N_ELEMENTS(str_prio); ++i)
-		if (g_strstr_len (priostr, -1, str_prio[i]._str) != NULL)
+		if (g_ascii_strcasecmp (priostr, str_prio[i]._str) == 0)
 			return str_prio[i]._prio;
 
 	/* e.g., last-fm uses 'fm-user'... as precedence */
@@ -408,58 +332,21 @@ parse_prio_str (const char* priostr)
 static MuMsgPrio
 get_prio (MuMsgFile *self)
 {
-	MuMsgPrio prio;
-	char* priostr;
+	GMimeObject *obj;
+	const char* priostr;
 
 	g_return_val_if_fail (self, MU_MSG_PRIO_NONE);
 
-	priostr = get_prio_header_field (self);
+	obj = GMIME_OBJECT(self->_mime_msg);
+
+	priostr = g_mime_object_get_header (obj, "Precedence");
 	if (!priostr)
-		return MU_MSG_PRIO_NORMAL;
+		priostr = g_mime_object_get_header (obj, "X-Priority");
+	if (!priostr)
+		priostr = g_mime_object_get_header (obj, "Importance");
 
-	prio = parse_prio_str (priostr);
-	g_free (priostr);
-
-	return prio;
+	return priostr ? parse_prio_str (priostr) : MU_MSG_PRIO_NORMAL;
 }
-
-
-struct _GetBodyData {
-	GMimeObject *_txt_part, *_html_part;
-	gboolean _want_html;
-};
-typedef struct _GetBodyData GetBodyData;
-
-
-
-static void
-get_body_cb (GMimeObject *parent, GMimeObject *part, GetBodyData *data)
-{
-	GMimeContentType *ct;
-
-	/* already found what we're looking for? */
-	if ((data->_want_html && data->_html_part != NULL) ||
-	    (!data->_want_html && data->_txt_part != NULL))
-		return;
-
-	ct = g_mime_object_get_content_type (part);
-	if (!GMIME_IS_CONTENT_TYPE(ct)) {
-		g_warning ("not a content type!");
-		return;
-	}
-
-	if (looks_like_attachment (part))
-		return; /* not the body */
-
-	/* is it right content type? */
-	if (g_mime_content_type_is_type (ct, "text", "plain"))
-		data->_txt_part = part;
-	else if (g_mime_content_type_is_type (ct, "text", "html"))
-		data->_html_part = part;
-	else
-		return; /* wrong type */
-}
-
 
 
 /* NOTE: buffer will be *freed* or returned unchanged */
@@ -468,13 +355,6 @@ convert_to_utf8 (GMimePart *part, char *buffer)
 {
 	GMimeContentType *ctype;
 	const char* charset;
-	unsigned char *cur;
-
-	/* optimization: if the buffer is plain ascii, no conversion
-	 * is done... */
-	for (cur = (unsigned char*)buffer; *cur && *cur < 0x80; ++cur);
-	if (*cur == '\0')
-		return buffer;
 
 	ctype = g_mime_object_get_content_type (GMIME_OBJECT(part));
 	g_return_val_if_fail (GMIME_IS_CONTENT_TYPE(ctype), NULL);
@@ -484,21 +364,15 @@ convert_to_utf8 (GMimePart *part, char *buffer)
 	if (charset) {
 		char *utf8;
 		utf8 = mu_str_convert_to_utf8
-		         (buffer,
-			  g_mime_charset_iconv_name (charset));
+		         (buffer,  g_mime_charset_iconv_name (charset));
 		if (utf8) {
 			g_free (buffer);
 			return utf8;
 		}
-	} else if (g_utf8_validate (buffer, -1, NULL)) {
-		/*  check if the buffer is valid utf8, even if it doesn't
-		 *  say so explicitly... if that is the case, return it as-is */
-
-		/* nothing to do, buffer is already utf8 */
-
-	} else {
-		/* hmmm.... no charset at all, or conversion failed; ugly
-		  *  hack: replace all non-ascii chars with '.' */
+	} else if (!g_utf8_validate (buffer, -1, NULL)) {
+		/* if it's already utf8, nothing to do otherwise: no
+		   charset at all, or conversion failed; ugly * hack:
+		   replace all non-ascii chars with '.' */
 		mu_str_asciify_in_place (buffer);
 	}
 
@@ -533,9 +407,14 @@ gchar*
 mu_msg_mime_part_to_string (GMimePart *part, gboolean *err)
 {
 	GMimeDataWrapper *wrapper;
-	GMimeStream *stream = NULL;
+	GMimeStream *stream;
 	ssize_t buflen;
-	char *buffer = NULL;
+	char *buffer;
+
+	buffer = NULL;
+	stream = NULL;
+
+	g_return_val_if_fail (err, NULL);
 
 	*err = TRUE; /* guilty until proven innocent */
 	g_return_val_if_fail (GMIME_IS_PART(part), NULL);
@@ -563,125 +442,14 @@ mu_msg_mime_part_to_string (GMimePart *part, gboolean *err)
 
 	/* convert_to_utf8 will free the old 'buffer' if needed */
 	buffer = convert_to_utf8 (part, buffer);
-
 	*err = FALSE;
 
 cleanup:
-	if (stream)
-		g_object_unref (G_OBJECT(stream));
+	if (G_IS_OBJECT(stream))
+		g_object_unref (stream);
 
 	return buffer;
 }
-
-
-GMimePart*
-mu_msg_mime_get_body_part (GMimeMessage *msg, gboolean want_html)
-{
-	GetBodyData data;
-
-	g_return_val_if_fail (GMIME_IS_MESSAGE(msg), NULL);
-
-	memset (&data, 0, sizeof(GetBodyData));
-	data._want_html = want_html;
-
-	g_mime_message_foreach (msg,
-				(GMimeObjectForeachFunc)get_body_cb,
-				&data);
-	if (want_html)
-		return (GMimePart*)data._html_part;
-	else
-		return (GMimePart*)data._txt_part;
-}
-
-
-
-static char*
-get_body (MuMsgFile *self, gboolean want_html)
-{
-	GMimePart *part;
-
-	g_return_val_if_fail (self, NULL);
-	g_return_val_if_fail (GMIME_IS_MESSAGE(self->_mime_msg), NULL);
-
-	part = mu_msg_mime_get_body_part (self->_mime_msg, want_html);
-	if (GMIME_IS_PART(part)) {
-		gboolean err;
-		gchar *str;
-
-		err = FALSE;
-		str = mu_msg_mime_part_to_string (part, &err);
-
-		/* note, str may be NULL (no body), but that's not necessarily
-		 * an error; we only warn when an actual error occured */
-		if (err)
-			g_warning ("error occured while retrieving %s body "
-				   "for message %s",
-				   want_html ? "html" : "text", self->_path);
-		return str;
-	}
-
-	return NULL;
-}
-
-
-static void
-append_text (GMimeObject *parent, GMimeObject *part, gchar **txt)
-{
-	GMimeContentType *ct;
-	GMimeContentDisposition *disp;
-	gchar *parttxt, *tmp;
-	gboolean err;
-
-	if (!GMIME_IS_PART(part))
-		return;
-
-	ct = g_mime_object_get_content_type (part);
-	if (!GMIME_IS_CONTENT_TYPE(ct) ||
-	    !g_mime_content_type_is_type (ct, "text", "plain"))
-		return; /* not a text-plain part */
-
-	disp = g_mime_object_get_content_disposition (part);
-	if (GMIME_IS_CONTENT_DISPOSITION(disp) &&
-	    g_strcmp0 (g_mime_content_disposition_get_disposition (disp),
-		       GMIME_DISPOSITION_ATTACHMENT) == 0)
-		return; /* it's an attachment, don't include */
-
-	parttxt = mu_msg_mime_part_to_string (GMIME_PART(part), &err);
-	if (err) {
-		/* this happens for broken messages */
-		g_debug ("%s: could not get text for part", __FUNCTION__);
-		return;
-	}
-
-	/* it's a text part -- append it! */
-	tmp = *txt;
-	if (*txt) {
-		*txt = g_strconcat (*txt, parttxt, NULL);
-		g_free (parttxt);
-	} else
-		*txt = parttxt;
-
-	g_free (tmp);
-}
-
-/* instead of just the body, this function returns a concatenation of
- * all text/plain parts with inline disposition
- */
-static char*
-get_concatenated_text (MuMsgFile *self)
-{
-	char *txt;
-
-	g_return_val_if_fail (self, NULL);
-	g_return_val_if_fail (GMIME_IS_MESSAGE(self->_mime_msg), NULL);
-
-	txt = NULL;
-	g_mime_message_foreach (self->_mime_msg,
-				(GMimeObjectForeachFunc)append_text,
-				&txt);
-	return txt;
-}
-
 
 
 
@@ -699,12 +467,12 @@ static GSList*
 get_references  (MuMsgFile *self)
 {
 	GSList *msgids;
-	const char *str;
 	unsigned u;
 	const char *headers[] = { "References", "In-reply-to", NULL };
 
 	for (msgids = NULL, u = 0; headers[u]; ++u) {
 
+		char *str;
 		const GMimeReferences *cur;
 		GMimeReferences *mime_refs;
 
@@ -713,14 +481,18 @@ get_references  (MuMsgFile *self)
 			continue;
 
 		mime_refs = g_mime_references_decode (str);
-		for (cur = mime_refs; cur; cur = g_mime_references_get_next(cur)) {
+		g_free (str);
+
+		for (cur = mime_refs; cur;
+		     cur = g_mime_references_get_next(cur)) {
 			const char* msgid;
 			msgid = g_mime_references_get_message_id (cur);
 			/* don't include duplicates */
 			if (msgid && !contains (msgids, msgid))
 				/* explicitly ensure it's utf8-safe, as GMime
 				 * does not ensure that */
-				msgids = g_slist_prepend (msgids, g_strdup((msgid)));
+				msgids = g_slist_prepend (msgids,
+							  g_strdup((msgid)));
 		}
 		g_mime_references_free (mime_refs);
 	}
@@ -728,17 +500,38 @@ get_references  (MuMsgFile *self)
 	return g_slist_reverse (msgids);
 }
 
-
+/* see: http://does-not-exist.org/mail-archives/mutt-dev/msg08249.html */
 static GSList*
 get_tags (MuMsgFile *self)
 {
-	const char *hdr;
+	GSList *lst;
+	unsigned u;
+	struct {
+		const char *header;
+		char sepa;
+	} tagfields[] = {
+		{ "X-Label",    ' ' },
+		{ "X-Keywords", ',' },
+		{ "Keywords",   ' ' }
+	};
 
-	hdr = mu_msg_file_get_header (self, "X-Label");
-	if (!hdr)
-		return NULL;
+	for (lst = NULL, u = 0; u != G_N_ELEMENTS(tagfields); ++u) {
+		gchar *hdr;
+		hdr = mu_msg_file_get_header (self, tagfields[u].header);
+		if (hdr) {
+			GSList *hlst;
+			hlst = mu_str_to_list (hdr, tagfields[u].sepa, TRUE);
 
-	return mu_str_to_list (hdr, ',', TRUE);
+			if (lst)
+				(g_slist_last (lst))->next = hlst;
+			else
+				lst = hlst;
+
+			g_free (hdr);
+		}
+	}
+
+	return lst;
 }
 
 
@@ -787,18 +580,10 @@ mu_msg_file_get_str_field (MuMsgFile *self, MuMsgFieldId mfid,
 
 	switch (mfid) {
 
-	case MU_MSG_FIELD_ID_EMBEDDED_TEXT: *do_free = TRUE;
-		return NULL; /* FIXME */
-
 	case MU_MSG_FIELD_ID_BCC:
 	case MU_MSG_FIELD_ID_CC:
 	case MU_MSG_FIELD_ID_TO: *do_free = TRUE;
 		return get_recipient (self, recipient_type(mfid));
-
-	case MU_MSG_FIELD_ID_BODY_TEXT: *do_free = TRUE;
-		return get_concatenated_text (self);
-	case MU_MSG_FIELD_ID_BODY_HTML: *do_free = TRUE;
-		return get_body (self, TRUE);
 
 	case MU_MSG_FIELD_ID_FROM:
 		return (char*)maybe_cleanup
@@ -817,28 +602,28 @@ mu_msg_file_get_str_field (MuMsgFile *self, MuMsgFieldId mfid,
 
 	case MU_MSG_FIELD_ID_MAILDIR: return self->_maildir;
 
+	case MU_MSG_FIELD_ID_BODY_TEXT:  /* use mu_msg_get_body_text */
+	case MU_MSG_FIELD_ID_BODY_HTML:  /* use mu_msg_get_body_html */
+	case MU_MSG_FIELD_ID_EMBEDDED_TEXT:
+		g_warning ("%s is not retrievable through: %s",
+			   mu_msg_field_name (mfid), __FUNCTION__);
+ 		return NULL;
+
 	default: g_return_val_if_reached (NULL);
 	}
 }
 
 
 GSList*
-mu_msg_file_get_str_list_field (MuMsgFile *self, MuMsgFieldId mfid,
-				gboolean *do_free)
+mu_msg_file_get_str_list_field (MuMsgFile *self, MuMsgFieldId mfid)
 {
 	g_return_val_if_fail (self, NULL);
 	g_return_val_if_fail (mu_msg_field_is_string_list(mfid), NULL);
 
 	switch (mfid) {
-
-	case MU_MSG_FIELD_ID_REFS:
-		*do_free = TRUE;
-		return get_references (self);
-	case MU_MSG_FIELD_ID_TAGS:
-		*do_free = TRUE;
-		return get_tags (self);
-	default:
-		g_return_val_if_reached (NULL);
+	case MU_MSG_FIELD_ID_REFS: return get_references (self);
+	case MU_MSG_FIELD_ID_TAGS: return get_tags (self);
+	default: g_return_val_if_reached (NULL);
 	}
 }
 
@@ -871,8 +656,7 @@ mu_msg_file_get_num_field (MuMsgFile *self, const MuMsgFieldId mfid)
 }
 
 
-
-const char*
+char*
 mu_msg_file_get_header (MuMsgFile *self, const char *header)
 {
 	const gchar *hdr;
@@ -886,5 +670,65 @@ mu_msg_file_get_header (MuMsgFile *self, const char *header)
 	hdr = g_mime_object_get_header (GMIME_OBJECT(self->_mime_msg),
 					header);
 
-	return hdr ? free_string_later (self, mu_str_utf8ify(hdr)) : NULL;
+	return hdr ? mu_str_utf8ify(hdr) : NULL;
+}
+
+
+struct _ForeachData {
+	GMimeObjectForeachFunc user_func;
+	gpointer user_data;
+	gboolean decrypt;
+};
+typedef struct _ForeachData ForeachData;
+
+
+static void
+foreach_cb (GMimeObject *parent, GMimeObject *part, ForeachData *fdata)
+{
+	/* invoke the callback function */
+	fdata->user_func (parent, part, fdata->user_data);
+
+#ifdef BUILD_CRYPTO
+	/* maybe iterate over decrypted parts */
+	if (fdata->decrypt &&
+	    GMIME_IS_MULTIPART_ENCRYPTED (part)) {
+		GMimeObject *dec;
+		dec = mu_msg_crypto_decrypt_part
+			(GMIME_MULTIPART_ENCRYPTED(part),
+			 MU_MSG_OPTION_NONE, NULL, NULL, NULL);
+		if (!dec)
+			return;
+
+		if (GMIME_IS_MULTIPART (dec))
+			g_mime_multipart_foreach (
+				(GMIME_MULTIPART(dec)),
+				(GMimeObjectForeachFunc)foreach_cb,
+				fdata);
+		else
+			foreach_cb (parent, dec, fdata);
+
+		g_object_unref (dec);
+	}
+#endif /*BUILD_CRYPTO*/
+
+}
+
+
+void
+mu_mime_message_foreach (GMimeMessage *msg, gboolean decrypt,
+			 GMimeObjectForeachFunc func, gpointer user_data)
+{
+	ForeachData fdata;
+
+	g_return_if_fail (GMIME_IS_MESSAGE (msg));
+	g_return_if_fail (func);
+
+	fdata.user_func = func;
+	fdata.user_data = user_data;
+	fdata.decrypt   = decrypt;
+
+	g_mime_message_foreach
+		(msg,
+		 (GMimeObjectForeachFunc)foreach_cb,
+		 &fdata);
 }

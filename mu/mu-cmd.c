@@ -39,16 +39,16 @@
 #include "mu-runtime.h"
 #include "mu-flags.h"
 #include "mu-store.h"
+#include "mu-log.h"
 
 #define VIEW_TERMINATOR '\f' /* form-feed */
 
-
 static gboolean
-view_msg_sexp (MuMsg *msg)
+view_msg_sexp (MuMsg *msg, MuConfig *opts)
 {
 	char *sexp;
 
-	sexp = mu_msg_to_sexp (msg, 0, NULL, FALSE, FALSE);
+	sexp = mu_msg_to_sexp (msg, 0, NULL, MU_MSG_OPTION_NONE);
 	fputs (sexp, stdout);
 	g_free (sexp);
 
@@ -59,17 +59,21 @@ view_msg_sexp (MuMsg *msg)
 static void
 each_part (MuMsg *msg, MuMsgPart *part, gchar **attach)
 {
-	if (mu_msg_part_looks_like_attachment (part, TRUE) &&
-	    (part->file_name)) {
+	char *fname, *tmp;
 
-		char *tmp = *attach;
+	if (!mu_msg_part_maybe_attachment (part))
+		return;
 
-		*attach = g_strdup_printf ("%s%s'%s'",
-					   *attach ? *attach : "",
-					   *attach ? ", " : "",
-					   part->file_name);
-		g_free (tmp);
-	}
+	fname = mu_msg_part_get_filename (part, FALSE);
+	if (!fname)
+		return;
+
+	tmp = *attach;
+	*attach = g_strdup_printf ("%s%s'%s'",
+				   *attach ? *attach : "",
+				   *attach ? ", " : "",
+				   fname);
+	g_free (tmp);
 }
 
 /* return comma-sep'd list of attachments */
@@ -79,13 +83,12 @@ get_attach_str (MuMsg *msg)
 	gchar *attach;
 
 	attach = NULL;
-	mu_msg_part_foreach (msg, FALSE,
+	mu_msg_part_foreach (msg, MU_MSG_OPTION_NONE,
 			     (MuMsgPartForeachFunc)each_part, &attach);
-
 	return attach;
 }
 
-#define color_maybe(C)	do{ if (color) fputs ((C),stdout);}while(0)
+#define color_maybe(C) do { if(color) fputs ((C),stdout);} while(0)
 
 static void
 print_field (const char* field, const char *val, gboolean color)
@@ -110,23 +113,37 @@ print_field (const char* field, const char *val, gboolean color)
 
 /* a summary_len of 0 mean 'don't show summary, show body */
 static void
-body_or_summary (MuMsg *msg, unsigned summary_len, gboolean color)
+body_or_summary (MuMsg *msg, MuConfig *opts)
 {
-	const char* field;
+	const char *body;
+	gboolean color;
 
-	field = mu_msg_get_body_text (msg);
-	if (!field)
-		return; /* no body -- nothing more to do */
+	color = !opts->nocolor;
+	body = mu_msg_get_body_text (msg,
+				     mu_config_get_msg_options(opts) |
+				     MU_MSG_OPTION_CONSOLE_PASSWORD);
+	if (!body) {
+		if (mu_msg_get_flags (msg) & MU_FLAG_ENCRYPTED) {
+			color_maybe (MU_COLOR_CYAN);
+			g_print ("[No body found; "
+				 "message has encrypted parts]\n");
+		} else {
+			color_maybe (MU_COLOR_MAGENTA);
+			g_print ("[No body found]\n");
+		}
+		color_maybe (MU_COLOR_DEFAULT);
+		return;
+	}
 
-	if (summary_len != 0) {
+	if (opts->summary_len != 0) {
 		gchar *summ;
-		summ = mu_str_summarize (field, summary_len);
+		summ = mu_str_summarize (body, opts->summary_len);
 		print_field ("Summary", summ, color);
 		g_free (summ);
 	} else {
-		color_maybe (MU_COLOR_YELLOW);
-		mu_util_print_encoded ("\n%s\n", field);
-		color_maybe (MU_COLOR_DEFAULT);
+		mu_util_print_encoded ("%s", body);
+		if (!g_str_has_suffix (body, "\n"))
+			g_print ("\n");
 	}
 }
 
@@ -134,12 +151,14 @@ body_or_summary (MuMsg *msg, unsigned summary_len, gboolean color)
 /* we ignore fields for now */
 /* summary_len == 0 means "no summary */
 static gboolean
-view_msg_plain (MuMsg *msg, const gchar *fields, unsigned summary_len,
-	  gboolean color)
+view_msg_plain (MuMsg *msg, MuConfig *opts)
 {
 	gchar *attachs;
 	time_t date;
 	const GSList *lst;
+	gboolean color;
+
+	color = !opts->nocolor;
 
 	print_field ("From",    mu_msg_get_from (msg),    color);
 	print_field ("To",      mu_msg_get_to (msg),      color);
@@ -163,7 +182,7 @@ view_msg_plain (MuMsg *msg, const gchar *fields, unsigned summary_len,
 		g_free (attachs);
 	}
 
-	body_or_summary (msg, summary_len, color);
+	body_or_summary (msg, opts);
 
 	return TRUE;
 }
@@ -182,13 +201,10 @@ handle_msg (const char *fname, MuConfig *opts, GError **err)
 
 	switch (opts->format) {
 	case MU_CONFIG_FORMAT_PLAIN:
-		rv = view_msg_plain
-			(msg, NULL,
-			 opts->summary ? opts->summary_len : 0,
-			 !opts->nocolor);
+		rv = view_msg_plain (msg, opts);
 		break;
 	case MU_CONFIG_FORMAT_SEXP:
-		rv = view_msg_sexp (msg);
+		rv = view_msg_sexp (msg, opts);
 		break;
 	default:
 		g_critical ("bug: should not be reached");
@@ -234,7 +250,7 @@ mu_cmd_view (MuConfig *opts, GError **err)
 	g_return_val_if_fail (opts->cmd == MU_CONFIG_CMD_VIEW,
 			      MU_ERROR_INTERNAL);
 
-	rv = view_params_valid(opts, err);
+	rv = view_params_valid (opts, err);
 	if (!rv)
 		goto leave;
 
@@ -267,8 +283,8 @@ mu_cmd_mkdir (MuConfig *opts, GError **err)
 			      MU_ERROR_INTERNAL);
 
 	if (!opts->params[1]) {
-		g_set_error (err, MU_ERROR_DOMAIN, MU_ERROR_IN_PARAMETERS,
-			     "missing directory parameter");
+		mu_util_g_set_error (err, MU_ERROR_IN_PARAMETERS,
+				     "missing directory parameter");
 		return MU_ERROR_IN_PARAMETERS;
 	}
 
@@ -277,10 +293,8 @@ mu_cmd_mkdir (MuConfig *opts, GError **err)
 				       FALSE, err))
 			return err && *err ? (*err)->code :
 				MU_ERROR_FILE_CANNOT_MKDIR;
-
 	return MU_OK;
 }
-
 
 
 static gboolean
@@ -300,14 +314,6 @@ check_file_okay (const char *path, gboolean cmd_add)
 	return TRUE;
 }
 
-gboolean
-check_add_params (MuConfig *opts, GError **err)
-{
-
-	return TRUE;
-}
-
-
 
 MuError
 mu_cmd_add (MuStore *store, MuConfig *opts, GError **err)
@@ -323,8 +329,8 @@ mu_cmd_add (MuStore *store, MuConfig *opts, GError **err)
 	/* note: params[0] will be 'add' */
 	if (!opts->params[0] || !opts->params[1]) {
 		g_print ("usage: mu add <file> [<files>]\n");
-		g_set_error (err, MU_ERROR_DOMAIN, MU_ERROR_IN_PARAMETERS,
-			     "missing source and/or target");
+		mu_util_g_set_error (err, MU_ERROR_IN_PARAMETERS,
+				     "missing source and/or target");
 		return MU_ERROR_IN_PARAMETERS;
 	}
 
@@ -342,8 +348,8 @@ mu_cmd_add (MuStore *store, MuConfig *opts, GError **err)
 	}
 
 	if (!allok) {
-		g_set_error (err, MU_ERROR_DOMAIN, MU_ERROR_XAPIAN_STORE_FAILED,
-			     "store failed for some message(s)");
+		mu_util_g_set_error (err, MU_ERROR_XAPIAN_STORE_FAILED,
+				     "store failed for some message(s)");
 		return MU_ERROR_XAPIAN_STORE_FAILED;
 	}
 
@@ -364,7 +370,7 @@ mu_cmd_remove (MuStore *store, MuConfig *opts, GError **err)
 	/* note: params[0] will be 'add' */
 	if (!opts->params[0] || !opts->params[1]) {
 		g_warning ("usage: mu remove <file> [<files>]");
-		g_set_error (err, MU_ERROR_DOMAIN, MU_ERROR_IN_PARAMETERS,
+		mu_util_g_set_error (err, MU_ERROR_IN_PARAMETERS,
 				     "missing source and/or target");
 		return MU_ERROR_IN_PARAMETERS;
 	}
@@ -391,26 +397,146 @@ mu_cmd_remove (MuStore *store, MuConfig *opts, GError **err)
 }
 
 
+
+#ifdef BUILD_CRYPTO
+
+struct _VData {
+	MuMsgPartSigStatus combined_status;
+	char *report;
+	gboolean oneline;
+};
+typedef struct _VData VData;
+
+static void
+each_sig (MuMsg *msg, MuMsgPart *part, VData *vdata)
+{
+	MuMsgPartSigStatusReport *report;
+
+	report = part->sig_status_report;
+	if (!report)
+		return;
+
+	if (vdata->oneline)
+		vdata->report = g_strdup_printf
+			("%s%s%s",
+			 vdata->report ? vdata->report : "",
+			 vdata->report ? "; " : "",
+			 report->report);
+	else
+		vdata->report = g_strdup_printf
+			("%s%s\t%s",
+			 vdata->report ? vdata->report : "",
+			 vdata->report ? "\n" : "",
+			 report->report);
+
+	if (vdata->combined_status == MU_MSG_PART_SIG_STATUS_BAD ||
+	    vdata->combined_status == MU_MSG_PART_SIG_STATUS_ERROR)
+		return;
+
+	vdata->combined_status = report->verdict;
+}
+
+
+static void
+print_verdict (VData *vdata, gboolean color)
+{
+ 	g_print ("verdict: ");
+
+	switch (vdata->combined_status) {
+	case MU_MSG_PART_SIG_STATUS_UNSIGNED:
+		g_print ("%s", "no signature found");
+		break;
+	case MU_MSG_PART_SIG_STATUS_GOOD:
+		color_maybe (MU_COLOR_GREEN);
+		g_print ("%s", "signature(s) verified");
+		break;
+	case MU_MSG_PART_SIG_STATUS_BAD:
+		color_maybe (MU_COLOR_RED);
+		g_print ("%s", "bad signature");
+		break;
+	case MU_MSG_PART_SIG_STATUS_ERROR:
+		color_maybe (MU_COLOR_RED);
+		g_print ("%s", "verification failed");
+		break;
+	case MU_MSG_PART_SIG_STATUS_FAIL:
+		color_maybe(MU_COLOR_RED);
+		g_print ("%s", "error in verification process");
+		break;
+	default: g_return_if_reached ();
+	}
+
+	color_maybe (MU_COLOR_DEFAULT);
+	if (vdata->report)
+		g_print ("%s%s\n",
+			 (vdata->oneline) ? ";" : "\n",
+			 vdata->report);
+}
+
+
+MuError
+mu_cmd_verify (MuConfig *opts, GError **err)
+{
+	MuMsg *msg;
+	MuMsgOptions msgopts;
+	VData vdata;
+
+	g_return_val_if_fail (opts, MU_ERROR_INTERNAL);
+	g_return_val_if_fail (opts->cmd == MU_CONFIG_CMD_VERIFY,
+			      MU_ERROR_INTERNAL);
+
+	if (!opts->params[1]) {
+		mu_util_g_set_error (err, MU_ERROR_IN_PARAMETERS,
+				     "missing message-file parameter");
+		return MU_ERROR_IN_PARAMETERS;
+	}
+
+	msg = mu_msg_new_from_file (opts->params[1], NULL, err);
+	if (!msg)
+		return MU_ERROR;
+
+	msgopts = mu_config_get_msg_options (opts) | MU_MSG_OPTION_VERIFY;
+
+	vdata.report  = NULL;
+	vdata.combined_status = MU_MSG_PART_SIG_STATUS_UNSIGNED;
+	vdata.oneline = FALSE;
+
+	mu_msg_part_foreach (msg, msgopts,
+			     (MuMsgPartForeachFunc)each_sig, &vdata);
+
+	if (!opts->quiet)
+		print_verdict (&vdata, !opts->nocolor);
+
+	mu_msg_unref (msg);
+	g_free (vdata.report);
+
+	return vdata.combined_status == MU_MSG_PART_SIG_STATUS_GOOD ?
+		MU_OK : MU_ERROR;
+}
+#else
+MuError
+mu_cmd_verify (MuConfig *opts, GError **err)
+{
+	g_warning ("this version of mu does not support the 'verify' command");
+	return MU_ERROR_IN_PARAMETERS;
+}
+
+#endif /*!BUILD_CRYPTO*/
+
+
+
 static void
 show_usage (void)
 {
 	g_print ("usage: mu command [options] [parameters]\n");
 	g_print ("where command is one of index, find, cfind, view, mkdir, "
-		   "extract, add, remove or server\n");
+		   "extract, add, remove, verify or server\n");
 	g_print ("see the mu, mu-<command> or mu-easy manpages for "
 		   "more information\n");
 }
 
-static void
-show_version (void)
-{
-	g_print ("mu (mail indexer/searcher) version " VERSION "\n"
-		 "Copyright (C) 2008-2011 Dirk-Jan C. Binnema (GPLv3+)\n");
-}
-
 typedef MuError (*store_func) (MuStore *, MuConfig *, GError **err);
 
-MuError
+static MuError
 with_store (store_func func, MuConfig *opts, gboolean read_only,
 	    GError **err)
 {
@@ -436,7 +562,7 @@ with_store (store_func func, MuConfig *opts, gboolean read_only,
 }
 
 
-gboolean
+static gboolean
 check_params (MuConfig *opts, GError **err)
 {
 	if (!opts->params||!opts->params[0]) {/* no command? */
@@ -449,39 +575,65 @@ check_params (MuConfig *opts, GError **err)
 	return TRUE;
 }
 
+
+static void
+set_log_options (MuConfig *opts)
+{
+	MuLogOptions logopts;
+
+	logopts = MU_LOG_OPTIONS_NONE;
+
+	if (opts->quiet)
+		logopts |= MU_LOG_OPTIONS_QUIET;
+	if (!opts->nocolor)
+		logopts |= MU_LOG_OPTIONS_COLOR;
+	if (opts->log_stderr)
+		logopts |= MU_LOG_OPTIONS_STDERR;
+	if (opts->debug)
+		logopts |= MU_LOG_OPTIONS_DEBUG;
+}
+
+
+
+
 MuError
 mu_cmd_execute (MuConfig *opts, GError **err)
 {
-	g_return_val_if_fail (opts, MU_ERROR_INTERNAL);
+	MuError merr;
 
-	if (opts->version) {
-		show_version ();
-		return MU_OK;
-	}
+	g_return_val_if_fail (opts, MU_ERROR_INTERNAL);
 
 	if (!check_params(opts, err))
 		return MU_G_ERROR_CODE(err);
 
+	set_log_options (opts);
+
 	switch (opts->cmd) {
-	case MU_CONFIG_CMD_CFIND:   return mu_cmd_cfind (opts, err);
-	case MU_CONFIG_CMD_MKDIR:   return mu_cmd_mkdir (opts, err);
-	case MU_CONFIG_CMD_VIEW:    return mu_cmd_view (opts, err);
-	case MU_CONFIG_CMD_EXTRACT: return mu_cmd_extract (opts, err);
+		/* already handled in mu-config.c */
+	case MU_CONFIG_CMD_HELP: return MU_OK;
+
+	case MU_CONFIG_CMD_CFIND:   merr = mu_cmd_cfind (opts, err);   break;
+	case MU_CONFIG_CMD_MKDIR:   merr = mu_cmd_mkdir (opts, err);   break;
+	case MU_CONFIG_CMD_VIEW:    merr = mu_cmd_view (opts, err);    break;
+	case MU_CONFIG_CMD_VERIFY:  merr = mu_cmd_verify (opts, err);  break;
+	case MU_CONFIG_CMD_EXTRACT: merr = mu_cmd_extract (opts, err); break;
 
 	case MU_CONFIG_CMD_FIND:
-		return with_store (mu_cmd_find, opts, TRUE, err);
+		merr = with_store (mu_cmd_find, opts, TRUE, err);      break;
 	case MU_CONFIG_CMD_INDEX:
-		return with_store (mu_cmd_index, opts, FALSE, err);
+		merr = with_store (mu_cmd_index, opts, FALSE, err);    break;
 	case MU_CONFIG_CMD_ADD:
-		return with_store (mu_cmd_add, opts, FALSE, err);
+		merr = with_store (mu_cmd_add, opts, FALSE, err);      break;
 	case MU_CONFIG_CMD_REMOVE:
-		return with_store (mu_cmd_remove, opts, FALSE, err);
+		merr = with_store (mu_cmd_remove, opts, FALSE, err);   break;
 	case MU_CONFIG_CMD_SERVER:
-		return with_store (mu_cmd_server, opts, FALSE, err);
+		merr = with_store (mu_cmd_server, opts, FALSE, err);   break;
 	default:
 		show_usage ();
-		g_set_error (err, MU_ERROR_DOMAIN, MU_ERROR_IN_PARAMETERS,
-			     "unknown command '%s'", opts->cmdstr);
+		mu_util_g_set_error (err, MU_ERROR_IN_PARAMETERS,
+				     "unknown command '%s'", opts->cmdstr);
 		return MU_ERROR_IN_PARAMETERS;
 	}
+
+	return merr;
 }
