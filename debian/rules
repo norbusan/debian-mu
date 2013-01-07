@@ -57,7 +57,7 @@ install-stamp: build-stamp
 binary-indep: install
 	dh_testdir
 	dh_testroot
-	dh_installdocs README NEWS TODO debian/README.source
+	dh_installdocs README NEWS TODO
 	dh_installchangelogs
 	dh_installemacsen -pmu4e
 	dh_compress
@@ -71,7 +71,7 @@ binary-arch: DH_OPTIONS=-a
 binary-arch: install
 	dh_testdir
 	dh_testroot
-	dh_installdocs README NEWS TODO debian/README.source
+	dh_installdocs README NEWS TODO
 	#dh_installchangelogs ChangeLog
 	dh_installchangelogs
 ifeq "$(findstring nostrip,$(DEB_BUILD_OPTIONS))" ""

@@ -41,7 +41,7 @@ Package: maildir-utils-extra
 Section: mail
 Priority: optional
 Architecture: any
-Depends: maildir-utils (= ${source:Version}), xdg-utils, ${shlibs:Depends}, ${misc:Depends}
+Depends: maildir-utils (= ${binary:Version}), xdg-utils, ${shlibs:Depends}, ${misc:Depends}
 Replaces: maildir-utils (<= 0.9.6-1), maildir-utils-gtk
 Conflicts: maildir-utils-gtk
 Description: Extra utilities for maildir-utils
