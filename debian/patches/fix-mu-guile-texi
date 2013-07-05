@@ -1,0 +1,15 @@
+---
+ guile/mu-guile.texi |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+--- maildir-utils.git.orig/guile/mu-guile.texi
++++ maildir-utils.git/guile/mu-guile.texi
+@@ -28,7 +28,7 @@
+ 
+ @titlepage
+ @title @t{mu-guile} - extending @t{mu} with Guile Scheme
+-@subtitle{version  @value{mu-version}}
++@subtitle version  @value{mu-version}
+ @author Dirk-Jan C. Binnema
+ 
+ @c The following two commands start the copyright page.

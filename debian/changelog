@@ -4,10 +4,13 @@ maildir-utils (0.9.9.5-1) UNRELEASED; urgency=low
   * unfuzzify and adapt patches
   * update build-dep to libgtk3, and libgtkwebkit-3.0-dev
   * use dh_autoreconf(_clean) in building
+  * add texinfo for info/doc building
   * bump standards version, no changes necessary
-  * add guile-2.0-dev to build-dev to build mu-guile
+  * mu-guile building:
+    - add guile-2.0-dev to build-dev
+    - fix mu-guile.texi syntax error for @subtitle
 
- -- Norbert Preining <preining@debian.org>  Fri, 05 Jul 2013 14:00:16 +0900
+ -- Norbert Preining <preining@debian.org>  Fri, 05 Jul 2013 14:07:56 +0900
 
 maildir-utils (0.9.9-1) unstable; urgency=low
 
