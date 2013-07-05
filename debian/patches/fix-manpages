@@ -1,15 +1,15 @@
 ---
  man/mu-add.1     |    4 ++--
- man/mu-cfind.1   |   10 +++++-----
+ man/mu-cfind.1   |    4 ++--
  man/mu-easy.1    |    2 +-
  man/mu-extract.1 |    5 ++---
- man/mu-find.1    |    8 ++++----
- man/mu-index.1   |    8 ++++----
+ man/mu-find.1    |    4 ++--
+ man/mu-index.1   |    2 +-
  man/mu-mkdir.1   |    4 ++--
  man/mu-remove.1  |    4 ++--
  man/mu-server.1  |    2 +-
  man/mu-view.1    |    4 ++--
- 10 files changed, 25 insertions(+), 26 deletions(-)
+ 10 files changed, 17 insertions(+), 18 deletions(-)
 
 --- maildir-utils.git.orig/man/mu-add.1
 +++ maildir-utils.git/man/mu-add.1
@@ -31,8 +31,8 @@
 --- maildir-utils.git.orig/man/mu-cfind.1
 +++ maildir-utils.git/man/mu-cfind.1
 @@ -1,4 +1,4 @@
--.TH MU CFIND 1 "July 2012" "User Manuals"
-+.TH MU-CFIND 1 "July 2012" "User Manuals"
+-.TH MU CFIND 1 "October 2012" "User Manuals"
++.TH MU-CFIND 1 "October 2012" "User Manuals"
  
  .SH NAME
  
@@ -45,19 +45,6 @@
  
  .SH DESCRIPTION
  
-@@ -100,9 +100,9 @@
- You can use \fBmu cfind\fR as an external address book server for
- \fBmutt\fR. For this to work, add the following to your \fImuttrc\fR:
- 
--.sh
--set query_command = "mu cfind --format=mutt-ab '%s'"
--.si
-+.nf
-+   set query_command = "mu cfind --format=mutt-ab '%s'"
-+.fi
- 
- Now, in mutt, you can easily search for e-mail address using the
- \fBquery\fR-command, which is (by default) accessible by pressing \fBQ\fR.
 --- maildir-utils.git.orig/man/mu-easy.1
 +++ maildir-utils.git/man/mu-easy.1
 @@ -2,7 +2,7 @@
@@ -86,8 +73,8 @@
 --- maildir-utils.git.orig/man/mu-find.1
 +++ maildir-utils.git/man/mu-find.1
 @@ -1,8 +1,8 @@
--.TH MU FIND 1 "August 2012" "User Manuals"
-+.TH MU-FIND 1 "August 2012" "User Manuals"
+-.TH MU FIND 1 "December 2012" "User Manuals"
++.TH MU-FIND 1 "December 2012" "User Manuals"
  
  .SH NAME
  
@@ -96,24 +83,6 @@
  
  .SH SYNOPSIS
  
-@@ -51,7 +51,7 @@
- as filtering out unwanted results is usually preferrable over non matching
- messages.
- 
--A wildcard search is a search where a \fB*\fR matches the last \fIn\R
-+A wildcard search is a search where a \fB*\fR matches the last \fIn\fR
- character(s) in some string. The string must always start with one or more
- characters before the wildcards. Since version 0.9.6, \fBmu\fR also supports
- wildcard searches for all fields except maildirs and paths. So, to get all
-@@ -426,7 +426,7 @@
- file will be prepended to other search queries. See mu-bookmarks(1) for the
- details of the bookmarks file.
- 
--.T
-+.TP
- \fB\-t\fR, \fB\-\-threads\fR
- show messages in 'threaded' format -- that is, with indentation and arrows
- showing the conversation threads in the list of matching messages.
 --- maildir-utils.git.orig/man/mu-index.1
 +++ maildir-utils.git/man/mu-index.1
 @@ -2,7 +2,7 @@
@@ -124,33 +93,6 @@
 +mu_index \- index e-mail messages stored in Maildirs
  
  .SH SYNOPSIS
- 
-@@ -134,7 +134,7 @@
-  $ sudo sh -c 'sync && echo 3 > /proc/sys/vm/drop_caches'
-  $ time mu index --quiet
-  66,65s user 6,05s system 27% cpu 4:24,20 total
--.si
-+.fi
- (about 103 messages per second)
- 
- A second run, which is the more typical use case when there is a database
-@@ -154,7 +154,7 @@
- .nf
-  $ time mu index --quiet
- 0,33s user 0,40s system 80% cpu 0,905 total
--.si
-+.fi
- which is more than 30000 messages per second.
- 
- 
-@@ -177,7 +177,7 @@
-  $ sudo sh -c 'sync && echo 3 > /proc/sys/vm/drop_caches'
-  $ time mu index --quiet
-  0,13s user 0,30s system 19% cpu 2,162 total
--.si
-+.fi
- (more than 173000 messages per second)
- 
  
 --- maildir-utils.git.orig/man/mu-mkdir.1
 +++ maildir-utils.git/man/mu-mkdir.1
@@ -173,8 +115,8 @@
  
  .SH NAME
  
--\fBmu remove\fR is the \fBmu\R command to remove messages from the database.
-+mu_remove \- remove messages from the database
+-\fBmu remove\fR is the \fBmu\fR command to remove messages from the database.
++mu_remove \- remove messages from the database.
  
  .SH SYNOPSIS
  
