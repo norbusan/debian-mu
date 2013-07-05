@@ -55,11 +55,14 @@ install-stamp: build-stamp
 	mv $(mu)/usr/share/emacs $(mu4e)/usr/share
 	mkdir -p $(mu4e)/usr/share/info
 	mv $(mu)/usr/share/info/mu4e.info* $(mu4e)/usr/share/info
+	# shared libs dealing
+	rm $(mu)/usr/lib/libguile-mu.la
 	touch install-stamp
 
 binary-indep: install
 	dh_testdir
 	dh_testroot
+	dh_shlibdeps
 	dh_installdocs README NEWS TODO
 	dh_installchangelogs
 	dh_installemacsen -pmu4e
