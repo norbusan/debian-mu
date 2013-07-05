@@ -1,7 +1,7 @@
 /* -*-mode: c; tab-width: 8; indent-tabs-mode: t; c-basic-offset: 8 -*-*/
 
 /*
-** Copyright (C) 2008-2010 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+** Copyright (C) 2008-2013 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 **
 ** This program is free software; you can redistribute it and/or modify it
 ** under the terms of the GNU General Public License as published by the
@@ -245,6 +245,7 @@ typedef void (*MuMsgPartForeachFunc) (MuMsg *msg, MuMsgPart*, gpointer);
  * @param user_data a user-provide pointer that will be passed to the callback
  * @param options, bit-wise OR'ed
  *
+ * @return FALSE in case of error, TRUE otherwise
  */
 gboolean mu_msg_part_foreach (MuMsg *msg, MuMsgOptions opts,
 			      MuMsgPartForeachFunc func, gpointer user_data);

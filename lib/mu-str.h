@@ -1,7 +1,7 @@
 /* -*-mode: c; tab-width: 8; indent-tabs-mode: t; c-basic-offset: 8 -*-*/
 
 /*
-** Copyright (C) 2008-2010 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+** Copyright (C) 2008-2013 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 **
 ** This program is free software; you can redistribute it and/or modify
 ** it under the terms of the GNU General Public License as published by
@@ -30,6 +30,11 @@
 
 G_BEGIN_DECLS
 
+/**
+ * @addtogroup MuStr
+ * Various string utilities
+ * @{
+ */
 
 /**
  * create a 'display contact' from an email header To/Cc/Bcc/From-type address
@@ -44,7 +49,8 @@ G_BEGIN_DECLS
  *   returns a newly allocated string that you must free with g_free
  *   when done with it.
  *
- * @param str a 'contact str' (ie., what is in the To/Cc/Bcc/From fields), or NULL
+ * @param str a 'contact str' (ie., what is in the To/Cc/Bcc/From
+ * fields), or NULL
  *
  * @return a newly allocated string with a display contact
  */
@@ -131,8 +137,8 @@ char* mu_str_normalize (const char *str, gboolean downcase,
  * NULL. User only needs to free the returned string if a) return
  * value != str and b) strchunk was not provided.
  */
-char* mu_str_normalize_in_place_try (char *str, gboolean downcase,
-				     GStringChunk *strchunk);
+char* mu_str_normalize_in_place (char *str, gboolean downcase,
+				 GStringChunk *strchunk);
 
 /**
  * escape the string for use with xapian matching. in practice, if the
@@ -160,7 +166,7 @@ char* mu_str_xapian_escape_in_place_try (char *query, gboolean esc_space,
  * replace ':' with '_', if it's not following a xapian-prefix (such
  * as 'subject:', 't:' etc, as defined in mu-msg-fields.[ch]).
  *
- * @param query a query string
+ * @param str a string
  * @param esc_space escape space characters as well
  * @param strchunk (optional) if non-NULL, allocate strings on strchunk
  *
@@ -168,10 +174,21 @@ char* mu_str_xapian_escape_in_place_try (char *query, gboolean esc_space,
  * Unless strchunk was provided, user must g_free the string when
  * no longer needed
  */
-char* mu_str_xapian_escape (const char *query, gboolean esc_space,
+char* mu_str_xapian_escape (const char *str, gboolean esc_space,
 			    GStringChunk *strchunk)  G_GNUC_WARN_UNUSED_RESULT;
 
 
+/**
+ * Fixup values for some fields in the DWIM manner:
+ * - if term is date:YYYYMMDD, replace it with the range
+ *   date:YYYYMMDD..YYYYMMDD.
+ *
+ * @param query a query string
+ *
+ * @return the fixup'd string that must be g_free()d
+ * after use or NULL in case of error.
+ */
+gchar* mu_str_xapian_fixup_terms (const gchar *term);
 
 /**
  * parse a byte size; a size is a number, with optionally a
@@ -320,44 +337,16 @@ const gchar* mu_str_subject_normalize (const gchar* str);
 
 
 /**
- * guess some nick name for the given name; if we can determine an
- * first name, last name, the nick will be first name + the first char
- * of the last name. otherwise, it's just the first name. clearly,
- * this is just a rough guess for setting an initial value for nicks.
+ * take a list of strings, and return the concatenation of their
+ * quoted forms
  *
- * @param name a name
+ * @param params NULL-terminated array of strings
  *
- * @return the guessed nick, as a newly allocated string (free with g_free)
+ * @return the quoted concatenation of the strings
  */
-gchar* mu_str_guess_nick (const char* name)
-        G_GNUC_WARN_UNUSED_RESULT;
+gchar* mu_str_quoted_from_strv (const gchar **params);
 
-
-/**
- * guess the first name for the given name; clearly,
- * this is just a rough guess for setting an initial value.
- *
- * @param name a name
- *
- * @return the first name, as a newly allocated string (free with
- * g_free)
- */
-gchar* mu_str_guess_first_name (const char* name)
-        G_GNUC_WARN_UNUSED_RESULT;
-
-
-
-/**
- * guess the last name for the given name; clearly,
- * this is just a rough guess for setting an initial value.
- *
- * @param name a name
- *
- * @return the last name, as a newly allocated string (free with
- * g_free)
- */
-gchar* mu_str_guess_last_name (const char* name)
-        G_GNUC_WARN_UNUSED_RESULT;
+/** @} */
 
 G_END_DECLS
 

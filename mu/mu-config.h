@@ -1,7 +1,7 @@
 /* -*-mode: c; tab-width: 8; indent-tabs-mode: t; c-basic-offset: 8 -*-*/
 
 /*
-** Copyright (C) 2008-2012 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+** Copyright (C) 2008-2013 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 **
 ** This program is free software; you can redistribute it and/or modify it
 ** under the terms of the GNU General Public License as published by the
@@ -72,6 +72,7 @@ enum _MuConfigCmd {
 	MU_CONFIG_CMD_INDEX,
 	MU_CONFIG_CMD_MKDIR,
 	MU_CONFIG_CMD_REMOVE,
+	MU_CONFIG_CMD_SCRIPT,
 	MU_CONFIG_CMD_SERVER,
 	MU_CONFIG_CMD_VERIFY,
 	MU_CONFIG_CMD_VIEW,
@@ -97,7 +98,7 @@ struct _MuConfig {
 	/* general options */
 	gboolean	quiet;		/* don't give any output */
 	gboolean	debug;		/* spew out debug info */
-	char		*muhome;	/* the House of Mu */
+	gchar		*muhome;	/* the House of Mu */
 	gboolean	version;	/* request mu version */
 	gboolean	log_stderr;	/* log to stderr (not logfile) */
 	gchar**	        params;		/* parameters (for querying) */
@@ -106,7 +107,7 @@ struct _MuConfig {
 	gboolean	verbose;	/* verbose output */
 
 	/* options for indexing */
-	char	        *maildir;	/* where the mails are */
+	gchar	        *maildir;	/* where the mails are */
 	gboolean        nocleanup;	/* don't cleanup del'd mails from db */
 	gboolean        reindex;	/* re-index existing mails */
 	gboolean        rebuild;	/* empty the database before indexing */
@@ -121,23 +122,29 @@ struct _MuConfig {
 					 * times */
 
 	/* options for querying 'find' (and view-> 'summary') */
-	char		*fields;	/* fields to show in output */
-	char	        *sortfield;	/* field to sort by (string) */
+	gchar		*fields;	/* fields to show in output */
+	gchar	        *sortfield;	/* field to sort by (string) */
 	gboolean	 reverse;	/* sort in revers order (z->a) */
 	gboolean	 threads;       /* show message threads */
 
 	gboolean	 summary;	/* OBSOLETE: use summary_len */
 	int	         summary_len;   /* max # of lines for summary */
 
-	char            *bookmark;	/* use bookmark */
-	char		*formatstr;     /* output type for find
+	gchar            *bookmark;	/* use bookmark */
+	gchar		*formatstr;     /* output type for find
 					 * (plain,links,xml,json,sexp)
 					 * and view (plain, sexp) and cfind
 					 */
 	MuConfigFormat   format;        /* the decoded formatstr */
-	char		*exec;		/* command to execute on the
+	gchar		*exec;		/* command to execute on the
 					 * files for the matched
 					 * messages */
+	gboolean        skip_dups;        /* if there are multiple
+					 * messages with the same
+					 * msgid, show only the first
+					 * one */
+	gboolean        include_related; /* included related messages
+					  * in results */
 	/* for find and cind */
 	time_t            after;          /* only show messages or
 					   * adresses last seen after
@@ -162,7 +169,7 @@ struct _MuConfig {
 	/* also 'after' --> see above */
 
 	/* output to a maildir with symlinks */
-	char            *linksdir;	/* maildir to output symlinks */
+	gchar            *linksdir;	/* maildir to output symlinks */
 	gboolean	 clearlinks;	/* clear a linksdir before filling */
 	mode_t		 dirmode;	/* mode for the created maildir */
 
@@ -171,10 +178,12 @@ struct _MuConfig {
 	gboolean	*save_attachments; /* extract all attachment parts */
 	gchar		*parts;		/* comma-sep'd list of parts
 					 * to save /  open */
-	char		*targetdir;	/* where to save the attachments */
+	gchar		*targetdir;	/* where to save the attachments */
 	gboolean	 overwrite;	/* should we overwrite same-named files */
 	gboolean         play;          /* after saving, try to 'play'
 					 * (open) the attmnt using xdgopen */
+	/* options for mu-script */
+	gchar           *script;        /* script to run */
 };
 typedef struct _MuConfig MuConfig;
 
@@ -185,12 +194,14 @@ typedef struct _MuConfig MuConfig;
  * mu_config_init, you should also call mu_config_uninit when the data
  * is no longer needed.
  *
- * Note that is _static_ data, ie., mu_config_init will always return
- * the same pointer
+ * Note that this is _static_ data, ie., mu_config_init will always
+ * return the same pointer
  *
- * @param opts options
+ * @param argcp: pointer to argc
+ * @param argvp: pointer to argv
+ * @param err: receives error information
  */
-MuConfig *mu_config_init (int *argcp, char ***argvp)
+MuConfig *mu_config_init (int *argcp, char ***argvp, GError **err)
       G_GNUC_WARN_UNUSED_RESULT;
 /**
  * free the MuConfig structure

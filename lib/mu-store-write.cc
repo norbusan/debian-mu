@@ -1,6 +1,6 @@
 /* -*-mode: c++; tab-width: 8; indent-tabs-mode: t; c-basic-offset: 8-*- */
 /*
-** Copyright (C) 2008-2011 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+** Copyright (C) 2008-2013 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 **
 ** This program is free software; you can redistribute it and/or modify it
 ** under the terms of the GNU General Public License as published by the
@@ -307,14 +307,9 @@ static void
 add_terms_values_str (Xapian::Document& doc, char *val,
 		      MuMsgFieldId mfid, GStringChunk *strchunk)
 {
-	/* the value is what we display in search results; the
-	 * unchanged original */
-	if (mu_msg_field_xapian_value(mfid))
-		doc.add_value ((Xapian::valueno)mfid, val);
-
 	/* now, let's create some search terms... */
 	if (mu_msg_field_normalize (mfid))
-		val = mu_str_normalize_in_place_try (val, TRUE, strchunk);
+		val = mu_str_normalize_in_place (val, TRUE, strchunk);
 
 	if (mu_msg_field_xapian_index (mfid)) {
 		Xapian::TermGenerator termgen;
@@ -341,6 +336,12 @@ add_terms_values_string (Xapian::Document& doc, MuMsg *msg,
 		return; /* nothing to do */
 
 	val = g_string_chunk_insert (strchunk, orig);
+
+	/* the value is what we display in search results; the
+	 * unchanged original */
+	if (mu_msg_field_xapian_value(mfid))
+		doc.add_value ((Xapian::valueno)mfid, val);
+
 	add_terms_values_str (doc, val, mfid, strchunk);
 }
 
@@ -459,6 +460,19 @@ add_terms_values_attach (Xapian::Document& doc, MuMsg *msg,
 			     (MuMsgPartForeachFunc)each_part, &pdata);
 }
 
+/* escape the body -- for now, only replace '-' with '_' */
+static void
+body_escape_in_place (char *body)
+{
+	while (*body) {
+		switch (*body) {
+		case '-': *body = '_';
+		default: break;
+		}
+		++body;
+	}
+}
+
 
 static void
 add_terms_values_body (Xapian::Document& doc, MuMsg *msg,
@@ -482,6 +496,8 @@ add_terms_values_body (Xapian::Document& doc, MuMsg *msg,
 
 	/* norm is allocated on strchunk, no need for freeing */
 	norm = mu_str_normalize (str, TRUE, strchunk);
+	body_escape_in_place (norm);
+
 	termgen.index_text_without_positions (norm, 1, prefix(mfid));
 }
 
@@ -545,6 +561,7 @@ add_terms_values (MuMsgFieldId mfid, MsgDoc* msgdoc)
 		break;
 	///////////////////////////////////////////
 
+	case MU_MSG_FIELD_ID_THREAD_ID:
 	case MU_MSG_FIELD_ID_UID:
 		break; /* already taken care of elsewhere */
 	default:
@@ -577,6 +594,31 @@ xapian_pfx (MuMsgContact *contact)
 
 
 static void
+add_address_subfields (Xapian::Document& doc, const char *addr,
+		       const std::string& pfx, GStringChunk *strchunk)
+{
+	const char *at;
+	char *p1, *p2;
+
+	/* add "foo" and "bar.com" as terms as well for
+	 * "foo@bar.com" */
+	if (G_UNLIKELY(!(at = (g_strstr_len (addr, -1, "@")))))
+		return;
+
+	p1 = g_strndup(addr, at - addr); // foo
+	p2 = g_strdup (at + 1);
+
+	p1 = mu_str_xapian_escape_in_place_try (p1, TRUE, strchunk);
+	p2 = mu_str_xapian_escape_in_place_try (p2, TRUE, strchunk);
+
+	doc.add_term (pfx + p1);
+	doc.add_term (pfx + p2);
+
+	g_free (p1);
+	g_free (p2);
+}
+
+static void
 each_contact_info (MuMsgContact *contact, MsgDoc *msgdoc)
 {
 	/* for now, don't store reply-to addresses */
@@ -598,15 +640,15 @@ each_contact_info (MuMsgContact *contact, MsgDoc *msgdoc)
 
 	/* don't normalize e-mail address, but do lowercase it */
 	if (!mu_str_is_empty(contact->address)) {
-
 		char *escaped;
 		/* note: escaped is added to stringchunk, no need for
 		 * freeing */
-		escaped = mu_str_xapian_escape (contact->address,
-						FALSE /*dont esc space*/,
+		escaped = mu_str_xapian_escape (contact->address, FALSE,
 						msgdoc->_strchunk);
 		msgdoc->_doc->add_term
 			(std::string  (pfx + escaped, 0, MuStore::MAX_TERM_LENGTH));
+		add_address_subfields (*msgdoc->_doc, contact->address, pfx,
+				       msgdoc->_strchunk);
 
 		/* store it also in our contacts cache */
 		if (msgdoc->_store->contacts())
@@ -667,9 +709,33 @@ new_doc_from_message (MuStore *store, MuMsg *msg)
 	return doc;
 }
 
+static void
+update_threading_info (Xapian::WritableDatabase* db,
+		       MuMsg *msg, Xapian::Document& doc)
+{
+	const GSList *refs;
+
+	// refs contains a list of parent messages, with the oldest
+	// one first until the last one, which is the direct parent of
+	// the current message. of course, it may be empty.
+	//
+	// NOTE: there may be cases where the the list is truncated;
+	// we happily ignore that case.
+	refs  = mu_msg_get_references (msg);
+
+	std::string thread_id;
+	if (refs)
+		thread_id = mu_util_get_hash ((const char*)refs->data);
+	else
+		thread_id = mu_util_get_hash (mu_msg_get_msgid (msg));
+
+	doc.add_term (prefix(MU_MSG_FIELD_ID_THREAD_ID) + thread_id);
+	doc.add_value((Xapian::valueno)MU_MSG_FIELD_ID_THREAD_ID, thread_id);
+}
+
 
 unsigned
-mu_store_add_msg (MuStore *store, MuMsg *msg, GError **err)
+add_or_update_msg (MuStore *store, unsigned docid, MuMsg *msg, GError **err)
 {
 	g_return_val_if_fail (store, MU_STORE_INVALID_DOCID);
 	g_return_val_if_fail (msg, MU_STORE_INVALID_DOCID);
@@ -677,18 +743,23 @@ mu_store_add_msg (MuStore *store, MuMsg *msg, GError **err)
 	try {
 		Xapian::docid id;
 		Xapian::Document doc (new_doc_from_message(store, msg));
-		const std::string term (store->get_uid_term
-					(mu_msg_get_path(msg)));
+		const std::string term (store->get_uid_term (mu_msg_get_path(msg)));
 
 		if (!store->in_transaction())
 			store->begin_transaction();
 
 		doc.add_term (term);
 
-		// MU_WRITE_LOG ("adding: %s", term.c_str());
+		// update the threading info if this message has a message id
+		if (mu_msg_get_msgid (msg))
+			update_threading_info (store->db_writable(), msg, doc);
 
-		/* note, this will replace any other messages for this path */
-		id = store->db_writable()->replace_document (term, doc);
+		if (docid == 0)
+			id = store->db_writable()->replace_document (term, doc);
+		else {
+			store->db_writable()->replace_document (docid, doc);
+			id = docid;
+		}
 
 		if (store->inc_processed() % store->batch_size() == 0)
 			store->commit_transaction();
@@ -704,6 +775,16 @@ mu_store_add_msg (MuStore *store, MuMsg *msg, GError **err)
 }
 
 
+
+unsigned
+mu_store_add_msg (MuStore *store, MuMsg *msg, GError **err)
+{
+	g_return_val_if_fail (store, MU_STORE_INVALID_DOCID);
+	g_return_val_if_fail (msg, MU_STORE_INVALID_DOCID);
+
+	return add_or_update_msg (store, 0, msg, err);
+}
+
 unsigned
 mu_store_update_msg (MuStore *store, unsigned docid, MuMsg *msg, GError **err)
 {
@@ -711,32 +792,8 @@ mu_store_update_msg (MuStore *store, unsigned docid, MuMsg *msg, GError **err)
 	g_return_val_if_fail (msg, MU_STORE_INVALID_DOCID);
 	g_return_val_if_fail (docid != 0, MU_STORE_INVALID_DOCID);
 
-	try {
-		Xapian::Document doc (new_doc_from_message(store, msg));
-
-		if (!store->in_transaction())
-			store->begin_transaction();
-
-		const std::string term
-			(store->get_uid_term(mu_msg_get_path(msg)));
-		doc.add_term (term);
-
-		store->db_writable()->replace_document (docid, doc);
-
-		if (store->inc_processed() % store->batch_size() == 0)
-			store->commit_transaction();
-
-		return docid;
-
-	} MU_XAPIAN_CATCH_BLOCK_G_ERROR (err, MU_ERROR_XAPIAN_STORE_FAILED);
-
-	if (store->in_transaction())
-		store->rollback_transaction();
-
-	return MU_STORE_INVALID_DOCID;
+	return add_or_update_msg (store, docid, msg, err);
 }
-
-
 
 unsigned
 mu_store_add_path (MuStore *store, const char *path, const char *maildir,
@@ -752,7 +809,7 @@ mu_store_add_path (MuStore *store, const char *path, const char *maildir,
 	if (!msg)
 		return MU_STORE_INVALID_DOCID;
 
-	docid = mu_store_add_msg (store, msg, err);
+	docid = add_or_update_msg (store, 0, msg, err);
 	mu_msg_unref (msg);
 
 	return docid;

@@ -1,6 +1,6 @@
 /* -*-mode: c++; tab-width: 8; indent-tabs-mode: t; c-basic-offset: 8-*- */
 /*
-** Copyright (C) 2008-2011 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+** Copyright (C) 2008-2013 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 **
 ** This program is free software; you can redistribute it and/or modify it
 ** under the terms of the GNU General Public License as published by the
@@ -44,18 +44,13 @@
 
 
 // note: not re-entrant
-const char*
-_MuStore::get_uid_term (const char* path)
+std::string
+_MuStore::get_uid_term (const char* path) const
 {
-	// combination of DJB, BKDR hash functions to get a 64 bit
-	// value
-	unsigned djbhash, bkdrhash, bkdrseed;
-	unsigned u;
-
 	char real_path[PATH_MAX + 1];
-	static char hex[18];
-	static const char uid_prefix =
-		mu_msg_field_xapian_prefix(MU_MSG_FIELD_ID_UID);
+
+	static const std::string uid_prefix (
+		1, mu_msg_field_xapian_prefix(MU_MSG_FIELD_ID_UID));
 
 	/* check profile to see if realpath is expensive; we need
 	 * realpath here (and in mu-msg-file) to ensure that the same
@@ -66,19 +61,7 @@ _MuStore::get_uid_term (const char* path)
 	if (!realpath (path, real_path))
 		strcpy (real_path, path);
 
-	djbhash  = 5381;
-	bkdrhash = 0;
-	bkdrseed = 1313;
-
-	for(u = 0; real_path[u]; ++u) {
-		djbhash  = ((djbhash << 5) + djbhash) + real_path[u];
-		bkdrhash = bkdrhash * bkdrseed + real_path[u];
-	}
-
-	snprintf (hex, sizeof(hex), "%c%08x%08x",
-		  uid_prefix, djbhash, bkdrhash);
-
-	return hex;
+	return std::string (uid_prefix + mu_util_get_hash (real_path));
 }
 
 
@@ -101,7 +84,7 @@ mu_store_new_read_only (const char* xpath, GError **err)
 
 
 gboolean
-mu_store_is_read_only (MuStore *store)
+mu_store_is_read_only (const MuStore *store)
 {
 	g_return_val_if_fail (store, FALSE);
 
@@ -114,7 +97,7 @@ mu_store_is_read_only (MuStore *store)
 
 
 unsigned
-mu_store_count (MuStore *store, GError **err)
+mu_store_count (const MuStore *store, GError **err)
 {
 	g_return_val_if_fail (store, (unsigned)-1);
 
@@ -127,25 +110,25 @@ mu_store_count (MuStore *store, GError **err)
 
 
 const char*
-mu_store_version (MuStore *store)
+mu_store_version (const MuStore *store)
 {
 	g_return_val_if_fail (store, NULL);
-	return store->version ();
+	return store->version().c_str();
 }
 
 
 gboolean
-mu_store_needs_upgrade (MuStore *store)
+mu_store_versions_match (const MuStore *store)
 {
 	g_return_val_if_fail (store, TRUE);
 
-	return  (g_strcmp0 (mu_store_version (store),
-			    MU_STORE_SCHEMA_VERSION) == 0) ? FALSE : TRUE;
+	return g_strcmp0 (mu_store_version (store),
+			  MU_STORE_SCHEMA_VERSION) == 0;
 }
 
 
 char*
-mu_store_get_metadata (MuStore *store, const char *key, GError **err)
+mu_store_get_metadata (const MuStore *store, const char *key, GError **err)
 {
 	g_return_val_if_fail (store, NULL);
 	g_return_val_if_fail (key, NULL);
@@ -168,7 +151,7 @@ mu_store_get_read_only_database (MuStore *store)
 
 
 gboolean
-mu_store_contains_message (MuStore *store, const char* path, GError **err)
+mu_store_contains_message (const MuStore *store, const char* path, GError **err)
 {
 	g_return_val_if_fail (store, FALSE);
 	g_return_val_if_fail (path, FALSE);
@@ -183,7 +166,7 @@ mu_store_contains_message (MuStore *store, const char* path, GError **err)
 
 
 unsigned
-mu_store_get_docid_for_path (MuStore *store, const char* path, GError **err)
+mu_store_get_docid_for_path (const MuStore *store, const char* path, GError **err)
 {
 	g_return_val_if_fail (store, FALSE);
 	g_return_val_if_fail (path, FALSE);
@@ -209,7 +192,7 @@ mu_store_get_docid_for_path (MuStore *store, const char* path, GError **err)
 
 
 time_t
-mu_store_get_timestamp (MuStore *store, const char *msgpath, GError **err)
+mu_store_get_timestamp (const MuStore *store, const char *msgpath, GError **err)
 {
 	char *stampstr;
 	time_t rv;
@@ -265,7 +248,7 @@ mu_store_foreach (MuStore *self,
 
 
 MuMsg*
-mu_store_get_msg (MuStore *self, unsigned docid, GError **err)
+mu_store_get_msg (const MuStore *self, unsigned docid, GError **err)
 {
 	g_return_val_if_fail (self, NULL);
 	g_return_val_if_fail (docid != 0, NULL);

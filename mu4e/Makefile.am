@@ -1,4 +1,4 @@
-## Copyright (C) 2008-2012 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+## Copyright (C) 2008-2013 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 ##
 ## This program is free software; you can redistribute it and/or modify
 ## it under the terms of the GNU General Public License as published by
@@ -27,7 +27,9 @@ dist_lisp_LISP=			\
 	mu4e-about.el		\
 	mu4e-actions.el		\
 	mu4e-compose.el		\
+	mu4e-draft.el		\
 	mu4e-headers.el		\
+	mu4e-lists.el		\
 	mu4e-main.el		\
 	mu4e-mark.el		\
 	mu4e-message.el         \
@@ -39,9 +41,6 @@ dist_lisp_LISP=			\
 	mu4e-view.el		\
 	mu4e.el			\
 	org-mu4e.el
-
-# BUILT_SOURCES=			\
-# 	mu4e-about.el
 
 mu4e-about.el: mu4e-about.org
 	@echo ";; auto-generated"           >   mu4e-about.el

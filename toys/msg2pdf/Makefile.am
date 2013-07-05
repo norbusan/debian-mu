@@ -1,4 +1,4 @@
-## Copyright (C) 2012 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+## Copyright (C) 2012-2013 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 ##
 ## This program is free software; you can redistribute it and/or modify
 ## it under the terms of the GNU General Public License as published by
@@ -20,7 +20,7 @@ include $(top_srcdir)/gtest.mk
 SUBDIRS= .
 
 
-INCLUDES=-I${top_srcdir}/lib $(GTK_CFLAGS) $(WEBKIT_CFLAGS) -DICONDIR='"$(icondir)"'
+AM_CPPFLAGS=-I${top_srcdir}/lib $(GTK_CFLAGS) $(WEBKIT_CFLAGS) -DICONDIR='"$(icondir)"'
 
 # don't use -Werror, as it might break on other compilers
 # use -Wno-unused-parameters, because some callbacks may not

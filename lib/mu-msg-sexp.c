@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2011-2012 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+** Copyright (C) 2011-2013 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 **
 ** This program is free software; you can redistribute it and/or modify it
 ** under the terms of the GNU General Public License as published by the
@@ -345,8 +345,7 @@ append_sexp_parts (GString *gstr, MuMsg *msg, MuMsgOptions opts)
 
 	if (!mu_msg_part_foreach (msg, opts, (MuMsgPartForeachFunc)each_part,
 				  &pinfo)) {
-		/* if decryption failed, mark this message as encrypted */
-		g_string_append (gstr, "\t:encrypted t\n");
+		/* do nothing */
 	} else if (pinfo.parts) {
 		g_string_append_printf (gstr, "\t:parts (%s)\n", pinfo.parts);
 		g_free (pinfo.parts);
@@ -357,7 +356,7 @@ static void
 append_sexp_thread_info (GString *gstr, const MuMsgIterThreadInfo *ti)
 {
 	g_string_append_printf
-		(gstr, "\t:thread (:path \"%s\":level %u%s%s%s%s)\n",
+		(gstr, "\t:thread (:path \"%s\" :level %u%s%s%s%s)\n",
 		 ti->threadpath,
 		 ti->level,
 		 ti->prop & MU_MSG_ITER_THREAD_PROP_FIRST_CHILD  ?
@@ -420,6 +419,32 @@ append_sexp_date_and_size (GString *gstr, MuMsg *msg)
 }
 
 
+static void
+append_sexp_tags (GString *gstr, MuMsg *msg)
+{
+	const GSList *tags, *t;
+	gchar *tagesc;
+	GString *tagstr = g_string_new("");
+
+	tags = mu_msg_get_tags (msg);
+
+	for(t = tags; t; t = t->next) {
+		if (t != tags)
+			g_string_append(tagstr, " ");
+
+		tagesc = mu_str_escape_c_literal((const gchar *)t->data, TRUE);
+		g_string_append(tagstr, tagesc);
+
+		g_free(tagesc);
+	}
+
+	if (tagstr->len > 0)
+		g_string_append_printf (gstr, "\t:tags (%s)\n",
+					tagstr->str);
+	g_string_free (tagstr, TRUE);
+}
+
+
 char*
 mu_msg_to_sexp (MuMsg *msg, unsigned docid, const MuMsgIterThreadInfo *ti,
 		MuMsgOptions opts)
@@ -451,11 +476,14 @@ mu_msg_to_sexp (MuMsg *msg, unsigned docid, const MuMsgIterThreadInfo *ti,
 	append_sexp_date_and_size (gstr, msg);
 
 	append_sexp_attr (gstr, "message-id", mu_msg_get_msgid (msg));
+	append_sexp_attr (gstr, "mailing-list",
+			  mu_msg_get_mailing_list (msg));
 	append_sexp_attr (gstr, "path",	 mu_msg_get_path (msg));
 	append_sexp_attr (gstr, "maildir", mu_msg_get_maildir (msg));
 	g_string_append_printf (gstr, "\t:priority %s\n",
 				mu_msg_prio_name(mu_msg_get_prio(msg)));
 	append_sexp_flags (gstr, msg);
+	append_sexp_tags  (gstr, msg);
 
 	/* headers are retrieved from the database, views from the
 	 * message file file attr things can only be gotten from the

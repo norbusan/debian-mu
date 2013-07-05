@@ -1,6 +1,6 @@
 /* -*-mode: c; tab-width: 8; indent-tabs-mode: t; c-basic-offset: 8 -*-*/
 /*
-** Copyright (C) 2011-2012 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+** Copyright (C) 2011-2013 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 **
 ** This program is free software; you can redistribute it and/or modify it
 ** under the terms of the GNU General Public License as published by the
@@ -266,8 +266,9 @@ get_docid_from_msgid (MuQuery *query, const char *str, GError **err)
 	MuMsgIter *iter;
 
 	querystr = g_strdup_printf ("msgid:%s", str);
-	iter = mu_query_run (query, querystr, FALSE,
-			     MU_MSG_FIELD_ID_NONE, FALSE, 1, err);
+	iter = mu_query_run (query, querystr,
+			     MU_MSG_FIELD_ID_NONE,
+			     1, MU_QUERY_FLAG_NONE, err);
 	g_free (querystr);
 
 	docid = MU_STORE_INVALID_DOCID;
@@ -300,8 +301,8 @@ get_docids_from_msgids (MuQuery *query, const char *str, GError **err)
 	GSList *lst;
 
 	querystr = g_strdup_printf ("msgid:%s", str);
-	iter = mu_query_run (query, querystr, FALSE,
-			     MU_MSG_FIELD_ID_NONE, FALSE,-1 /*unlimited*/,
+	iter = mu_query_run (query, querystr, MU_MSG_FIELD_ID_NONE,
+			     -1 /*unlimited*/, MU_QUERY_FLAG_NONE,
 			     err);
 	g_free (querystr);
 
@@ -380,7 +381,6 @@ typedef struct _ServerContext ServerContext;
 
 typedef MuError (*CmdFunc) (ServerContext*,GSList*,GError**);
 
-
 /* 'add' adds a message to the database, and takes two parameters:
  * 'path', which is the full path to the message, and 'maildir', which
  * is the maildir this message lives in (e.g. "/inbox"). response with
@@ -392,6 +392,8 @@ cmd_add (ServerContext *ctx, GSList *args, GError **err)
 {
 	unsigned docid;
 	const char *maildir, *path;
+	MuMsg *msg;
+	gchar *sexp;
 
 	GET_STRING_OR_ERROR_RETURN (args, "path", &path, err);
 	GET_STRING_OR_ERROR_RETURN (args, "maildir", &maildir, err);
@@ -403,6 +405,16 @@ cmd_add (ServerContext *ctx, GSList *args, GError **err)
 		gchar *escpath;
 		escpath = mu_str_escape_c_literal (path, TRUE);
 		print_expr ("(:info add :path %s :docid %u)", escpath, docid);
+
+		msg = mu_store_get_msg (ctx->store, docid, err);
+		if (msg) {
+			sexp = mu_msg_to_sexp (msg, docid, NULL,
+					       MU_MSG_OPTION_VERIFY);
+			print_expr ("(:update %s :move nil)", sexp);
+
+			mu_msg_unref(msg);
+			g_free (sexp);
+		}
 		g_free (escpath);
 	}
 
@@ -640,7 +652,7 @@ cmd_contacts (ServerContext *ctx, GSList *args, GError **err)
 
 
 static unsigned
-print_sexps (MuMsgIter *iter, gboolean threads, unsigned maxnum)
+print_sexps (MuMsgIter *iter, unsigned maxnum)
 {
 	unsigned u;
 	u = 0;
@@ -653,8 +665,7 @@ print_sexps (MuMsgIter *iter, gboolean threads, unsigned maxnum)
 		if (mu_msg_is_readable (msg)) {
 			char *sexp;
 			const MuMsgIterThreadInfo* ti;
-
-			ti = threads ? mu_msg_iter_get_thread_info (iter) : NULL;
+			ti   = mu_msg_iter_get_thread_info (iter);
 			sexp = mu_msg_to_sexp (msg, mu_msg_iter_get_docid (iter),
 					       ti, MU_MSG_OPTION_HEADERS_ONLY);
 			print_expr ("%s", sexp);
@@ -830,18 +841,15 @@ cmd_extract (ServerContext *ctx, GSList *args, GError **err)
 
 /* parse the find parameters, and return the values as out params */
 static MuError
-get_find_params (GSList *args, gboolean *threads, MuMsgFieldId *sortfield,
-		 gboolean *reverse, int *maxnum, GError **err)
+get_find_params (GSList *args, MuMsgFieldId *sortfield,
+		 int *maxnum, MuQueryFlags *qflags, GError **err)
 {
 	const char *maxnumstr, *sortfieldstr;
 
-	/* maximum number of results */
-	maxnumstr = get_string_from_args (args, "maxnum", TRUE, NULL);
-	*maxnum = maxnumstr ? atoi (maxnumstr) : 0;
-
-	/* whether to show threads or not */
-	*threads = get_bool_from_args (args, "threads", TRUE, NULL);
-	*reverse = get_bool_from_args (args, "reverse", TRUE, NULL);
+	/* defaults */
+	*maxnum	   = 500;
+	*qflags	   = MU_QUERY_FLAG_NONE;
+	*sortfield = MU_MSG_FIELD_ID_NONE;
 
 	/* field to sort by */
 	sortfieldstr = get_string_from_args (args, "sortfield", TRUE, NULL);
@@ -850,11 +858,28 @@ get_find_params (GSList *args, gboolean *threads, MuMsgFieldId *sortfield,
 		/* note: shortcuts are not allowed here */
 		if (*sortfield == MU_MSG_FIELD_ID_NONE) {
 			mu_util_g_set_error (err, MU_ERROR_IN_PARAMETERS,
-				     "not a valid sort field: '%s'", sortfield);
+				     "not a valid sort field: '%s'",
+					     sortfield);
 			return MU_G_ERROR_CODE(err);
 		}
 	} else
 		*sortfield = MU_MSG_FIELD_ID_DATE;
+
+
+	/* maximum number of results */
+	maxnumstr = get_string_from_args (args, "maxnum", TRUE, NULL);
+	*maxnum = maxnumstr ? atoi (maxnumstr) : 0;
+
+	if (get_bool_from_args (args, "reverse", TRUE, NULL))
+		*qflags |= MU_QUERY_FLAG_DESCENDING;
+	if (get_bool_from_args (args, "skip-dups", TRUE, NULL))
+		*qflags |= MU_QUERY_FLAG_SKIP_DUPS;
+	if (get_bool_from_args (args, "include-related", TRUE, NULL))
+		*qflags |= MU_QUERY_FLAG_INCLUDE_RELATED;
+	if (get_bool_from_args (args, "include-related", TRUE, NULL))
+		*qflags |= MU_QUERY_FLAG_INCLUDE_RELATED;
+	if (get_bool_from_args (args, "threads", TRUE, NULL))
+		*qflags |= MU_QUERY_FLAG_THREADS;
 
 	return MU_OK;
 }
@@ -875,13 +900,13 @@ cmd_find (ServerContext *ctx, GSList *args, GError **err)
 	MuMsgIter *iter;
 	unsigned foundnum;
 	int maxnum;
-	gboolean threads, reverse;
 	MuMsgFieldId sortfield;
 	const char *querystr;
+	MuQueryFlags qflags;
 
 	GET_STRING_OR_ERROR_RETURN (args, "query", &querystr, err);
-	if (get_find_params (args, &threads, &sortfield,
-			     &reverse, &maxnum, err) != MU_OK) {
+	if (get_find_params (args, &sortfield, &maxnum, &qflags, err)
+	    != MU_OK) {
 		print_and_clear_g_error (err);
 		return MU_OK;
 	}
@@ -889,9 +914,9 @@ cmd_find (ServerContext *ctx, GSList *args, GError **err)
 	/* note: when we're threading, we get *all* matching messages,
 	 * and then only return maxnum; this is so that we maximimize
 	 * the change of all messages in a thread showing up */
-	iter = mu_query_run (ctx->query, querystr, threads,
-			     sortfield, reverse,
-			     threads ? -1 : maxnum, err);
+
+	iter = mu_query_run (ctx->query, querystr, sortfield,
+			     maxnum, qflags, err);
 	if (!iter) {
 		print_and_clear_g_error (err);
 		return MU_OK;
@@ -902,8 +927,7 @@ cmd_find (ServerContext *ctx, GSList *args, GError **err)
 	 * will ensure that the output of two finds will not be
 	 * mixed. */
 	print_expr ("(:erase t)");
-	foundnum = print_sexps (iter, threads,
-				maxnum > 0 ? maxnum : G_MAXINT32);
+	foundnum = print_sexps (iter, maxnum);
 	print_expr ("(:found %u)", foundnum);
 	mu_msg_iter_destroy (iter);
 
@@ -1288,12 +1312,13 @@ cmd_ping (ServerContext *ctx, GSList *args, GError **err)
 		return print_and_clear_g_error (err);
 
 	print_expr ("(:pong \"" PACKAGE_NAME "\" "
-		    " :props ("
-#ifdef BUILD_CRYPTO
-		    "  :crypto t "
-#endif /*BUILD_CRYPTO*/
+		    " :props (:crypto %s :guile %s "
 		    "  :version \"" VERSION "\" "
-		    "  :doccount %u))",doccount);
+		    "  :doccount %u))",
+		    mu_util_supports (MU_FEATURE_CRYPTO) ? "t" : "nil",
+		    mu_util_supports (MU_FEATURE_GUILE|MU_FEATURE_GNUPLOT)
+		    ? "t" : "nil",
+		    doccount);
 
 	return MU_OK;
 }

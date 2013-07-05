@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2011-2012 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+** Copyright (C) 2011-2013 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 **
 ** This program is free software; you can redistribute it and/or modify it
 ** under the terms of the GNU General Public License as published by the
@@ -296,8 +296,9 @@ SCM_DEFINE (get_contacts, "mu:c:get-contacts", 2, 0, 0,
 		else if (scm_is_eq (CONTACT_TYPE, SYMB_CONTACT_FROM))
 			ecdata.ctype = MU_MSG_CONTACT_TYPE_FROM;
 		else
-			/* FIXME: raise error */
-			g_return_val_if_reached (SCM_UNDEFINED);
+			return mu_guile_error (FUNC_NAME, 0,
+					       "invalid contact type",
+					       SCM_UNDEFINED);
 	}
 
 	ecdata.lst = SCM_EOL;
@@ -431,8 +432,8 @@ get_query_iter (MuQuery *query, const char* expr, int maxnum)
 	GError *err;
 
 	err = NULL;
-	iter = mu_query_run (query, expr,
-			     FALSE, MU_MSG_FIELD_ID_NONE, TRUE, maxnum, &err);
+	iter = mu_query_run (query, expr, MU_MSG_FIELD_ID_NONE, maxnum,
+			     MU_QUERY_FLAG_NONE, &err);
 	if (!iter) {
 		mu_guile_g_error ("<internal error>", err);
 		g_clear_error (&err);
@@ -472,7 +473,6 @@ SCM_DEFINE (for_each_message, "mu:c:for-each-message", 3, 0, 0,
 	iter = get_query_iter (mu_guile_instance()->query, expr,
 			       scm_to_int(MAXNUM));
 	free (expr);
-
 	if (!iter)
 		return SCM_UNSPECIFIED;
 
@@ -480,6 +480,8 @@ SCM_DEFINE (for_each_message, "mu:c:for-each-message", 3, 0, 0,
 		call_func (FUNC, iter, FUNC_NAME);
 		mu_msg_iter_next (iter);
 	}
+
+	mu_msg_iter_destroy (iter);
 
 	return SCM_UNSPECIFIED;
 }

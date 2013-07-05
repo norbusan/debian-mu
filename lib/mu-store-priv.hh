@@ -36,7 +36,7 @@
 
 class MuStoreError {
 public:
-	MuStoreError (MuError err, const std::string& what) :
+	MuStoreError (MuError err, const std::string& what):
 		_err (err), _what(what) {}
 	MuError mu_error () const { return _err; }
 	const std::string& what() const { return _what; }
@@ -79,10 +79,18 @@ public:
 
 		init (path, NULL, false, false);
 		_db = new Xapian::Database (path);
-		if (mu_store_needs_upgrade(this))
-			throw MuStoreError (MU_ERROR_XAPIAN_NOT_UP_TO_DATE,
-					    ("store needs an upgrade"));
 
+		if (!mu_store_versions_match(this)) {
+			char *errstr =
+				g_strdup_printf ("db version: %s, but we need %s; "
+						 "database rebuild is required",
+						 mu_store_version (this),
+						 MU_STORE_SCHEMA_VERSION);
+
+			MuStoreError exc (MU_ERROR_XAPIAN_VERSION_MISMATCH, errstr);
+			g_free (errstr);
+			throw exc;
+		}
 		MU_WRITE_LOG ("%s: opened %s read-only", __FUNCTION__, this->path());
 	}
 
@@ -97,7 +105,6 @@ public:
 		_processed	= 0;
 		_read_only      = read_only;
 		_ref_count      = 1;
-		_version        = NULL;
 	}
 
 	void set_my_addresses (const char **my_addresses) {
@@ -123,8 +130,8 @@ public:
 					       MU_STORE_SCHEMA_VERSION, NULL);
 		else if (g_strcmp0 (version, MU_STORE_SCHEMA_VERSION) != 0) {
 			g_free (version);
-			throw MuStoreError (MU_ERROR_XAPIAN_NOT_UP_TO_DATE,
-					    ("store needs an upgrade"));
+			throw MuStoreError (MU_ERROR_XAPIAN_VERSION_MISMATCH,
+					    "the database needs a rebuild");
 		} else
 			g_free (version);
 	}
@@ -133,8 +140,6 @@ public:
 		try {
 			if (_ref_count != 0)
 				g_warning ("ref count != 0");
-
-			g_free (_version);
 
 			mu_contacts_destroy (_contacts);
 			if (!_read_only)
@@ -165,16 +170,15 @@ public:
 			mu_contacts_clear (_contacts);
 	}
 
-	/* get a unique id for this message; note, this function returns a
-	 * static buffer -- not reentrant */
-	const char *get_uid_term (const char *path);
+	std::string get_uid_term (const char *path) const;
 
 	MuContacts* contacts() { return _contacts; }
 
-	const char* version ()  {
-		g_free (_version);
-		return _version = mu_store_get_metadata (this, MU_STORE_VERSION_KEY,
-							 NULL);
+	const std::string version () const {
+		char *v = mu_store_get_metadata (this, MU_STORE_VERSION_KEY, NULL);
+		_version = v;
+		g_free (v);
+		return _version;
 	}
 
 	void set_version (const char *version)  {
@@ -235,7 +239,7 @@ private:
 	MuContacts *_contacts;
 
 	std::string _path;
-	gchar *_version;
+	mutable std::string _version;
 
 	Xapian::Database *_db;
 	bool _read_only;

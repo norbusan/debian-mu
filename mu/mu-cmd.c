@@ -1,6 +1,6 @@
 /* -*-mode: c; tab-width: 8; indent-tabs-mode: t; c-basic-offset: 8 -*-*/
 /*
-** Copyright (C) 2010-2012 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+** Copyright (C) 2010-2013 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 **
 ** This program is free software; you can redistribute it and/or modify it
 ** under the terms of the GNU General Public License as published by the
@@ -516,12 +516,12 @@ mu_cmd_verify (MuConfig *opts, GError **err)
 MuError
 mu_cmd_verify (MuConfig *opts, GError **err)
 {
-	g_warning ("this version of mu does not support the 'verify' command");
+	mu_util_g_set_error (err, MU_ERROR_IN_PARAMETERS,
+			     "this mu does not support the "
+			     "'verify' command");
 	return MU_ERROR_IN_PARAMETERS;
 }
-
 #endif /*!BUILD_CRYPTO*/
-
 
 
 static void
@@ -529,7 +529,7 @@ show_usage (void)
 {
 	g_print ("usage: mu command [options] [parameters]\n");
 	g_print ("where command is one of index, find, cfind, view, mkdir, "
-		   "extract, add, remove, verify or server\n");
+		   "extract, add, remove, script, verify or server\n");
 	g_print ("see the mu, mu-<command> or mu-easy manpages for "
 		   "more information\n");
 }
@@ -593,9 +593,6 @@ set_log_options (MuConfig *opts)
 		logopts |= MU_LOG_OPTIONS_DEBUG;
 }
 
-
-
-
 MuError
 mu_cmd_execute (MuConfig *opts, GError **err)
 {
@@ -612,10 +609,11 @@ mu_cmd_execute (MuConfig *opts, GError **err)
 		/* already handled in mu-config.c */
 	case MU_CONFIG_CMD_HELP: return MU_OK;
 
-	case MU_CONFIG_CMD_CFIND:   merr = mu_cmd_cfind (opts, err);   break;
-	case MU_CONFIG_CMD_MKDIR:   merr = mu_cmd_mkdir (opts, err);   break;
-	case MU_CONFIG_CMD_VIEW:    merr = mu_cmd_view (opts, err);    break;
-	case MU_CONFIG_CMD_VERIFY:  merr = mu_cmd_verify (opts, err);  break;
+	case MU_CONFIG_CMD_CFIND:   merr = mu_cmd_cfind   (opts, err); break;
+	case MU_CONFIG_CMD_MKDIR:   merr = mu_cmd_mkdir   (opts, err); break;
+	case MU_CONFIG_CMD_SCRIPT:  merr = mu_cmd_script  (opts, err); break;
+	case MU_CONFIG_CMD_VIEW:    merr = mu_cmd_view    (opts, err); break;
+	case MU_CONFIG_CMD_VERIFY:  merr = mu_cmd_verify  (opts, err); break;
 	case MU_CONFIG_CMD_EXTRACT: merr = mu_cmd_extract (opts, err); break;
 
 	case MU_CONFIG_CMD_FIND:

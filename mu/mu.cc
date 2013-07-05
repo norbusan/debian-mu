@@ -1,7 +1,7 @@
 /* -*-mode: c++; tab-width: 8; indent-tabs-mode: t; c-basic-offset: 8-*- */
 
 /*
-** Copyright (C) 2008-2011 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+** Copyright (C) 2008-2013 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 **
 ** This program is free software; you can redistribute it and/or modify it
 ** under the terms of the GNU General Public License as published by the
@@ -37,7 +37,7 @@ show_version (void)
 {
 	const char* blurb =
 		"mu (mail indexer/searcher) version " VERSION "\n"
-		"Copyright (C) 2008-2012 Dirk-Jan C. Binnema\n"
+		"Copyright (C) 2008-2013 Dirk-Jan C. Binnema\n"
 		"License GPLv3+: GNU GPL version 3 or later "
 		"<http://gnu.org/licenses/gpl.html>.\n"
 		"This is free software: you are free to change "
@@ -49,30 +49,33 @@ show_version (void)
 
 
 static void
-handle_error (MuConfig *conf, GError *err)
+handle_error (MuConfig *conf, MuError merr, GError **err)
 {
-	if (!err)
-		return; /* nothing to do */
+	if (!(err && *err))
+		return;
 
-	switch (err->code) {
+	switch ((*err)->code) {
 	case MU_ERROR_XAPIAN_CANNOT_GET_WRITELOCK:
-		g_print ("maybe mu is already running?\n");
+		g_printerr ("maybe mu is already running?\n");
 		break;
 	case MU_ERROR_XAPIAN_CORRUPTION:
-	case MU_ERROR_XAPIAN_NOT_UP_TO_DATE:
-		g_print ("database needs update; try 'mu index --rebuild'\n");
+	case MU_ERROR_XAPIAN_VERSION_MISMATCH:
+		g_printerr ("database needs a rebuild; "
+			    "try 'mu index --rebuild'\n");
 		break;
 	case MU_ERROR_XAPIAN_IS_EMPTY:
-		g_print ("database is empty; try 'mu index'");
+		g_printerr ("database is empty; try 'mu index'");
 		break;
 	case MU_ERROR_IN_PARAMETERS:
-		if (mu_config_cmd_is_valid(conf->cmd))
+		if (conf && mu_config_cmd_is_valid(conf->cmd))
 			mu_config_show_help (conf->cmd);
 		break;
-	default:break; /* nothing to do */
+	default:
+		break; /* nothing to do */
 	}
 
-	g_warning ("%s", err->message);
+	if (*err)
+		g_printerr ("mu: %s\n", (*err)->message);
 }
 
 
@@ -86,12 +89,16 @@ main (int argc, char *argv[])
 	setlocale (LC_ALL, "");
 	g_type_init ();
 
-	conf = mu_config_init (&argc, &argv);
-	if (!conf)
-		return 1;
-	else if (conf->version) {
+	err = NULL;
+	rv  = MU_OK;
+
+	conf = mu_config_init (&argc, &argv, &err);
+	if (!conf) {
+		rv = err ? (MuError)err->code : MU_ERROR;
+		goto cleanup;
+	} else if (conf->version) {
 		show_version ();
-		return 0;
+		goto cleanup;
 	}
 
 	/* nothing to do */
@@ -103,12 +110,11 @@ main (int argc, char *argv[])
 		return 1;
 	}
 
-	err = NULL;
 	rv = mu_cmd_execute (conf, &err);
 
-	handle_error (conf, err);
+cleanup:
+	handle_error (conf, rv, &err);
 	g_clear_error (&err);
-
 
 	mu_config_uninit (conf);
 	mu_runtime_uninit ();

@@ -1,6 +1,6 @@
 #-*-mode:org-*-
 #
-# Copyright (C) 2012 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+# Copyright (C) 2012-2013 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -21,17 +21,24 @@
 #STRING
 mu add <file> [<files>]
 #STRING
-mu add is the command to add specific measage files to the
-database. Each of the files must be specified with an
-absolute path
+mu add is the command to add specific measage files to the database. Each of the
+files must be specified with an absolute path.
 #END
 
 #BEGIN MU_CONFIG_CMD_CFIND
 #STRING
-mu cfind [options] [<pattern>]
+mu cfind [options] [--format=<format>] [<pattern>]
 #STRING
 mu cfind is the mu command to find contacts in the mu database and export them
 for use in other programs.
+
+<format> is one of:
+ mutt-alias
+ mutt-ab
+ wl
+ csv
+ org-contact
+ bbdb
 #END
 
 #BEGIN MU_CONFIG_CMD_EXTRACT
@@ -48,14 +55,38 @@ mu find [options] <search expression>
 #STRING
 mu find is the mu command for searching e-mail message that were
 stored earlier using mu index(1).
-#END
 
+Some examples:
+ # get all messages with 'bananas' in body, subject or recipient fields:
+ $ mu find bananas
+
+ # get all messages regarding bananas from John with an attachment:
+ $ mu find from:john flag:attach bananas
+
+ # get all messages with subject wombat in June 2009
+ $ mu find subject:wombat date:20090601..20090630
+
+See the `mu-find' and `mu-easy' man-pages for more information.
+#END
 
 #BEGIN MU_CONFIG_CMD_HELP
 #STRING
 mu help <command>
 #STRING
-mu find is the mu command to get help about <command>.
+mu find is the mu command to get help about <command>, where <command>
+is one of:
+  add     - add message to database
+  cfind   - find a contact
+  extract - extract parts/attachments from messages
+  find    - query the message database
+  help    - get help
+  index   - index messages
+  mkdir   - create a maildir
+  remove  - remove a message from the database
+  script  - run a script (available only when mu was built with guile-support)
+  server  - start mu server
+  verify  - verify signatures of a message
+  view    - view a specific message
 #END
 
 #BEGIN MU_CONFIG_CMD_INDEX
@@ -93,6 +124,30 @@ manipulate the mu database.The output of the commands is terms
 of Lisp symbolic expressions (s-exps).mu server is not meant for
 use by humans; instead, it is designed specificallyfor the
 mu4e e-mail client.
+#END
+
+
+#BEGIN MU_CONFIG_CMD_SCRIPT
+#STRING
+mu script [--script=<script>] [<pattern>] [-v] -- [script-options]
+#STRING
+Without any parameter, list the available scripts. With <pattern>,
+list only those scripts whose name or one-line description matches it.
+With -v, give longer descriptions of each script.
+
+With --script=<script>, run the script whose name is <script>; pass
+any arguments to the script after the '--' double-dash.
+
+Some examples:
+List all available scripts (one-line descriptions):
+  $ mu script
+
+List all available scripts matching 'month' (long descriptions):
+  $ mu script -v month
+
+Run the 'msgs-per-month' script, and pass it the '--textonly' parameter:
+  $ mu script --script=msgs-per-month -- --textonly
+(as mentioned, parameters to the script follow the '--')
 #END
 
 

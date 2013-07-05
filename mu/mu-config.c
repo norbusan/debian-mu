@@ -1,7 +1,7 @@
 /* -*-Mode: c; tab-width: 8; indent-tabs-mode: t; c-basic-offset: 8 -*-*/
 
 /*
-** Copyright (C) 2008-2012 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+** Copyright (C) 2008-2013 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 **
 ** This program is free software; you can redistribute it and/or modify it
 ** under the terms of the GNU General Public License as published by the
@@ -95,7 +95,7 @@ config_options_group_mu (void)
 		 "print debug output to standard error (false)", NULL},
 		{"quiet", 'q', 0, G_OPTION_ARG_NONE, &MU_CONFIG.quiet,
 		 "don't give any progress information (false)", NULL},
-		{"version", 'v', 0, G_OPTION_ARG_NONE, &MU_CONFIG.version,
+		{"version", 0, 0, G_OPTION_ARG_NONE, &MU_CONFIG.version,
 		 "display version and copyright information (false)", NULL},
 		{"muhome", 0, 0, G_OPTION_ARG_FILENAME, &MU_CONFIG.muhome,
 		 "specify an alternative mu directory", "<dir>"},
@@ -213,6 +213,12 @@ config_options_group_find (void)
 		 "use a bookmarked query", "<bookmark>"},
 		{"reverse", 'z', 0, G_OPTION_ARG_NONE, &MU_CONFIG.reverse,
 		 "sort in reverse (descending) order (z -> a)", NULL},
+		{"skip-dups", 'u', 0, G_OPTION_ARG_NONE,
+		 &MU_CONFIG.skip_dups,
+		 "show only the first of messages duplicates (false)", NULL},
+		{"include-related", 'r', 0, G_OPTION_ARG_NONE,
+		 &MU_CONFIG.include_related,
+		 "include related messages in results (false)", NULL},
 		{"linksdir", 0, 0, G_OPTION_ARG_STRING, &MU_CONFIG.linksdir,
 		 "output as symbolic links to a target maildir", "<dir>"},
 		{"clearlinks", 0, 0, G_OPTION_ARG_NONE, &MU_CONFIG.clearlinks,
@@ -273,7 +279,7 @@ config_options_group_cfind (void)
 	GOptionGroup *og;
 	GOptionEntry entries[] = {
 		{"format", 'o', 0, G_OPTION_ARG_STRING, &MU_CONFIG.formatstr,
-		 "output format ('plain'(*), 'mutt', 'wanderlust',"
+		 "output format ('plain'(*), 'mutt', 'wl',"
 		 "'org-contact', 'csv')", "<format>"},
 		{"personal", 0, 0, G_OPTION_ARG_NONE, &MU_CONFIG.personal,
 		 "whether to only get 'personal' contacts", NULL},
@@ -288,6 +294,27 @@ config_options_group_cfind (void)
 
 	return og;
 }
+
+
+
+static GOptionGroup *
+config_options_group_script (void)
+{
+	GOptionGroup *og;
+	GOptionEntry entries[] = {
+		{"script", 0, 0, G_OPTION_ARG_STRING, &MU_CONFIG.script,
+		 "script to run (see `mu help script')", "<script>"},
+		{NULL, 0, 0, 0, NULL, NULL, NULL}
+	};
+
+	og = g_option_group_new("script", "Options for the 'script' command",
+				"", NULL, NULL);
+	g_option_group_add_entries(og, entries);
+
+	return og;
+}
+
+
 
 
 static void
@@ -428,17 +455,18 @@ cmd_from_string (const char *str)
 		const gchar*	name;
 		MuConfigCmd	cmd;
 	} cmd_map[] = {
-		{ "add",     MU_CONFIG_CMD_ADD },
-		{ "cfind",   MU_CONFIG_CMD_CFIND },
+		{ "add",     MU_CONFIG_CMD_ADD     },
+		{ "cfind",   MU_CONFIG_CMD_CFIND   },
 		{ "extract", MU_CONFIG_CMD_EXTRACT },
-		{ "find",    MU_CONFIG_CMD_FIND },
-		{ "help",    MU_CONFIG_CMD_HELP },
-		{ "index",   MU_CONFIG_CMD_INDEX },
-		{ "mkdir",   MU_CONFIG_CMD_MKDIR },
-		{ "remove",  MU_CONFIG_CMD_REMOVE },
-		{ "server",  MU_CONFIG_CMD_SERVER },
-		{ "verify",  MU_CONFIG_CMD_VERIFY },
-		{ "view",    MU_CONFIG_CMD_VIEW }
+		{ "find",    MU_CONFIG_CMD_FIND    },
+		{ "help",    MU_CONFIG_CMD_HELP    },
+		{ "index",   MU_CONFIG_CMD_INDEX   },
+		{ "mkdir",   MU_CONFIG_CMD_MKDIR   },
+		{ "remove",  MU_CONFIG_CMD_REMOVE  },
+		{ "script",  MU_CONFIG_CMD_SCRIPT   },
+		{ "server",  MU_CONFIG_CMD_SERVER  },
+		{ "verify",  MU_CONFIG_CMD_VERIFY  },
+		{ "view",    MU_CONFIG_CMD_VIEW    }
 	};
 
 	if (!str)
@@ -454,7 +482,7 @@ cmd_from_string (const char *str)
 
 
 static gboolean
-parse_cmd (int *argcp, char ***argvp)
+parse_cmd (int *argcp, char ***argvp, GError **err)
 {
 	MU_CONFIG.cmd	 = MU_CONFIG_CMD_NONE;
 	MU_CONFIG.cmdstr = NULL;
@@ -470,6 +498,23 @@ parse_cmd (int *argcp, char ***argvp)
 	MU_CONFIG.cmdstr = (*argvp)[1];
 	MU_CONFIG.cmd    = cmd_from_string (MU_CONFIG.cmdstr);
 
+#ifndef BUILD_GUILE
+	if (MU_CONFIG.cmd == MU_CONFIG_CMD_SCRIPT) {
+		mu_util_g_set_error (err, MU_ERROR_IN_PARAMETERS,
+				     "command 'script' not supported");
+		return FALSE;
+	}
+#endif /*!BUILD_GUILE*/
+
+#ifndef BUILD_CRYPTO
+	if (MU_CONFIG.cmd == MU_CONFIG_CMD_VERIFY) {
+		mu_util_g_set_error (err, MU_ERROR_IN_PARAMETERS,
+				     "command 'verify' not supported");
+		return FALSE;
+	}
+#endif /*!BUILD_CRYPTO */
+
+
 	return TRUE;
 }
 
@@ -478,22 +523,24 @@ static GOptionGroup*
 get_option_group (MuConfigCmd cmd)
 {
 	switch (cmd) {
-	case MU_CONFIG_CMD_INDEX:
-		return config_options_group_index();
-	case MU_CONFIG_CMD_FIND:
-		return config_options_group_find();
-	case MU_CONFIG_CMD_MKDIR:
-		return config_options_group_mkdir();
-	case MU_CONFIG_CMD_EXTRACT:
-		return config_options_group_extract();
 	case MU_CONFIG_CMD_CFIND:
 		return config_options_group_cfind();
-	case MU_CONFIG_CMD_VERIFY:
-		return config_options_group_verify ();
-	case MU_CONFIG_CMD_VIEW:
-		return config_options_group_view();
+	case MU_CONFIG_CMD_EXTRACT:
+		return config_options_group_extract();
+	case MU_CONFIG_CMD_FIND:
+		return config_options_group_find();
+	case MU_CONFIG_CMD_INDEX:
+		return config_options_group_index();
+	case MU_CONFIG_CMD_MKDIR:
+		return config_options_group_mkdir();
 	case MU_CONFIG_CMD_SERVER:
 		return config_options_group_server();
+	case MU_CONFIG_CMD_SCRIPT:
+		return config_options_group_script();
+	case MU_CONFIG_CMD_VERIFY:
+		return config_options_group_verify();
+	case MU_CONFIG_CMD_VIEW:
+		return config_options_group_view();
 	default:
 		return NULL; /* no group to add */
 	}
@@ -552,7 +599,7 @@ mu_config_show_help (MuConfigCmd cmd)
 
 	g_return_if_fail (mu_config_cmd_is_valid(cmd));
 
-	ctx = g_option_context_new ("");
+	ctx = g_option_context_new ("- mu help");
 	g_option_context_set_main_group	(ctx, config_options_group_mu());
 
 	group = get_option_group (cmd);
@@ -577,13 +624,18 @@ cmd_help (void)
 {
 	MuConfigCmd cmd;
 
-	cmd = cmd_from_string (MU_CONFIG.params[1]);
+	if (!MU_CONFIG.params)
+		cmd = MU_CONFIG_CMD_UNKNOWN;
+	else
+		cmd = cmd_from_string (MU_CONFIG.params[1]);
+
 	if (cmd == MU_CONFIG_CMD_UNKNOWN) {
 		mu_config_show_help (MU_CONFIG_CMD_HELP);
 		return TRUE;
 	}
 
 	mu_config_show_help (cmd);
+
 	return TRUE;
 }
 
@@ -598,58 +650,57 @@ show_usage (void)
 
 
 static gboolean
-parse_params (int *argcp, char ***argvp)
+parse_params (int *argcp, char ***argvp, GError **err)
 {
-	GError *err;
 	GOptionContext *context;
+	GOptionGroup *group;
 	gboolean rv;
 
 	context = g_option_context_new("- mu general options");
-	g_option_context_set_main_group(context, config_options_group_mu());
+
 	g_option_context_set_help_enabled (context, TRUE);
+	rv  = TRUE;
 
-	err = NULL;
+	g_option_context_set_main_group(context,
+					config_options_group_mu());
+	g_option_context_set_ignore_unknown_options (context, FALSE);
 
-	if (MU_CONFIG.cmd == MU_CONFIG_CMD_NONE) {
-		show_usage ();
-		return TRUE;
-	}
-
-	/* help is special */
-	if (MU_CONFIG.cmd == MU_CONFIG_CMD_HELP) {
-		rv = g_option_context_parse (context, argcp, argvp, &err) &&
+	switch (MU_CONFIG.cmd) {
+	case MU_CONFIG_CMD_NONE:
+		show_usage();
+		break;
+	case MU_CONFIG_CMD_HELP:
+		/* 'help' is special; sucks in the options of the
+		 * command after it */
+		rv = g_option_context_parse (context, argcp, argvp, err) &&
 			cmd_help ();
-	} else {
-		GOptionGroup *group;
+		break;
+	default:
 		group = get_option_group (MU_CONFIG.cmd);
 		if (group)
-			g_option_context_add_group(context, group);
-		rv = g_option_context_parse (context, argcp, argvp, &err);
+			g_option_context_add_group (context, group);
+
+		rv = g_option_context_parse (context, argcp, argvp, err);
+		break;
 	}
 
 	g_option_context_free (context);
-	if (!rv) {
-		g_printerr ("mu: error in options: %s\n",
-			    err ? err->message : "?");
-		g_clear_error (&err);
-		return FALSE;
-	}
 
-	return TRUE;
+	return rv ? TRUE : FALSE;
 }
 
 
 MuConfig*
-mu_config_init (int *argcp, char ***argvp)
+mu_config_init (int *argcp, char ***argvp, GError **err)
 {
 	g_return_val_if_fail (argcp && argvp, NULL);
 
 	memset (&MU_CONFIG, 0, sizeof(MU_CONFIG));
 
-	if (!parse_cmd (argcp, argvp))
+	if (!parse_cmd (argcp, argvp, err))
 		goto errexit;
 
-	if (!parse_params(argcp, argvp))
+	if (!parse_params(argcp, argvp, err))
 		goto errexit;
 
 	/* fill in the defaults if user did not specify */

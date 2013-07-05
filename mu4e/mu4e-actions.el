@@ -37,8 +37,8 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defun mu4e-action-count-lines (msg)
-  "Count the number of lines in the e-mail message. Works for
-headers view and message-view."
+  "Count the number of lines in the e-mail message.
+Works for headers view and message-view."
   (message "Number of lines: %s"
     (shell-command-to-string
       (concat "wc -l < " (shell-quote-argument (mu4e-message-field msg :path))))))
@@ -53,8 +53,8 @@ headers view and message-view."
   "Path to the msg2pdf toy.")
 
 (defun mu4e-action-view-as-pdf (msg)
-  "Convert the message to pdf, then show it. Works for the message
-view."
+  "Convert the message to pdf, then show it.
+Works for the message view."
   (unless (file-executable-p mu4e-msg2pdf)
     (mu4e-error "msg2pdf not found; please set `mu4e-msg2pdf'"))
   (let* ((pdf
@@ -74,8 +74,9 @@ view."
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defun mu4e-action-view-in-browser (msg)
-  "View the body of the message in a web browser. You can influence
-the browser to use with the variable `browse-url-generic-program'."
+  "View the body of the message in a web browser.
+You can influence the browser to use with the variable
+`browse-url-generic-program'."
   (let* ((html (mu4e-message-field msg :body-html))
 	  (txt (mu4e-message-field msg :body-txt))
 	  (tmpfile (format "%s%x.html" temporary-file-directory (random t))))
@@ -127,8 +128,8 @@ with `mu4e-compose-attach-captured-message'."
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defvar mu4e-org-contacts-file nil
-  "File to store contact information for org-contacts. Needed by
-  `mu4e-action-add-org-contact'.")
+  "File to store contact information for org-contacts.
+Needed by `mu4e-action-add-org-contact'.")
 
 (eval-when-compile ;; silence compiler warning about free variable
   (unless (require 'org-capture nil 'noerror)
@@ -166,6 +167,92 @@ store your org-contacts."
       (org-capture nil key))))
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defun mu4e-action-git-apply-patch (msg)
+  "Apply the git [patch] message."
+  (let ((path (read-directory-name "Target directory: " nil "~/" t) ))
+    (shell-command
+      (format "cd %s; git apply %s"
+	path
+	(mu4e-message-field msg :path)))))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defvar mu4e-action-tags-header "X-Keywords"
+  "Header where tags are stored. Used by `mu4e-action-retag-message'.
+   Make sure it is one of the headers mu recognizes for storing
+   tags: X-Keywords, X-Label, Keywords. Also note that changing
+   this setting on already tagged messages can lead to messages
+   with multiple tags headers.")
+
+(defun mu4e~contains-line-matching (regexp path)
+  "Determine whether the file at path contains a line matching
+   the given regexp."
+  (with-temp-buffer
+    (insert-file-contents path)
+    (save-excursion
+      (goto-char (point-min))
+      (if (re-search-forward regexp nil t)
+	t
+	nil))))
+
+(defun mu4e~replace-first-line-matching (regexp to-string path)
+  "Replace the first line in the file at path that matches regexp
+   with the string replace."
+  (with-temp-file path
+    (insert-file-contents path)
+    (save-excursion
+      (goto-char (point-min))
+      (if (re-search-forward regexp nil t)
+	(replace-match to-string nil nil)))))
+
+(defun mu4e-action-retag-message (msg &optional retag-arg)
+  "Change tags of a message. Example: +tag \"+long tag\" -oldtag
+   adds 'tag' and 'long tag', and removes oldtag."
+  (let* ((retag (or retag-arg (read-string "Tags: ")))
+	  (path (mu4e-message-field msg :path))
+	  (maildir (mu4e-message-field msg :maildir))
+	  (oldtags (mu4e-message-field msg :tags))
+	  (header  mu4e-action-tags-header)
+	  (sep     (cond ((string= header "Keywords") " ")
+		     ((string= header "X-Label") " ")
+		     ((string= header "X-Keywords") ", ")
+		     (t ", ")))
+	  (taglist (if oldtags (copy-sequence oldtags) '()))
+	  tagstr)
+    (dolist (tag (split-string-and-unquote retag) taglist)
+      (cond
+	((string-match "^\\+\\(.+\\)" tag)
+	  (setq taglist (push (match-string 1 tag) taglist)))
+	((string-match "^\\-\\(.+\\)" tag)
+	  (setq taglist (delete (match-string 1 tag) taglist)))
+	(t
+	  (setq taglist (push tag taglist)))))
+
+    (setq taglist (sort (delete-dups taglist) 'string<))
+    (setq tagstr (mapconcat 'identity taglist sep))
+
+    (setq tagstr (replace-regexp-in-string "[\\&]" "\\\\\\&" tagstr))
+    (setq tagstr (replace-regexp-in-string "[/]"   "\\&" tagstr))
+
+    (if (not (mu4e~contains-line-matching (concat header ":.*") path))
+      ;; Add tags header just before the content
+      (mu4e~replace-first-line-matching
+	"^$" (concat header ": " tagstr "\n") path)
+
+      ;; replaces keywords, restricted to the header
+      (mu4e~replace-first-line-matching
+	(concat header ":.*")
+	(concat header ": " tagstr)
+       path))
+
+    (mu4e-message (concat "tagging: " (mapconcat 'identity taglist ", ")))
+    (mu4e-refresh-message path maildir)))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 
 (provide 'mu4e-actions)

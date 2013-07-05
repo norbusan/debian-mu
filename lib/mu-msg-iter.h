@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2008-2012 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+** Copyright (C) 2008-2013 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 **
 ** This program is free software; you can redistribute it and/or modify
 ** it under the terms of the GNU General Public License as published by
@@ -37,26 +37,39 @@ struct _MuMsgIter;
 typedef struct _MuMsgIter MuMsgIter;
 
 
+enum _MuMsgIterFlags {
+	MU_MSG_ITER_FLAG_NONE                 = 0,
+	/* sort Z->A (only for threads) */
+	MU_MSG_ITER_FLAG_DESCENDING           = 1 << 0,
+	/* ignore results for which there is no existing
+	 * readable message-file? */
+	MU_MSG_ITER_FLAG_SKIP_UNREADABLE      = 1 << 1,
+	/* ignore duplicate messages? */
+	MU_MSG_ITER_FLAG_SKIP_DUPS            = 1 << 2,
+	/* calculate threads? */
+	MU_MSG_ITER_FLAG_THREADS              = 1 << 3
+};
+typedef unsigned MuMsgIterFlags;
+
 /**
  * create a new MuMsgIter -- basically, an iterator over the search
  * results
  *
  * @param enq a Xapian::Enquire* cast to XapianEnquire* (because this
  * is C, not C++),providing access to search results
- * @param batchsize how many results to retrieve at once
- * @param threads whether to calculate threads
- * @param sorting field when using threads; note, when 'threads' is
- * FALSE, this should be MU_MSG_FIELD_ID_NONE
- * @param if TRUE, revert the sorting order
- * @param err receives error information. if the error is MU_ERROR_XAPIAN_MODIFIED,
- * the database should be reloaded.
+ * @param maxnum the maximum number of results
+ * @param sortfield field to sort by
+ * @param flags flags for this iterator (see MsgIterFlags)
+
+ * @param err receives error information. if the error is
+ * MU_ERROR_XAPIAN_MODIFIED, the database should be reloaded.
  *
  * @return a new MuMsgIter, or NULL in case of error
  */
 MuMsgIter *mu_msg_iter_new (XapianEnquire *enq,
-			    size_t batchsize, gboolean threads,
-			    MuMsgFieldId threadsortfield,
-			    gboolean revert,
+			    size_t maxnum,
+			    MuMsgFieldId sortfield,
+			    MuMsgIterFlags flags,
 			    GError **err) G_GNUC_WARN_UNUSED_RESULT;
 
 /**
@@ -114,6 +127,18 @@ MuMsg* mu_msg_iter_get_msg_floating (MuMsgIter *iter)
 
 
 /**
+ * Provide a preferred_hash, which is a hashtable msgid->docid to
+ * indicate the messages which should /not/ be seen as duplicates.
+ *
+ * @param iter a valid MuMsgIter iterator
+ * @param preferred_hash a hashtable msgid->docid of message /not/ to
+ * mark as duplicates, or NULL
+ */
+void mu_msg_iter_set_preferred (MuMsgIter *iter, GHashTable *preferred_hash);
+
+
+
+/**
  * get the document id for the current message
  *
  * @param iter a valid MuMsgIter iterator
@@ -154,12 +179,53 @@ typedef struct _MuMsgIterThreadInfo MuMsgIterThreadInfo;
 /**
  * get a the MuMsgThreaderInfo struct for this message; this only
  * works when you created the mu-msg-iter with threading enabled
+ * (otherwise, return NULL)
  *
  * @param iter a valid MuMsgIter iterator
  *
  * @return an info struct
  */
 const MuMsgIterThreadInfo* mu_msg_iter_get_thread_info (MuMsgIter *iter);
+
+
+
+/**
+ * get the message-id for this message
+ *
+ * @param iter a valid MuMsgIter iterator
+ *
+ * @return the message-id; this only stays valid as long as the
+ * current iter stays valid.
+ */
+const char* mu_msg_iter_get_msgid (MuMsgIter *iter);
+
+/**
+ * get the list of references for this messages as a NULL-terminated
+ * string array
+ *
+ * @param iter a valid MuMsgIter iterator
+ *
+ * @return a NULL-terminated string array. free with g_strfreev when
+ * it's no longer needed.
+ */
+char** mu_msg_iter_get_refs (MuMsgIter *iter);
+
+
+/**
+ * get the thread-id for this message
+ *
+ * @param iter a valid MuMsgIter iterator
+ *
+ * @return the thread-id; this only stays valid as long as the
+ * current iter stays valid.
+ */
+const char* mu_msg_iter_get_thread_id (MuMsgIter *iter);
+
+
+
+
+
+
 
 /* FIXME */
 const char* mu_msg_iter_get_path (MuMsgIter *iter);

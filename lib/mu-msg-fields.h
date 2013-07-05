@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2008-2010 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+** Copyright (C) 2008-2013 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 **
 ** This program is free software; you can redistribute it and/or modify
 ** it under the terms of the GNU General Public License as published by
@@ -55,6 +55,11 @@ enum _MuMsgFieldId {
 	MU_MSG_FIELD_ID_PRIO,
 	MU_MSG_FIELD_ID_SIZE,
 
+	/* add new ones here... */
+	MU_MSG_FIELD_ID_MAILING_LIST, /* mailing list */
+	MU_MSG_FIELD_ID_THREAD_ID,
+
+
 	MU_MSG_FIELD_ID_NUM
 };
 typedef guint8 MuMsgFieldId;
@@ -62,6 +67,14 @@ typedef guint8 MuMsgFieldId;
 /* some specials... */
 static const MuMsgFieldId MU_MSG_FIELD_ID_NONE = (MuMsgFieldId)-1;
 #define MU_MSG_STRING_FIELD_ID_NUM (MU_MSG_FIELD_ID_UID + 1)
+
+/* this is a shortcut for To/From/Cc/Bcc in queries; handled specially
+ * in mu-query.cc and mu-str.c */
+#define MU_MSG_FIELD_PSEUDO_CONTACT "contact"
+
+/* this is a shortcut for To/Cc/Bcc in queries; handled specially in
+ * mu-query.cc and mu-str.c */
+#define MU_MSG_FIELD_PSEUDO_RECIP "recip"
 
 #define mu_msg_field_id_is_valid(MFID) \
 	((MFID) < MU_MSG_FIELD_ID_NUM)
@@ -218,20 +231,6 @@ gboolean mu_msg_field_xapian_value (MuMsgFieldId id) G_GNUC_PURE;
  * otherwise
  */
 gboolean mu_msg_field_uses_boolean_prefix (MuMsgFieldId id) G_GNUC_PURE;
-
-
-/**
- * wether this fields needs a prefix in queries -- ie,
- * 'msgid:<some-message-id>' will only match with the explicit prefix,
- * while 'subject:foo' will also match as just 'foo'. Used in
- * mu-query.cc
- *
- * @param id a MuMsgFieldId
- *
- * @return TRUE if this field only matches with a prefix, FALSE
- * otherwise
- */
-gboolean mu_msg_field_needs_prefix (MuMsgFieldId id) G_GNUC_PURE;
 
 
 /**

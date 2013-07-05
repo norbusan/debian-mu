@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2011-2012 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+** Copyright (C) 2011-2013 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 **
 ** This program is free software; you can redistribute it and/or modify it
 ** under the terms of the GNU General Public License as published by the
@@ -200,8 +200,8 @@ mu_container_remove_child (MuContainer *c, MuContainer *child)
 	g_return_val_if_fail (c, NULL);
 	g_return_val_if_fail (child, NULL);
 
-	g_assert (!child->child);
-	g_return_val_if_fail (!child->child, NULL);
+	/* g_assert (!child->child); */
+	/* g_return_val_if_fail (!child->child, NULL); */
 	g_return_val_if_fail (c != child, NULL);
 
 	c->child = mu_container_remove_sibling (c->child, child);
@@ -312,7 +312,7 @@ mu_container_from_list (GSList *lst)
 
 struct _SortFuncData {
 	MuMsgFieldId         mfid;
-	gboolean             revert;
+	gboolean             descending;
 	gpointer             user_data;
 };
 typedef struct _SortFuncData SortFuncData;
@@ -335,7 +335,7 @@ sort_func_wrapper (MuContainer *a, MuContainer *b, SortFuncData *data)
 	else if (!b1->msg)
 		return -1;
 
-	if (data->revert)
+	if (data->descending)
 		return mu_msg_cmp (b1->msg, a1->msg, data->mfid);
 	else
 		return mu_msg_cmp (a1->msg, b1->msg, data->mfid);
@@ -367,14 +367,14 @@ container_sort_real (MuContainer *c, SortFuncData *sfdata)
 
 
 MuContainer*
-mu_container_sort (MuContainer *c, MuMsgFieldId mfid, gboolean revert,
+mu_container_sort (MuContainer *c, MuMsgFieldId mfid, gboolean descending,
 		   gpointer user_data)
 {
 	SortFuncData sfdata;
 
-	sfdata.mfid	 = mfid;
-	sfdata.revert	 = revert;
-	sfdata.user_data = user_data;
+	sfdata.mfid	  = mfid;
+	sfdata.descending = descending;
+	sfdata.user_data  = user_data;
 
 	g_return_val_if_fail (c, NULL);
 	g_return_val_if_fail (mu_msg_field_id_is_valid(mfid), NULL);
@@ -432,8 +432,10 @@ mu_container_dump (MuContainer *c, gboolean recursive)
 	if (!recursive)
 		dump_container (c);
 	else
-		mu_container_foreach (c, (MuContainerForeachFunc)dump_container,
-				   NULL);
+		mu_container_foreach
+			(c,
+			 (MuContainerForeachFunc)dump_container,
+			 NULL);
 }
 
 
@@ -548,10 +550,10 @@ thread_info_destroy (MuMsgIterThreadInfo *ti)
 
 
 struct _ThreadInfo {
-	GHashTable		*hash;
-	const char*		 format;
+	GHashTable *hash;
+	const char *format;
 };
-typedef struct _ThreadInfo	 ThreadInfo;
+typedef struct _ThreadInfo ThreadInfo;
 
 
 static void
@@ -589,7 +591,7 @@ thread_segment_format_string (size_t matchnum)
 	/* get the number of digits needed in a hex-representation of
 	 * matchnum */
 	digitnum = (unsigned) (ceil (log(matchnum)/log(16)));
-	snprintf (frmt, sizeof(frmt),"%%0%ux", digitnum);
+	snprintf (frmt, sizeof(frmt), "%%0%ux", digitnum);
 
 	return frmt;
 }

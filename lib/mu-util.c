@@ -1,7 +1,7 @@
 /* -*-mode: c; tab-width: 8; indent-tabs-mode: t; c-basic-offset: 8 -*-*/
 /*
 **
-** Copyright (C) 2008-2011 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+** Copyright (C) 2008-2013 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 **
 ** This program is free software; you can redistribute it and/or modify
 ** it under the terms of the GNU General Public License as published by
@@ -24,9 +24,12 @@
 #endif /*HAVE_CONFIG_H*/
 
 #include "mu-util.h"
-
 #define _XOPEN_SOURCE 500
+
+#ifdef HAVE_WORDEXP_H
 #include <wordexp.h> /* for shell-style globbing */
+#endif /*HAVE_WORDEXP_H*/
+
 #include <stdlib.h>
 
 #include <string.h>
@@ -43,9 +46,11 @@
 
 #include <langinfo.h>
 
+
 static char*
 do_wordexp (const char *path)
 {
+#ifdef HAVE_WORDEXP_H
 	wordexp_t wexp;
 	char *dir;
 
@@ -69,10 +74,13 @@ do_wordexp (const char *path)
 #ifndef __APPLE__
 	wordfree (&wexp);
 #endif /*__APPLE__*/
-
 	return dir;
-}
 
+# else /*!HAVE_WORDEXP_H*/
+/* E.g. OpenBSD does not have wordexp.h, so we ignore it */
+	return path ? g_strdup (path) : NULL;
+#endif /*HAVE_WORDEXP_H*/
+}
 
 
 /* note, the g_debugs are commented out because this function may be
@@ -310,6 +318,44 @@ mu_util_is_local_file (const char* path)
 }
 
 
+gboolean
+mu_util_supports (MuFeature feature)
+{
+
+	/* check for Guile support */
+#ifndef BUILD_GUILE
+	if (feature & MU_FEATURE_GUILE)
+		return FALSE;
+#endif /*BUILD_GUILE*/
+
+	/* check for crypto support */
+#ifndef BUILD_CRYPTO
+	if (feature & MU_FEATURE_CRYPTO)
+		return FALSE;
+#endif /*BUILD_CRYPTO*/
+
+	/* check for Gnuplot */
+	if (feature & MU_FEATURE_GNUPLOT)
+		if (!mu_util_program_in_path ("gnuplot"))
+			return FALSE;
+
+	return TRUE;
+}
+
+
+gboolean
+mu_util_program_in_path (const char *prog)
+{
+	gchar *path;
+
+	g_return_val_if_fail (prog, FALSE);
+
+	path = g_find_program_in_path (prog);
+	g_free (path);
+
+	return (path != NULL) ? TRUE : FALSE;
+}
+
 
 
 gboolean
@@ -335,16 +381,19 @@ mu_util_play (const char *path, gboolean allow_local, gboolean allow_remote,
 #endif /*!__APPLE__*/
 	}
 
+	if (!mu_util_program_in_path (prog)) {
+		mu_util_g_set_error (err, MU_ERROR_FILE_CANNOT_EXECUTE,
+				     "cannot find '%s' in path", prog);
+		return FALSE;
+	}
+
 	argv[0] = prog;
 	argv[1] = path;
 	argv[2] = NULL;
 
 	err = NULL;
-	rv = g_spawn_async (NULL,
-			    (gchar**)&argv,
-			    NULL,
-			    G_SPAWN_SEARCH_PATH,
-			    NULL, NULL, NULL,
+	rv = g_spawn_async (NULL, (gchar**)&argv, NULL,
+			    G_SPAWN_SEARCH_PATH, NULL, NULL, NULL,
 			    err);
 	return rv;
 }
@@ -513,4 +562,28 @@ mu_util_read_password (const char *prompt)
 	}
 
 	return g_strdup (pass);
+}
+
+
+const char*
+mu_util_get_hash (const char* str)
+{
+	unsigned	djbhash, bkdrhash, bkdrseed;
+	unsigned	u;
+	static char	hex[18];
+
+	g_return_val_if_fail (str, NULL);
+
+	djbhash  = 5381;
+	bkdrhash = 0;
+	bkdrseed = 1313;
+
+	for(u = 0; str[u]; ++u) {
+		djbhash  = ((djbhash << 5) + djbhash) + str[u];
+		bkdrhash = bkdrhash * bkdrseed + str[u];
+	}
+
+	snprintf (hex, sizeof(hex), "%08x%08x", djbhash, bkdrhash);
+
+	return hex;
 }

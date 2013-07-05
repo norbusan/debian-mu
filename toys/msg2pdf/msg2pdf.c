@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2012 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+** Copyright (C) 2012-2013 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 **
 ** This program is free software; you can redistribute it and/or modify it
 ** under the terms of the GNU General Public License as published by the
@@ -131,7 +131,7 @@ generate_pdf (MuMsg *msg, const char *str, GError **err)
 	WebKitWebSettings *settings;
 	WebKitLoadStatus status;
 	time_t started;
-	const int max_time = 3; /* max two seconds to download stuff */
+	const int max_time = 3; /* max 3 seconds to download stuff */
 
 	settings = webkit_web_settings_new ();
 	g_object_set (G_OBJECT(settings),

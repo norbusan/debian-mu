@@ -32,8 +32,7 @@
 ;; internal vars
 
 (defvar mu4e~proc-buf nil
-  "Buffer (string) for data received from
-the backend.")
+  "Buffer (string) for data received from the backend.")
 (defconst mu4e~proc-name " *mu4e-proc*"
   "Name of the server process, buffer.")
 (defvar mu4e~proc-process nil
@@ -42,16 +41,16 @@ the backend.")
 ;; dealing with the length cookie that precedes expressions
 (defconst mu4e~cookie-pre "\376"
   "Each expression we get from the backend (mu server) starts with
-   a length cookie:
-   <`mu4e~cookie-pre'><length-in-hex><`mu4e~cookie-post'>.")
+a length cookie:
+  <`mu4e~cookie-pre'><length-in-hex><`mu4e~cookie-post'>.")
 (defconst mu4e~cookie-post "\377"
     "Each expression we get from the backend (mu server) starts with
-   a length cookie:
-   <`mu4e~cookie-pre'><length-in-hex><`mu4e~cookie-post'>.")
-(defconst mu4e~cookie-matcher-rx 
+a length cookie:
+  <`mu4e~cookie-pre'><length-in-hex><`mu4e~cookie-post'>.")
+(defconst mu4e~cookie-matcher-rx
   (purecopy (concat mu4e~cookie-pre "\\([[:xdigit:]]+\\)" mu4e~cookie-post))
-  "Regular expression matching the length cookie. Match 1 will be
-the length (in hex).")
+  "Regular expression matching the length cookie.
+Match 1 will be the length (in hex).")
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 
@@ -98,13 +97,13 @@ the length (in hex).")
     t))
 
 (defsubst mu4e~proc-eat-sexp-from-buf ()
-  "'Eat' the next s-expression from `mu4e~proc-buf'. Note: this is a string,
-not an emacs-buffer. `mu4e~proc-buf gets its contents from the
-mu-servers in the following form:
+  "'Eat' the next s-expression from `mu4e~proc-buf'.
+Note: this is a string, not an emacs-buffer. `mu4e~proc-buf gets
+its contents from the mu-servers in the following form:
    <`mu4e~cookie-pre'><length-in-hex><`mu4e~cookie-post'>
-Function returns this sexp, or nil if there was
-none. `mu4e~proc-buf' is updated as well, with all processed sexp
-data removed."
+Function returns this sexp, or nil if there was none.
+`mu4e~proc-buf' is updated as well, with all processed sexp data
+removed."
   (ignore-errors ;; the server may die in the middle...
     ;; mu4e~cookie-matcher-rx:
     ;;  (concat mu4e~cookie-pre "\\([[:xdigit:]]+\\)]" mu4e~cookie-post)
@@ -129,9 +128,9 @@ data removed."
 
 
 (defsubst mu4e~proc-filter (proc str)
-  "A process-filter for the 'mu server' output; it accumulates the
-strings into valid sexps by checking of the ';;eox' end-of-sexp
-marker, and then evaluating them.
+  "A process-filter for the 'mu server' output.
+It accumulates the strings into valid sexps by checking of the
+';;eox' end-of-sexp marker, and then evaluating them.
 
 The server output is as follows:
 
@@ -219,7 +218,8 @@ The server output is as follows:
 	      (plist-get sexp :props)))
 
 	  ;; received a contacts message
-	  ((plist-get sexp :contacts)
+	  ;; note: we use 'member', to match (:contacts nil)
+	  ((plist-member sexp :contacts)
 	    (funcall mu4e-contacts-func
 	      (plist-get sexp :contacts)))
 
@@ -257,7 +257,7 @@ The server output is as follows:
 	    (funcall mu4e-error-func
 	      (plist-get sexp :error)
 	      (plist-get sexp :message)))
-
+	  
 	  (t (mu4e-message "Unexpected data from server [%S]" sexp)))
 
 	(setq sexp (mu4e~proc-eat-sexp-from-buf))))))
@@ -267,8 +267,7 @@ The server output is as follows:
 ;;(defconst mu4e-xapian-empty 19 "Error code: xapian is empty/non-existent")
 
 (defun mu4e~proc-sentinel (proc msg)
-  "Function that will be called when the mu-server process
-terminates."
+  "Function that will be called when the mu-server process terminates."
   (let ((status (process-status proc)) (code (process-exit-status proc)))
     (setq mu4e~proc-process nil)
     (setq mu4e~proc-buf "") ;; clear any half-received sexps
@@ -284,6 +283,8 @@ terminates."
 	    (message nil)) ;; don't do anything
 	  ((eq code 11)
 	    (error "Database is locked by another process"))
+	  ((eq code 15)
+	    (error "Database needs upgrade; try `mu index --rebuild' from the command line"))
 	  ((eq code 19)
 	    (error "Database empty; try indexing some messages"))
 	  (t (error "mu server process ended with exit code %d" code))))
@@ -291,7 +292,8 @@ terminates."
 	(error "Something bad happened to the mu server process")))))
 
 (defsubst mu4e~proc-send-command (frm &rest args)
-  "Send as command to the mu server process; start the process if needed."
+  "Send as command to the mu server process.
+Start the process if needed."
   (unless (mu4e~proc-running-p)
     (mu4e~proc-start))
   (let ((cmd (apply 'format frm args)))
@@ -312,29 +314,47 @@ The results are reporter through either (:update ... ) or (:error)
 sexp, which are handled my `mu4e-error-func', respectively."
   (mu4e~proc-send-command "remove docid:%d" docid))
 
-(defun mu4e~proc-find (query threads sortfield revert maxnum)
-  "Start a database query for QUERY. If THREADS is non-nil, show
-results in threaded fasion, SORTFIELD is a symbol describing the
-field to sort by (or nil); see `mu4e~headers-sortfield-choices'. If
-REVERT is non-nil, sort Z->A instead of A->Z. MAXNUM determines the
-maximum number of results to return, or nil for 'unlimited'. For
-each result found, a function is called, depending on the kind of
+(defun mu4e~proc-escape-query (query)
+  "Escape the query QUERY for transport.
+In particular, backslashes and double-quotes."
+  (let ((esc (replace-regexp-in-string "\\\\" "\\\\\\\\" query)))
+    (replace-regexp-in-string "\"" "\\\\\"" esc)))
+
+(defun mu4e~proc-find (query threads sortfield sortdir maxnum skip-dups include-related)
+  "Start a database query for QUERY.
+If THREADS is non-nil, show results in threaded fasion, SORTFIELD
+is a symbol describing the field to sort by (or nil); see
+`mu4e~headers-sortfield-choices'. If SORT is `descending', sort
+Z->A, if it's `ascending', sort A->Z. MAXNUM determines the maximum
+number of results to return, or nil for 'unlimited'. If SKIP-DUPS
+is non-nil, show only one of duplicate messages (see
+`mu4e-headers-skip-duplicates').  If INCLUDE-RELATED is non-nil,
+include messages related to the messages matching the search
+query (see `mu4e-headers-include-related').
+
+For each
+result found, a function is called, depending on the kind of
 result. The variables `mu4e-error-func' contain the function that
 will be called for, resp., a message (header row) or an error."
   (mu4e~proc-send-command
-    "find query:\"%s\" threads:%s sortfield:%s reverse:%s maxnum:%d"
-    query
+    (concat
+      "find query:\"%s\" threads:%s sortfield:%s reverse:%s maxnum:%d "
+      "skip-dups:%s include-related:%s")
+    (mu4e~proc-escape-query query)
     (if threads "true" "false")
     ;; sortfield is e.g. ':subject'; this removes the ':'
     (if (null sortfield) "nil" (substring (symbol-name sortfield) 1))
-    (if revert "true" "false")
-    (if maxnum maxnum -1)))
+    ;; TODO: use ascending/descending in backend too (it's clearer than 'reverse'
+    (if (eq sortdir 'descending) "true" "false")
+    (if maxnum maxnum -1)
+    (if skip-dups "true" "false")
+    (if include-related "true" "false")))
 
 (defun mu4e~proc-move (docid-or-msgid &optional maildir flags)
-  "Move message identified by DOCID-OR-MSGID. At least one of
-  MAILDIR and FLAGS should be specified. Note, even if MAILDIR is
-  nil, this is still a move, since a change in flags still implies
-  a change in message filename.
+  "Move message identified by DOCID-OR-MSGID.
+At least one of MAILDIR and FLAGS should be specified. Note, even
+if MAILDIR is nil, this is still a move, since a change in flags
+still implies a change in message filename.
 
 MAILDIR (), optionally
 setting FLAGS (keyword argument :flags).  optionally setting FLAGS
@@ -376,8 +396,8 @@ or (:error ) sexp, which are handled my `mu4e-update-func' and
 
 (defun mu4e~proc-index (path my-addresses)
   "Update the message database for filesystem PATH, which should
-point to some maildir directory structure. MY-ADDRESSES is a
-list of my email addresses (see e.g. `mu4e-my-email-addresses')."
+point to some maildir directory structure. MY-ADDRESSES is a list
+of 'my' email addresses (see `mu4e-user-mail-address-list')."
   (let ((addrs
 	  (when my-addresses
 	    (mapconcat 'identity my-addresses ","))))
@@ -387,15 +407,17 @@ list of my email addresses (see e.g. `mu4e-my-email-addresses')."
       (mu4e~proc-send-command "index path:\"%s\"" path))))
 
 (defun mu4e~proc-add (path maildir)
-  "Add the message at PATH to the database, with MAILDIR set to the
-maildir this message resides in, e.g. '/drafts'; if this works, we
-will receive (:info add :path <path> :docid <docid>)."
+  "Add the message at PATH to the database.
+With MAILDIR set to the maildir this message resides in,
+e.g. '/drafts'; if this works, we will receive (:info add :path
+<path> :docid <docid>) as well as (:update <msg-sexp>)."
   (mu4e~proc-send-command "add path:\"%s\" maildir:\"%s\""
     path maildir))
 
 (defun mu4e~proc-sent (path maildir)
-  "Add the message at PATH to the database, with MAILDIR set to the
-maildir this message resides in, e.g. '/drafts'.
+  "Add the message at PATH to the database.
+With MAILDIR set to the maildir this message resides in,
+e.g. '/drafts'.
 
  if this works, we will receive (:info add :path <path> :docid
 <docid> :fcc <path>)."
@@ -408,7 +430,7 @@ maildir this message resides in, e.g. '/drafts'.
 message (ie, replying to, forwarding, editing) with DOCID or nil
 for type `new'.
 
-  The result will be delivered to the function registered as
+The result will be delivered to the function registered as
 `mu4e-compose-func'."
   (unless (member type '(forward reply edit new))
     (mu4e-error "Unsupported compose-type %S" type))
@@ -441,44 +463,43 @@ mean:
 		  docid partidx what
 		  (if param (format " param:\"%s\"" param) "")))
 	      (otherwise (mu4e-error "Unsupported action %S" action))))))
-    (mu4e~proc-send-command cmd)))
+    (mu4e~proc-send-command "%s" cmd)))
 
 
 (defun mu4e~proc-ping ()
-  "Sends a ping to the mu server, expecting a (:pong ...) in
-response."
+  "Sends a ping to the mu server, expecting a (:pong ...) in response."
   (mu4e~proc-send-command "ping"))
 
 (defun mu4e~proc-contacts (personal after)
-  "Sends the contacts command to the mu server, expecting
-a (:contacts (<list>)) in response. If PERSONAL is non-nil, only
-get personal contacts, if AFTER is non-nil, get only contacts
-seen AFTER (the time_t value)."
+  "Sends the contacts command to the mu server.
+A (:contacts (<list>)) is expected in response. If PERSONAL is
+non-nil, only get personal contacts, if AFTER is non-nil, get
+only contacts seen AFTER (the time_t value)."
   (mu4e~proc-send-command
     "contacts personal:%s after:%d"
     (if personal "true" "false")
     (or after 0)))
 
 (defun mu4e~proc-view (docid-or-msgid &optional images decrypt)
-  "Get one particular message based on its
-DOCID-OR-MSGID. Optionally, if IMAGES is non-nil, backend will any
-images attached to the message, and return them as temp files.  The
-result will be delivered to the function registered as
+  "Get one particular message based on its DOCID-OR-MSGID.
+Optionally, if IMAGES is non-nil, backend will any images
+attached to the message, and return them as temp files.
+The result will be delivered to the function registered as
 `mu4e-message-func'."
   (mu4e~proc-send-command
-    "view %s extract-images:%s extract-encrypted:%s"
+    "view %s extract-images:%s extract-encrypted:%s use-agent:true"
     (mu4e--docid-msgid-param docid-or-msgid)
     (if images "true" "false")
     (if decrypt "true" "false")))
 
 (defun mu4e~proc-view-path (path &optional images decrypt)
-  "View message at PATH (keyword
-argument). Optionally, if IMAGES is non-nil, backend will any
-images attached to the message, and return them as temp files.  The
+  "View message at PATH (keyword argument).
+Optionally, if IMAGES is non-nil, backend will any images
+attached to the message, and return them as temp files. The
 result will be delivered to the function registered as
 `mu4e-message-func'."
   (mu4e~proc-send-command
-    "view path:\"%s\" extract-images:%s extract-encrypted:%s"
+    "view path:\"%s\" extract-images:%s extract-encrypted:%s use-agent:true"
     path
     (if images "true" "false")
     (if decrypt "true" "false")))

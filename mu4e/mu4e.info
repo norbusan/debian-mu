@@ -1,6 +1,6 @@
 This is mu4e.info, produced by makeinfo version 4.13 from mu4e.texi.
 
-Copyright (C) 2012 Dirk-Jan C. Binnema
+Copyright (C) 2012, 2013 Dirk-Jan C. Binnema
 
      Permission is granted to copy, distribute and/or modify this
      document under the terms of the GNU Free Documentation License,
@@ -11,7 +11,7 @@ Copyright (C) 2012 Dirk-Jan C. Binnema
 
 INFO-DIR-SECTION Emacs
 START-INFO-DIR-ENTRY
-* mu4e: (mu4e).        An email client for emacs.
+* mu4e: (mu4e).        An email client for Emacs.
 END-INFO-DIR-ENTRY
 
 
@@ -22,11 +22,11 @@ mu4e manual
 
    Welcome to mu4e!
 
-   mu4e (mu-for-`emacs') is an e-mail client for GNU-Emacs version 23
-and later, built on top of the mu(1) e-mail search engine. mu4e is
+   mu4e (mu-for-emacs) is an e-mail client for GNU-Emacs version 23 and
+later, built on top of the mu(1) e-mail search engine. mu4e is
 optimized for fast handling of large amounts of e-mail.
 
-   Some of its key characteristics include:
+   Some of mu4e's highlights:
 
    * Fully search-based: there are no folders(2), only queries
 
@@ -44,18 +44,17 @@ optimized for fast handling of large amounts of e-mail.
 
    * Writing rich-text e-mails using org-mode
 
-   * Address auto-completion based on your messages
+   * Address auto-completion based on the contacts in your messages
 
-   * Extendable with your own code
+   * Extendable with your own snippets of elisp
 
    In this manual, we go through the installation of mu4e, do some basic
 configuration and explain its daily use. We also show you how you can
 customize mu4e for your needs.
 
    At the end of the manual, there are some example configurations, to
-get up to speed quickly - *note Example configurations::. There's also
-a section of *note FAQ::, which should help you with some common
-questions.
+get you up to speed quickly: *note Example configurations::. There's
+also an *note FAQ::, which should help you with some common questions.
 
 * Menu:
 
@@ -75,6 +74,7 @@ Appendices
 * Interaction with other tools:: mu4e and the rest of the world
 * Example configurations:: Some examples to set you up quickly
 * FAQ:: Common questions and answers
+* Tips and Tricks:: Useful tips
 * How it works:: Some notes about the implementation of mu4e
 * Logging and debugging:: How to debug problems in mu4e
 * GNU Free Documentation License::  The license of this manual
@@ -86,7 +86,8 @@ Appendices
    (2) that is, instead of folders, you can use queries that match all
 messages in a folder
 
-   (3) currently, the only exception to this is _sending mail_
+   (3) currently, the only exception to this is _sending mail_; there
+are solutions for that though - see the *note FAQ::
 
 
 File: mu4e.info,  Node: Introduction,  Next: Getting started,  Prev: Top,  Up: Top
@@ -184,16 +185,18 @@ File: mu4e.info,  Node: Becoming a mu4e user,  Prev: What mu4e does not do,  Up:
 
 If mu4e looks like something for you, give it a shot! We've been trying
 hard to make it as easy as possible to set up and use; and while you
-can use elisp is various places to augment mu4e, programming is by no
-mean required.
+can use elisp in various places to augment mu4e, a lot of knowledge
+about programming or elisp shouldn't be required.
 
    When you take mu4e into use, it's a good idea to subscribe to the
-mu/mu4e-mailing list(1). If you have suggestions for improvements or
-bug reports, please use the GitHub issues list(2). In bug reports,
-please clearly specify the versions of mu/mu4e and `emacs' you are
-using, as well as any other relevant details. If you are new to all
-this, the somewhat paternalistic _"How to ask questions the smart
-way"_(3) can be a good read.
+mu/mu4e-mailing list(1).
+
+   If you have suggestions for improvements or bug reports, please use
+the GitHub issues list(2). In bug reports, please clearly specify the
+versions of mu/mu4e and `emacs' you are using, as well as any other
+relevant details. If you are new to all this, the somewhat
+paternalistic _"How to ask questions the smart way"_(3) can be a good
+read.
 
    ---------- Footnotes ----------
 
@@ -235,10 +238,16 @@ File: mu4e.info,  Node: Requirements,  Next: Installation,  Up: Getting started
 
 mu/mu4e are known to work on a wide variety of Unix- and Unix-like
 systems, including many Linux distributions, MacOS and FreeBSD. `emacs'
-23 or 24 is required, as well as Xapian(1) and GMime(2). If you intend
-to compile yourself, you need to have the typical development tools,
-such as C and C++ compilers (both `gcc' and `clang' should work) and
-`make'.
+23 or 24 is required, as well as Xapian(1) and GMime(2).
+
+   mu has optional support the Guile 2.x (Scheme) programming language.
+There are also some GUI-tools, which require GTK+ and Webkit; either
+the GTK+2 or GTK+3-versions.
+
+   If you intend to compile it yourself, you need to have the typical
+development tools, such as C and C++ compilers (both `gcc' and `clang'
+should work), GNU Autotools and `make', and (if you use them) the
+development packages for GTK+, Webkit and Guile.
 
    ---------- Footnotes ----------
 
@@ -417,9 +426,7 @@ everything worked, by trying some command-line searches, for example
 
    which should list all messages that match hello. For more examples of
 searches, see *note Queries::, or check the mu-find and mu-easy man
-pages.
-
-   If all of this worked well, we are well on our way setting up mu;
+pages. If all of this worked well, we are well on our way setting up mu;
 the next step is to do some basic configuration for mu4e.
 
    ---------- Footnotes ----------
@@ -441,7 +448,12 @@ add to your `~/.emacs' (or its moral equivalent, such as
      (require 'mu4e)
 
    If `emacs' complains that it cannot find mu4e, check your
-`load-path'.
+`load-path' and make sure that mu4e's installation directory is part of
+it. If not, you can add it:
+
+     (add-to-list 'load-path MU4E-PATH)
+
+   with MU4E-PATH replaced with the actual path.
 
 
 File: mu4e.info,  Node: Folders,  Next: Retrieval and indexing,  Prev: Basic configuration,  Up: Getting started
@@ -479,15 +491,19 @@ As we have seen, we can do all of the mail retrieval _outside_ of
 `emacs'/mu4e. However, you can also do it from within mu4e. For that,
 set the variable `mu4e-get-mail-command' to the program or shell
 command you want to use for retrieving mail. You can then retrieve your
-e-mail from the *note Main view::. You can also set
+e-mail using `M-x mu4e-update-mail-and-index', or `C-S-u' in all
+mu4e-views.
+
+   If you don't have a specific command for getting mail, for example
+because you are running your own mail-server, you can set
 `mu4e-get-mail-command' to "true", in which case mu4e won't try to get
 new mail, but still re-index your messages.
 
-   You can also have this command run periodically in the background,
-by setting the variable `mu4e-update-interval' to the number of seconds
-between these updates. If set to `nil', it won't update at all. After
-you make changes to `mu4e-update-interval', mu4e must be restarted
-before the changes take effect.
+   You can also update your mail and index periodically in the
+background, by setting the variable `mu4e-update-interval' to the
+number of seconds between these updates. If set to `nil', it won't
+update at all. After you make changes to `mu4e-update-interval', mu4e
+must be restarted before the changes take effect.
 
    A simple setup could look something like:
 
@@ -610,7 +626,7 @@ File: mu4e.info,  Node: MV Overview,  Next: Basic actions,  Up: Main view
 
 The main view looks something like the following:
 
-    * mu4e - mu for emacs version x.x C
+    * mu4e - mu for emacs version x.x CG
 
       Basics
 
@@ -634,12 +650,16 @@ The main view looks something like the following:
             * [H]elp
             * [q]uit mu4e
 
-   If you see a C at the right-hand side of version x.x, your mu4e has
-support for decryption of encrypted messages, and verifying signatures.
-See *note Decryption:: and *note Verifying signatures:: in the *note
-Message view::.
+   In the example above, you can see the letters "CG", which indicate:
+   * C: support for decryption of encrypted messages, and verifying
+     signatures. See *note MSGV Crypto:: in the *note Message view::
+     for details.
 
-   Now, let's go through menu items, assuming the default key bindings.
+   * G: support for the Guile 2.0 programming language
+   Whether you see both, one or none of these letters depends on the
+way mu is built.
+
+   Let's walk through the menu.
 
 
 File: mu4e.info,  Node: Basic actions,  Next: MV Bookmarks,  Prev: MV Overview,  Up: Main view
@@ -688,7 +708,7 @@ Finally, there are some _Misc_ (miscellaneous) actions:
    * [U]pdate email & database executes the shell-command in the
      variable  `mu4e-get-mail-command', and afterwards updates the mu
      database; see *note Indexing your messages:: and *note Getting
-     mail:: for details
+     mail:: for details.
 
    * toggle [m]ail sending mode (direct) toggles between sending mail
      directly, and queuing it first (for example, when you are
@@ -728,18 +748,16 @@ File: mu4e.info,  Node: HV Overview,  Next: Keybindings,  Up: Headers view
 4.1 Overview
 ============
 
-An example headers view:
-
-  Date V            Flgs   From/To             Subject
-  2011-12-16 18:38  S      To Edmund Dantès    + Re: Extensions?
-  2011-12-16 21:44  S      Abbé Busoni             + Re: Extensions?
-  2011-12-17 03:14  SR     Pierre Morrel           + Re: Extensions?
-  2011-12-17 04:04  uN     Jacopo                    + Re: Extensions?
-  2011-12-17 14:36  uN     Mercédès                    + Re: Extensions?
-  2011-12-18 06:05  uN     Beachamp                      \ Re: Extensions?
-  2011-12-16 18:23  Ss     Albert de Moncerf   + Re: [O] A cool tool
-  2011-12-17 01:53  Sa     Gaspard Caderousse    \ Re: [O] A cool tool
-  2011-12-16 16:31  uN     Baron Danglars      | [O] imaxima?
+An example headers view: Date V       Flgs  From/To             List       Subject
+06:32        Nu    To Edmund Dantès    GstDev       + Re: Gstreamer-V4L...
+15:08        Nu    Abbé Busoni         GstDev         + Re: Gstreamer-V...
+18:20        Nu    Pierre Morrel       GstDev           \ Re: Gstreamer...
+2013-03-18   S     Jacopo              EmacsUsr   + emacs server on win...
+2013-03-18   S     Mercédès            EmacsUsr     \ RE: emacs server ...
+2013-03-18   S     Beachamp            EmacsUsr   + Re: Copying a whole...
+22:07        Nu    Albert de Moncerf   EmacsUsr     \ Re: Copying a who...
+2013-03-18   S     Gaspard Caderousse  GstDev     | Issue with GESSimpl...
+2013-03-18   Ss    Baron Danglars      GuileUsr   | Guile-SDL 0.4.2 ava...
 End of search results
 
    Some notes to explain what you see in the example:
@@ -747,6 +765,17 @@ End of search results
    * The fields shown in the headers view can be influenced by
      customizing the variable `mu4e-headers-fields'; see
      `mu4e-header-info' for the list of available fields.
+
+   * By default, the date is shown with the :human-date field, which
+     shows the _time_ for today's messages, and the _date_ for older
+     messages. If you want to distinguish between 'today' and 'older',
+     you can use the :date field instead.
+
+   * You can customize the date and time formats with the variable
+     `mu4e-headers-date-format' and `mu4e-headers-time-format',
+     respectively. In the example, we use `:human-date', which shows
+     when the time when the message was sent today, and the date
+     otherwise.
 
    * The header field used for sorting is indicated by "V" or "^"(1),
      indicating the sort order (descending or ascending, respectively).
@@ -759,19 +788,26 @@ End of search results
      From: _except_ when the e-mail was sent by the user (i.e., you) -
      in that case it shows To: (prefixed by To(2), as in the example
      above). To determine whether a message was sent by you, mu4e uses
-     the variable `mu4e-user-mail-address-regexp', a regular expression
-     matching all your e-mail addresses.
+     the variable `mu4e-user-mail-address-list', a list of your e-mail
+     addresses.
+
+   * The 'List' field shows the mailing-list a message is sent to;
+     `mu4e' tries to create a convenient shortcut for the mailing-list
+     name; the variable `mu4e-user-mailing-lists' can be used to add
+     your own shortcuts.
 
    * The letters in the 'Flags' field correspond to the following:
-     D=_draft_, F=_flagged_, N=_new_, P=_passed_ (i.e.., forwarded),
-     R=_replied_, S=_seen_, T=_trashed_, a=_has-attachment_,
-     x=_encrypted_, s=_signed_, u=_unread_. The tooltip for this field
-     also contains this information.
-
-   * You can customize the date format with the variable
-     mu4e-headers-date-format
+     D=_draft_, F=_flagged_ (i.e., 'starred'), N=_new_, P=_passed_
+     (i.e., forwarded), R=_replied_, S=_seen_, T=_trashed_,
+     a=_has-attachment_, x=_encrypted_, s=_signed_, u=_unread_. The
+     tooltip for this field also contains this information.
 
    * The subject field also indicates the discussion threads (3).
+
+   * The headers view is _automatically updated_ if any changes are
+     found during the indexing process, and if there is not current
+     user-interaction. If you do not want such automatic updates, set
+     `mu4e-headers-auto-update' to `nil'.
 
    ---------- Footnotes ----------
 
@@ -814,7 +850,8 @@ M-right      next query
 O            change sort order
 P            toggle threading
 Q            toggle full-search
-
+V            toggle skip-duplicates
+W            toggle include-related
 
 marking
 -------
@@ -848,6 +885,7 @@ a            execute some custom action on a header
 |            pipe message through shell command
 C-+,C--      increase / decrease the number of headers shown
 H            get help
+C-S-u        update mail & reindex
 q,z          leave the headers buffer
 
 
@@ -1029,6 +1067,11 @@ An example message view:
 
    * For search-related operations, see *note Searching::.
 
+   * You can scroll down the message using <SPC>; if you do this at the
+     end of a message,it automatically takes you to the next one. If
+     you want to prevent this behavior, set `mu4e-view-scroll-to-next'
+     to `nil'.
+
 
 File: mu4e.info,  Node: MSGV Keybindings,  Next: Opening and saving attachments,  Prev: MSGV Overview,  Up: Message view
 
@@ -1045,6 +1088,8 @@ y            select the headers view (if it's visible)
 
 RET          scroll down
 M-RET        open URL at point / attachment at point
+
+SPC          scroll down, if at end, move to next message
 
 searching
 ---------
@@ -1105,6 +1150,7 @@ v            show details about the cryptographic signature
 .            show the raw message view. 'q' takes you back.
 C-+,C--      increase / decrease the number of headers shown
 H            get help
+C-S-u        update mail & reindex
 q,z          leave the message view
 
    For the marking commands, please refer to *note Marking messages::.
@@ -1224,19 +1270,26 @@ your outgoing messages, see *note Signing and encrypting::.
 
    Currently, only PGP/MIME is supported; PGP-inline and S/MIME are not.
 
+   For all of this to work, `gpg-agent' must be running, and it must set
+the environment variable GPG_AGENT_INFO. You can check from `emacs'
+with <M-x getenv GPG_AGENT_INFO>.
+
+   In many mainstream Linux/Unix desktop environments, everything works
+out-of-the-box, but if your environment does not automatically start
+`gpg-agent', you can do so by hand:
+$ eval $(gpg-agent --daemon)
+
+This starts the daemon, and sets the environment variable.
+
 5.6.1 Decryption
 ----------------
 
 If you receive messages that are encrypted (using PGP/MIME), mu4e can
-try to decrypt them. For this, gnupg-agent must be running; in many
-mainstream Linux/Unix desktop environments this should work
-automatically.
-
-   You can influence how mu4e deals with encrypted messages using
-`mu4e-decryption-policy'. If you set it to t, mu4e attempts to decrypt
-messages automatically; this is the default. If you set it to nil, mu4e
-_won't_ attempt to decrypt anything. Finally, if you set it to 'ask, it
-asks you what to do, each time an encrypted message is encountered.
+try to decrypt them, base on the setting of `mu4e-decryption-policy'.
+If you set it to t, mu4e attempts to decrypt messages automatically;
+this is the default. If you set it to nil, mu4e _won't_ attempt to
+decrypt anything. Finally, if you set it to 'ask, it asks you what to
+do, each time an encrypted message is encountered.
 
    When opening an encrypted message, mu consults gpg-agent to see if it
 already has unlocked the key needed to decrypt the message; if not, it
@@ -1364,6 +1417,9 @@ C-c C-d      save to drafts and leave
 C-c C-k      kill the message
 C-c C-a      attach a file (pro-tip: drag & drop works as well)
 
+(mu4e-specific)
+C-S-u        update mail & reindex
+
 
 File: mu4e.info,  Node: Address autocompletion,  Next: Compose hooks,  Prev: Useful keybindings,  Up: Editor view
 
@@ -1397,9 +1453,9 @@ are available for tuning this:
      messages in which one of my e-mail addresses was seen in one of
      the address fields. This is to exclude mailing list posts. You can
      define what is considered 'my e-mail address' using
-     `mu4e-my-email-addresses', a list of e-mail address (defaults to
-     `user-mail-address', and when indexing from the command line, the
-     -my-address parameter for mu index.
+     `mu4e-user-mail-address-list', a list of e-mail address (defaults
+     to `user-mail-address', and when indexing from the command line,
+     the -my-address parameter for mu index.
 
    * `mu4e-compose-complete-only-after' - only consider e-mail
      addresses last seen after some date. Parameter is a string,
@@ -1437,7 +1493,7 @@ offers two hooks:
      good place for editing-related settings.
      `mu4e-compose-parent-message' (see above) is also at your disposal.
 
-Let's look at some examples. First, let's suppose we want to set the
+Let's look at some examples. First, suppose we want to set the
 From:-address for a reply message based on the receiver of the original:
      ;; 1) messages to me@foo.com should be replied with From:me@foo.com
      ;; 2) messages to me@bar.com should be replied with From:me@bar.com
@@ -1445,14 +1501,14 @@ From:-address for a reply message based on the receiver of the original:
      (add-hook 'mu4e-compose-pre-hook
        (defun my-set-from-address ()
          "Set the From address based on the To address of the original."
-         (let ((msg mu4e-compose-parent-message) ;; msg is shorter...
+         (let ((msg mu4e-compose-parent-message)) ;; msg is shorter...
            (setq user-mail-address
      	(cond
-               ((mu4e-contact-field-matches msg :to "me@foo.com")
+               ((mu4e-message-contact-field-matches msg :to "me@foo.com")
                 "me@foo.com")
-               ((mu4e-contact-field-matches msg :to "me@bar.com")
+               ((mu4e-message-contact-field-matches msg :to "me@bar.com")
                 "me@bar.com")
-     	  (t "me@cuux.com")))))))
+     	  (t "me@cuux.com"))))))
 
    Second, as mentioned, `mu4e-compose-mode-hook' is especially useful
 for editing-related settings. For example:
@@ -1470,7 +1526,7 @@ add a Bcc:-header, you could add something like the following, using
      (add-hook 'mu4e-compose-mode-hook
        (defun my-add-bcc ()
          "Add a Bcc: header."
-         (message-add-header "Bcc: me@example.com\n")))
+         (save-excursion (message-add-header "Bcc: me@example.com\n"))))
 
 For a more general discussion about extending mu4e, see *note Extending
 mu4e::.
@@ -1552,10 +1608,10 @@ mu4e is fully search-based: even if you 'jump to a folder', you are
 executing a query for messages that happen to have the property of
 being in a certain folder.
 
-   By default, queries return up to `mu4e-search-results-limit'
-(default: 500) results. That is usually more than enough, and makes
-things significantly faster. Sometimes, however, you may want to show
-_all_ results; you can enable this with `M-x
+   Normally, queries return up to `mu4e-headers-results-limit' (default:
+500) results. That is usually more than enough, and makes things
+significantly faster. Sometimes, however, you may want to show _all_
+results; you can enable this with `M-x
 mu4e-headers-toggle-full-search', or by customizing the variable
 `mu4e-headers-full-search'. This applies to all search commands.
 
@@ -1601,6 +1657,10 @@ flag:signed prio:high
 # get all messages from Jim without an attachment:
 from:jim AND NOT flag:attach
 
+# get all message with Alice in one of the contacts fields (to, from, cc,
+# bcc):
+contact:alice
+
 # get all unread messages where the subject mentions Angstrom:
 # (search is case-insensitive and accent-insensitive)
 subject:angstrom flag:unread
@@ -1614,7 +1674,10 @@ date:today..now
 # get all messages we got in the last two weeks regarding emacs:
 date:2w..now emacs
 
-# get mails with a subject soccer, Socrates, society...:
+# get messages from the the Mu mailing list:
+mu find list:mu-discuss.googlegroups.com
+
+# get messages with a subject soccer, Socrates, society...:
 subject:soc*
 # note: the '*' wildcard can only appear as the term's rightmost character
 
@@ -1627,7 +1690,8 @@ mime:application/pdf
 
 # get all messages with image attachments:
 mime:image/*
-# note: the '*' wildcard can only appear as the term's rightmost character
+# note: the '*' wildcard can only appear as the term's @emph{rightmost}
+# character
 
    ---------- Footnotes ----------
 
@@ -1770,19 +1834,42 @@ clauses to the current query to match fewer messages.
 perhaps by jumping to a maildir (`M-x mu4e-headers-jump-to-maildir',
 <j>) or because you followed some bookmark (`M-x
 mu4e-headers-search-bookmark', <b>). Now, you want to narrow things
-down to only those messages that have attachments.
-
-   This is when `M-x mu4e-headers-search-narrow' (</>) comes in handy.
-It asks for an additional search pattern, which is appended to the
-current search query, in effect getting you the subset of the currently
-shown headers that also match this extra search pattern. <\> takes you
-back to the previous query, so, effectively 'widens' the search.
-Technically, narrowing the results of query x with expression y implies
-doing a search (x) AND y.
+down to only those messages that have attachments.  1 This is when `M-x
+mu4e-headers-search-narrow' (</>) comes in handy. It asks for an
+additional search pattern, which is appended to the current search
+query, in effect getting you the subset of the currently shown headers
+that also match this extra search pattern. <\> takes you back to the
+previous query, so, effectively 'widens' the search. Technically,
+narrowing the results of query x with expression y implies doing a
+search (x) AND y.
 
    Note, messages that were not in your in your original search results
-because of `mu4e-search-results-limit', may show up in the narrowed
+because of `mu4e-headers-results-limit', may show up in the narrowed
 query.
+
+7.4.3 Including related messages
+--------------------------------
+
+It can be useful to not only show the messages that directly match a
+certain query, but also include messages that are related to these
+messages. That is, messages that belong to the same discussion thread
+are included in the results, just like e.g. Gmail does it. You can
+enable this behavior by setting `mu4e-headers-include-related' to `t',
+and you can toggle between including/not-including with <W>.
+
+7.4.4 Skipping duplicates
+-------------------------
+
+Another useful features is skipping duplicate messages. When you have
+copies of messages, there's usually little value in including more than
+one in search results. A common reason for having multiple copies of
+messages in the combination of Gmail and offlineimap, since that is the
+way the labels / virtual folders in Gmail are represented. You can
+enable skipping duplicates by setting `mu4e-headers-skip-duplicates' to
+`t', and you can toggle between the skipping/not skipping with <V>.
+
+   Note, messages are considered duplicates when they have the same
+Message-Id.
 
 
 File: mu4e.info,  Node: Marking,  Next: Dynamic folders,  Prev: Searching,  Up: Top
@@ -1839,7 +1926,7 @@ apply to messages:
  --------------+-------------+--------------------------
   'something'  | <insert>    | mark now, decide later
   delete       | D, <delete> | delete
-  flag         | +           | mark as 'flagged'
+  flag         | +           | mark as 'flagged' (``starred'')
   move         | m           | move to some maildir
   read         | !           | mark as read
   refile       | r           | mark for refiling
@@ -1926,7 +2013,7 @@ view::.
      should be unique. If necessary, simply prefix the name with a
      unique character.
 
-  2. a predicate function, taking two arguments MSG and PARAM. MSG is
+  2. a predicate function, taking two arguments MSG and PARAM.  MSG is
      the message plist (see *note Message functions:: and PARAM is a
      parameter provided by the third of the marker elements (see the
      next item). The predicate function should return non-nil if the
@@ -2010,13 +2097,19 @@ folder for the particular message. An example should clarify this:
              "mu-discuss@googlegroups.com")
            	"/mu")
            ;; messages sent directly to me go to /archive
-           ;; also `mu4e-user-mail-address-regexp' can be used
+           ;; also `mu4e-user-mail-address-p' can be used
            ((mu4e-message-contact-field-matches msg :to "me@example.com")
              "/private")
            ;; messages with football or soccer in the subject go to /football
            ((string-match "football\\|soccer"
              (mu4e-message-field msg :subject))
              "/football")
+           ;; messages sent by me go to the sent folder
+           ((find-if
+     	 (lambda (addr)
+     	   (mu4e-message-contact-field-matches msg :from addr))
+     	 mu4e-user-mail-address-list)
+     	mu4e-sent-folder)
            ;; everything else goes to /archive
            ;; important to have a catch-all at the end!
            (t  "/archive"))))
@@ -2341,6 +2434,9 @@ see their docstrings for the details:
 
    * `mu4e-running-p': return `t' if the mu4e process is running, `nil'
      otherwise.
+
+   * `(mu4e-user-mail-address-p addr)': return `t' if ADDR is one of
+     the user's e-mail addresses (as per `mu4e-user-mail-address-list').
 
    * `mu4e-log' logs to the mu4e debugging log if it is enabled;
      see `mu4e-toggle-logging'.
@@ -2718,11 +2814,8 @@ customize.
            ("/work"        . ?w)
            ("/sent"        . ?s)))
 
-     ;; a regular expression that matches all email addresses used by
-     ;; the user; this allows us to correctly determine if user
-     ;; is the sender / direct recipient of some message
-     (setq mu4e-user-mail-address-regexp
-           "foo@bar\.com\\|cuux@example\.com")
+     ;; a  list of user's e-mail addresses
+     (setq mu4e-user-mail-address-list '("foo@bar.com" "cuux@example.com")
 
      ;; when you want to use some external command for text->html
      ;; conversion, e.g. the 'html2text' program
@@ -2780,6 +2873,9 @@ _Gmail_ is a popular e-mail provider; let's see how we can make it work
 with mu4e. Since we are using IMAP, you must enable that in the Gmail
 web interface (in the settings, under the "Forwarding and
 POP/IMAP"-tab).
+
+   Gmail users may also be interested in *note skipping duplicates:
+Including related messages.
 
 B.3.1 Setting up offlineimap
 ----------------------------
@@ -2862,7 +2958,7 @@ Next step: let's make a mu4e configuration for this:
      (require 'mu4e)
 
      ;; default
-     ;; (setq mu4e-maildir ("~/Maildir")
+     ;; (setq mu4e-maildir "~/Maildir")
 
      (setq mu4e-drafts-folder "/[Gmail].Drafts")
      (setq mu4e-sent-folder   "/[Gmail].Sent Mail")
@@ -2942,7 +3038,7 @@ default for various reasons.
        mu4e-view-image-max-width 800)
 
 
-File: mu4e.info,  Node: FAQ,  Next: How it works,  Prev: Example configurations,  Up: Top
+File: mu4e.info,  Node: FAQ,  Next: Tips and Tricks,  Prev: Example configurations,  Up: Top
 
 Appendix C FAQ - Frequently Asked Questions
 *******************************************
@@ -2975,10 +3071,10 @@ C.1 General
 
   2. _mu4e seems to return a subset of all matches - how can I get
      all?_ For speed reasons, mu4e returns only up to the value of the
-     variable `m4ue-search-result-limit' (default: 500) matches. To show
-     _all_, use `M-x mu4e-headers-toggle-full-search', or customize the
-     variable `mu4e-headers-full-search'. This applies to all search
-     commands.
+     variable `m4ue-search-result-limit' (default: 500) matches. To
+     show _all_, use `M-x mu4e-headers-toggle-full-search' (<Q>), or
+     customize the variable `mu4e-headers-full-search'. This applies to
+     all search commands.
 
   3. _How can I get notifications when receiving mail?_ There is
      `mu4e-index-updated-hook', which gets triggered when the indexing
@@ -2989,12 +3085,19 @@ C.1 General
             (defun new-mail-sound ()
               (shell-command "aplay ~/Sounds/boing.wav&")))
 
-  4. _I don't use offlineimap, fetchmail etc., I get my mail through my
+  4. _It seems my headers-buffer is automatically updated when new
+     messages are found during the indexing process - can I disable this
+      somehow?_ Yes - set `mu4e-headers-auto-update' to `nil'.
+
+  5. _I don't use offlineimap, fetchmail etc., I get my mail through my
      own mailserver. What should I use for `mu4e-get-mail-command'_?
      Use "true" (or don't do anything, it's the default). This makes
      getting mail a no-op, but the messages are still re-indexed.
 
-  5. _When I try to run mu index while mu4e is running I get errors
+  6. _How can I re-index my messages without getting new mail?_ Use
+     `M-x mu4e-update-index'
+
+  7. _When I try to run mu index while mu4e is running I get errors
      like:_ mu: mu_store_new_writable: xapian error
        'Unable to get write lock on ~/.mu/xapian: already locked
       _What to do about this?_  You get this error because the
@@ -3007,17 +3110,17 @@ C.1 General
       mu4e automatically restarts mu when it needs it. In practice, this
      seems to work quite well.
 
-  6. _Can I automatically apply the marks on messages when leaving the
+  8. _Can I automatically apply the marks on messages when leaving the
      headers buffer?_ Yes you can - see the documentation for the
      variable mu4e-headers-leave-behavior.
 
-  7. _Is there context-sensitive help available?_ Yes - pressing <H>
+  9. _Is there context-sensitive help available?_ Yes - pressing <H>
      should take you to the right place in this manual.
 
-  8. _How can I set mu4e as the default e-mail client in `emacs'?_ See
+ 10. _How can I set mu4e as the default e-mail client in `emacs'?_ See
      *note Setting the default emacs mail program::.
 
-  9. _Can mu4e use some fancy Unicode characters instead of these
+ 11. _Can mu4e use some fancy Unicode characters instead of these
      boring plain-ASCII ones?_ Glad you asked! Yes, if you set
      `mu4e-use-fancy-chars' to t, mu4e uses such fancy characters in a
      number of places.
@@ -3044,12 +3147,30 @@ C.2 Reading messages
      *note Actions::.
 
   5. _Does mu4e support crypto (i.e., decrypting messages and verifying
-     signatures)?_ Yes - if mu was built with GMime 2.6 or later, it is
-     possible to do both (note, only PGP/MIME is supported). In the
+     signatures)?_  Yes - if mu was built with GMime 2.6 or later, it
+     is possible to do both (note, only PGP/MIME is supported). In the
      *note Main view:: the support is indicated by a big letter C on
      the right hand side of the mu4e version. See *note Decryption::
      and *note Verifying signatures::. For encryption and signing
      messages, see the *note Writing messages::.
+
+  6. _Does mu4e support including all related messages in a thread,
+     like Gmail does?_ Yes - see *note Including related messages::.
+
+  7. _There seem to be a lot of duplicate messages - how can I get rid
+     of them?_ See *note Skipping duplicates::.
+
+  8. _Some messages are almost unreadable in emacs - can I view them in
+     an external web browser?_ Indeed, airlines often send messages
+     that heavily depend on html and are hard to digest inside emacs.
+     Fortunately, there's an _action_ (*note Adding an action in the
+     message view::) defined for this. Simply add to your configuration:
+          (add-to-list 'mu4e-view-actions
+            '("ViewInBrowser" . mu4e-action-view-in-browser) t)
+     Now, when viewing such a difficult message, type `aV', and the
+     message opens inside a webbrowser. You can influence the browser
+     with `browse-url-generic-program'.
+
 
 
 File: mu4e.info,  Node: Writing messages,  Next: Known issues,  Prev: Reading messages,  Up: FAQ
@@ -3092,6 +3213,17 @@ C.3 Writing messages
      messages stay around. How can I get rid of those?_
           (setq message-kill-buffer-on-exit t)
 
+ 10. _Sending big messages is slow and blocks emacs - what can I do
+     about it?_ For this, there's
+     `https://github.com/jwiegley/emacs-async' (also available from the
+     Emacs package repository); add the following snippet to your
+     configuration:
+          (require 'smtpmail-async)
+          (setq
+            send-mail-function 'async-smtpmail-send-it
+            message-send-mail-function 'async-smtpmail-send-it)
+     With this, messages are sent using background emacs-instance.
+
 
 File: mu4e.info,  Node: Known issues,  Prev: Writing messages,  Up: FAQ
 
@@ -3115,9 +3247,241 @@ author can use it as a todo-list.
      clicks-on-bookmarks.
 
 
-File: mu4e.info,  Node: How it works,  Next: Logging and debugging,  Prev: FAQ,  Up: Top
+File: mu4e.info,  Node: Tips and Tricks,  Next: How it works,  Prev: FAQ,  Up: Top
 
-Appendix D How it works
+Appendix D Tips and Tricks
+**************************
+
+* Menu:
+
+* Multiple accounts::
+* Refiling message::
+* Saving outgoing messages::
+
+
+File: mu4e.info,  Node: Multiple accounts,  Next: Refiling message,  Up: Tips and Tricks
+
+D.1 Multiple accounts
+=====================
+
+Using mu4e with multiple email accounts is fairly easy. Although
+variables such as `user-mail-address', `mu4e-sent-folder', `message-*',
+`smtpmail-*', etc. typically only take one value, it is easy to change
+their values using `mu4e-compose-pre-hook'.  The setup described here
+is one way of doing this (though certainly not the only way).
+
+   This setup assumes that you have multiple mail accounts under
+`mu4e-maildir'. As an example, we'll use ~/Maildir/Account1 and
+~/Maildir/Account2, but the setup works just as well if `mu4e-maildir'
+points to something else.
+
+   First, you need to make sure that all variables that you wish to
+change based on user account are set to some initial value. So set up
+your environment with e.g., your main account:
+
+     (setq mu4e-sent-folder "/Account1/Saved Items"
+           mu4e-drafts-folder "/Account1/Drafts"
+           user-mail-address "my.address@account1.tld"
+           message-signature-file ".Signature1.txt"
+           smtpmail-default-smtp-server "smtp.account1.tld"
+           smtpmail-local-domain "account1.tld"
+           smtpmail-smtp-server "smtp.account1.tld"
+           smtpmail-stream-type starttls
+           smtpmail-smtp-service 25)
+
+   Then create a variable `my-mu4e-account-alist', which should contain
+a list for each of your accounts. Each list should start with the
+account name, (which _must_ be identical to the account's directory
+name under ~/Maildir), followed by `(variable value)' pairs:
+
+     (defvar my-mu4e-account-alist
+       '(("Account1"
+          (mu4e-sent-folder "/Account1/Saved Items")
+          (mu4e-drafts-folder "/Account1/Drafts")
+          (user-mail-address "my.address@account1.tld")
+          (message-signature-file ".Signature1.txt")
+          (smtpmail-default-smtp-server "smtp.account1.tld")
+          (smtpmail-local-domain "account1.tld")
+          (smtpmail-smtp-server "smtp.account1.tld")
+          (smtpmail-stream-type starttls)
+          (smtpmail-smtp-service 25))
+         ("Account2"
+          (mu4e-sent-folder "/Account2/Saved Items")
+          (mu4e-drafts-folder "/Account2/Drafts")
+          (user-mail-address "my.address@account2.tld)
+          (message-signature-file ".Signature2.txt")
+          (smtpmail-default-smtp-server "smtp.account2.tld)
+          (smtpmail-local-domain "account2.tld")
+          (smtpmail-smtp-server "smtp.account2.tld)
+          (smtpmail-stream-type starttls)
+          (smtpmail-smtp-service 587))))
+
+   You can put any variables you want in the account lists, just make
+sure that you put in _all_ the variables that differ for each account.
+Variables that do not differ do not be included. For example, if you use
+the same smtp server for both accounts, you don't need to include the
+smtp-related variables in `my-mu4e-account-alist'.
+
+   Now, the following function can be used to select an account and set
+the variables in `my-mu4e-account-alist' to the correct values:
+
+     (defun my-mu4e-set-account ()
+       "Set the account for composing a message."
+       (let* ((account
+               (if mu4e-compose-parent-message
+                   (let ((maildir (mu4e-message-field mu4e-compose-parent-message :maildir)))
+                     (string-match "/\\(.*?\\)/" maildir)
+                     (match-string 1 maildir))
+                 (completing-read (format "Compose with account: (%s) "
+                                          (mapconcat #'(lambda (var) (car var)) my-mu4e-account-alist "/"))
+                                  (mapcar #'(lambda (var) (car var)) my-mu4e-account-alist)
+                                  nil t nil nil (caar my-mu4e-account-alist))))
+              (account-vars (cdr (assoc account my-mu4e-account-alist))))
+         (if account-vars
+             (mapc #'(lambda (var)
+                       (set (car var) (cadr var)))
+                   account-vars)
+           (error "No email account found"))))
+
+   This function then needs to be added to `mu4e-compose-pre-hook':
+
+     (add-hook 'mu4e-compose-pre-hook 'my-mu4e-set-account)
+
+   This way, `my-mu4e-set-account' will be called every time you edit a
+message. If you compose a new message, it simply asks you for the
+account you wish to send the message from (TAB completion works). If
+you're replying or forwarding a message, or editing an existing draft,
+the account is chosen automatically, based on the first component of the
+maildir of the message being replied to, forwarded or edited (i.e., the
+directory under ~/Maildir).
+
+
+File: mu4e.info,  Node: Refiling message,  Next: Saving outgoing messages,  Prev: Multiple accounts,  Up: Tips and Tricks
+
+D.2 Refiling message
+====================
+
+By setting `mu4e-refile-folder' to a function, you can dynamically
+determine where messages are to be refiled. If you want to do this based
+on the subject of a message, you can use a function that matches the
+subject against a list of regexes in the following way. First, set up a
+variable `my-mu4e-subject-alist' containing regexes plus associated
+mail folders:
+
+     (defvar my-mu4e-subject-alist '(("kolloqui\\(um\\|a\\)" . "/Kolloquium")
+                                     ("Calls" . "/Calls")
+                                     ("Lehr" . "/Lehre")
+                                     ("webseite\\|homepage\\|website" . "/Webseite"))
+       "List of subjects and their respective refile folders.")
+
+   Now you can use the following function to automatically refile
+messages based on their subject line:
+
+     (defun my-mu4e-refile-folder-function (msg)
+       "Set the refile folder for MSG."
+       (let ((subject (mu4e-message-field msg :subject))
+             (folder (or (cdar (member* subject my-mu4e-subject-alist
+                                        :test #'(lambda (x y)
+                                                  (string-match (car y) x))))
+                         "/General")))
+         folder))
+
+   Note the "/General" folder: it is the default folder in case the
+subject does not match any of the regexes in `my-mu4e-subject-alist'.
+
+   In order to make this work, you'll of course need to set
+`mu4e-refile-folder' to this function:
+
+     (setq mu4e-refile-folder 'my-mu4e-refile-folder-function)
+
+   If you have multiple accounts, you can accommodate them as well:
+
+     (defun my-mu4e-refile-folder-function (msg)
+       "Set the refile folder for MSG."
+       (let ((maildir (mu4e-message-field msg :maildir))
+             (subject (mu4e-message-field msg :subject))
+             folder)
+         (cond
+          ((string-match "Account1" maildir)
+           (setq folder (or (catch 'found
+                              (dolist (mailing-list my-mu4e-mailing-lists)
+                                (if (mu4e-message-contact-field-matches msg :to (car mailing-list))
+                                    (throw 'found (cdr mailing-list)))))
+                            "/Account1/General")))
+          ((string-match "Gmail" maildir)
+           (setq folder "/Gmail/All Mail"))
+          ((string-match "Account2" maildir)
+           (setq folder (or (cdar (member* subject my-mu4e-subject-alist
+                                           :test #'(lambda (x y)
+                                                     (string-match (car y) x))))
+                            "/Account2/General"))))
+         folder))
+
+   This function actually uses different methods to determine the refile
+folder, depending on the account: For Account2, it uses
+`my-mu4e-subject-alist', for the Gmail account it simply uses the
+folder "All Mail". For Account1, it uses another method: it files the
+message based on the mailing list to which it was sent. This requires
+another variable:
+
+     (defvar my-mu4e-mailing-lists '(("mu-discuss@googlegroups.com" . "/Account1/mu4e")
+                                     ("pandoc-discuss@googlegroups.com" . "/Account1/Pandoc")
+                                     ("auctex@gnu.org" . "/Account1/AUCTeX"))
+       "List of mailing list addresses and folders where their messages are saved.")
+
+
+File: mu4e.info,  Node: Saving outgoing messages,  Prev: Refiling message,  Up: Tips and Tricks
+
+D.3 Saving outgoing messages
+============================
+
+Like `mu4e-refile-folder', the variable `mu4e-sent-folder' can also be
+set to a function, in order to dynamically determine the save folder.
+One might, for example, wish to automatically put messages going to
+mailing lists into the trash (because you'll receive them back from the
+list). If you have set up the variable `my-mu4e-mailing-lists' as
+above, you can use the following function to determine a save folder:
+
+     (defun my-mu4e-sent-folder-function (msg)
+       "Set the sent folder for the current message."
+       (let ((from-address (message-field-value "From"))
+             (to-address (message-field-value "To")))
+         (cond
+          ((string-match "my.address@account1.tld" from-address)
+           (if (member* to-address my-mu4e-mailing-lists
+                        :test #'(lambda (x y)
+                                  (string-match (car y) x)))
+               "/Trash"
+             "/Account1/Sent"))
+          ((string-match "my.address@gmail.com" from-address)
+           "/Gmail/Sent Mail")
+          (t (mu4e-ask-maildir-check-exists "Save message to maildir: ")))))
+
+   Note that this function doesn't use `(mu4e-message-field msg
+:maildir)' to determine which account the message is being sent from.
+The reason is that that the function in `mu4e-sent-folder' is called
+when you send the message, but before mu4e has created the message
+struct from the compose buffer, so that `mu4e-message-field' cannot be
+used. Instead, the function uses `message-field-value', which extracts
+the values of the headers in the compose buffer. This means that it is
+not possible to extract the account name from the message's maildir, so
+instead the from address is used to determine the account.
+
+   Again, the function shows three different possibilities: for the
+first account (my.address@account1.tld) it uses `my-mu4e-mailing-lists'
+again to determine if the message goes to a mailing list. If so, the
+message is put in the trash folder, if not, it is saved in
+/Account1/Sent. For the second (Gmail) account, sent mail is simply
+saved in the Sent Mail folder.
+
+   If the from address is not associated with Account1 or with the Gmail
+account, the function uses `mu4e-ask-maildir-check-exists' to ask the
+user for a maildir to save the message in.
+
+
+File: mu4e.info,  Node: How it works,  Next: Logging and debugging,  Prev: Tips and Tricks,  Up: Top
+
+Appendix E How it works
 ***********************
 
 While perhaps not interesting for all users of mu4e, some curious souls
@@ -3133,7 +3497,7 @@ may want to know how mu4e does its job.
 
 File: mu4e.info,  Node: High-level overview,  Next: mu server,  Up: How it works
 
-D.1 High-level overview
+E.1 High-level overview
 =======================
 
 At a high level, we can summarize the structure of the mu4e system using
@@ -3174,7 +3538,7 @@ some ascii-art:
 
 File: mu4e.info,  Node: mu server,  Next: Reading from the server,  Prev: High-level overview,  Up: How it works
 
-D.2 mu server
+E.2 mu server
 =============
 
 mu4e is based on the mu e-mail searching/indexer. The latter is a
@@ -3197,7 +3561,7 @@ but it can be used manually, which is great for debugging.
 
 File: mu4e.info,  Node: Reading from the server,  Next: The message s-expression,  Prev: mu server,  Up: How it works
 
-D.3 Reading from the server
+E.3 Reading from the server
 ===========================
 
 In the design, the next question was what format mu should use for its
@@ -3246,7 +3610,7 @@ log using `M-x mu4e-show-log' (<$>).
 
 File: mu4e.info,  Node: The message s-expression,  Prev: Reading from the server,  Up: How it works
 
-D.4 The message s-expression
+E.4 The message s-expression
 ============================
 
 A typical message s-expression looks something like the following:
@@ -3298,7 +3662,7 @@ convenience functions in `mu4e-message.el'.
      the *note Message view:: use the actual message file, and do
      include these fields.
 
-D.4.1 Example: ping-pong
+E.4.1 Example: ping-pong
 ------------------------
 
 As an example of the communication between mu4e and `mu', let's look at
@@ -3327,7 +3691,7 @@ Therefore, we need to split time_t in two numbers.
 
 File: mu4e.info,  Node: Logging and debugging,  Next: GNU Free Documentation License,  Prev: How it works,  Up: Top
 
-Appendix E Logging and debugging
+Appendix F Logging and debugging
 ********************************
 
 As explained in *note How it works::, mu4e communicates with its backend
@@ -3350,7 +3714,7 @@ in <MUHOME>/log/mu.log, typically ~/.mu/log/mu.log.
 
 File: mu4e.info,  Node: GNU Free Documentation License,  Prev: Logging and debugging,  Up: Top
 
-Appendix F GNU Free Documentation License
+Appendix G GNU Free Documentation License
 *****************************************
 
                       Version 1.2, November 2002
@@ -3782,152 +4146,158 @@ permit their use in free software.
 
 
 Tag Table:
-Node: Top624
-Ref: Top-Footnote-12773
-Ref: Top-Footnote-22818
-Ref: Top-Footnote-32911
-Node: Introduction2975
-Node: Why another e-mail client3206
-Node: Other mail clients3887
-Ref: Other mail clients-Footnote-14595
-Ref: Other mail clients-Footnote-24628
-Ref: Other mail clients-Footnote-34671
-Ref: Other mail clients-Footnote-44707
-Ref: Other mail clients-Footnote-54743
-Node: What mu4e does not do4774
-Ref: What mu4e does not do-Footnote-15793
-Ref: What mu4e does not do-Footnote-25827
-Ref: What mu4e does not do-Footnote-35867
-Node: Becoming a mu4e user5904
-Ref: Becoming a mu4e user-Footnote-16751
-Ref: Becoming a mu4e user-Footnote-26803
-Ref: Becoming a mu4e user-Footnote-36847
-Node: Getting started6907
-Node: Requirements7689
-Ref: Requirements-Footnote-18200
-Ref: Requirements-Footnote-28229
-Node: Installation8276
-Ref: Building from a release tarball10270
-Ref: Building from git10663
-Ref: Installation-Footnote-112037
-Ref: Installation-Footnote-212091
-Node: Getting mail12197
-Ref: Getting mail-Footnote-113285
-Node: Indexing your messages13451
-Ref: Indexing your messages-Footnote-114945
-Node: Basic configuration15086
-Node: Folders15516
-Ref: Folders-Footnote-116288
-Node: Retrieval and indexing16559
-Node: Sending mail17875
-Node: Running mu4e19875
-Node: Main view21181
-Node: MV Overview21616
-Node: Basic actions22612
-Node: MV Bookmarks23448
-Node: Miscellaneous24076
-Node: Headers view24939
-Node: HV Overview25445
-Ref: HV Overview-Footnote-127772
-Ref: HV Overview-Footnote-227859
-Ref: HV Overview-Footnote-327962
-Node: Keybindings28059
-Node: Marking messages29874
-Node: Sort order and threading31077
-Ref: Sort order and threading-Footnote-132312
-Node: HV Actions32399
-Node: Split view33089
-Node: Message view34168
-Node: MSGV Overview34655
-Node: MSGV Keybindings36266
-Node: Opening and saving attachments38654
-Ref: Opening and saving attachments-Footnote-140068
-Ref: Opening and saving attachments-Footnote-240116
-Node: Viewing images inline40224
-Ref: Viewing images inline-Footnote-141063
-Node: Displaying rich-text messages41100
-Ref: Displaying rich-text messages-Footnote-142456
-Ref: Displaying rich-text messages-Footnote-242553
-Node: MSGV Crypto42595
-Ref: Decryption43044
-Ref: Verifying signatures43919
-Ref: MSGV Crypto-Footnote-144611
-Node: MSGV Actions44714
-Node: Editor view46201
-Node: EV Overview46717
-Node: Useful keybindings47101
-Node: Address autocompletion47637
-Ref: Address autocompletion-Footnote-149895
-Node: Compose hooks49938
-Node: Signing and encrypting52545
-Node: Queuing mail53355
-Node: Other settings54640
-Node: Searching55107
-Node: Queries56039
-Ref: Queries-Footnote-157869
-Node: Bookmarks57981
-Ref: Bookmarks-Footnote-160323
-Node: Maildir searches60366
-Node: Other search functionality62487
-Node: Marking64290
-Node: Selecting messages for marking64859
-Node: What to mark for65676
-Ref: What to mark for-Footnote-167211
-Ref: What to mark for-Footnote-267310
-Node: Executing the marks67494
-Node: Leaving the headers buffer67763
-Node: Built-in marking functions68192
-Node: Custom mark functions68725
-Node: Dynamic folders71015
-Node: Smart refiling72155
-Ref: Smart refiling-Footnote-174389
-Node: Other dynamic folders74434
-Node: Actions75721
-Node: Defining actions76538
-Ref: Defining actions-Footnote-177797
-Ref: Defining actions-Footnote-277969
-Node: Adding an action in the headers view78156
-Node: Adding an action in the message view79149
-Node: Adding an attachment action80045
-Node: More example actions80876
-Node: Extending mu4e81280
-Node: Extension points81688
-Node: Available functions82992
-Node: Message functions83892
-Node: Utility functions85124
-Ref: Utility functions-Footnote-186172
-Node: Interaction with other tools86276
-Node: Setting the default emacs mail program86863
-Node: Creating org-mode links87426
-Node: Rich-text messages with org-mode88375
-Ref: Rich-text messages with org-mode-Footnote-190557
-Ref: Rich-text messages with org-mode-Footnote-290616
-Node: Maintaining an address-book with org-contacts90739
-Ref: Maintaining an address-book with org-contacts-Footnote-191980
-Node: Getting new mail notifications with Sauron92041
-Ref: Getting new mail notifications with Sauron-Footnote-193790
-Node: Speedbar support93933
-Node: Citations with mu-cite94924
-Ref: Citations with mu-cite-Footnote-195675
-Node: Attaching files with dired95751
-Node: Example configurations97090
-Node: Minimal configuration97548
-Node: Longer configuration98778
-Node: Gmail configuration101807
-Node: Some other useful settings106630
-Node: FAQ107257
-Node: General107609
-Node: Reading messages110733
-Node: Writing messages111994
-Node: Known issues113688
-Node: How it works114536
-Node: High-level overview114895
-Node: mu server116389
-Node: Reading from the server117396
-Node: The message s-expression119649
-Ref: The message s-expression-Footnote-1122816
-Node: Logging and debugging123005
-Node: GNU Free Documentation License124064
+Node: Top630
+Ref: Top-Footnote-12817
+Ref: Top-Footnote-22862
+Ref: Top-Footnote-32955
+Node: Introduction3078
+Node: Why another e-mail client3309
+Node: Other mail clients3990
+Ref: Other mail clients-Footnote-14698
+Ref: Other mail clients-Footnote-24731
+Ref: Other mail clients-Footnote-34774
+Ref: Other mail clients-Footnote-44810
+Ref: Other mail clients-Footnote-54846
+Node: What mu4e does not do4877
+Ref: What mu4e does not do-Footnote-15896
+Ref: What mu4e does not do-Footnote-25930
+Ref: What mu4e does not do-Footnote-35970
+Node: Becoming a mu4e user6007
+Ref: Becoming a mu4e user-Footnote-16891
+Ref: Becoming a mu4e user-Footnote-26943
+Ref: Becoming a mu4e user-Footnote-36987
+Node: Getting started7047
+Node: Requirements7829
+Ref: Requirements-Footnote-18608
+Ref: Requirements-Footnote-28637
+Node: Installation8684
+Ref: Building from a release tarball10678
+Ref: Building from git11071
+Ref: Installation-Footnote-112445
+Ref: Installation-Footnote-212499
+Node: Getting mail12605
+Ref: Getting mail-Footnote-113693
+Node: Indexing your messages13859
+Ref: Indexing your messages-Footnote-115349
+Node: Basic configuration15490
+Node: Folders16098
+Ref: Folders-Footnote-116870
+Node: Retrieval and indexing17141
+Node: Sending mail18616
+Node: Running mu4e20616
+Node: Main view21922
+Node: MV Overview22357
+Node: Basic actions23454
+Node: MV Bookmarks24290
+Node: Miscellaneous24918
+Node: Headers view25782
+Node: HV Overview26288
+Ref: HV Overview-Footnote-129587
+Ref: HV Overview-Footnote-229674
+Ref: HV Overview-Footnote-329777
+Node: Keybindings29874
+Node: Marking messages31795
+Node: Sort order and threading32998
+Ref: Sort order and threading-Footnote-134233
+Node: HV Actions34320
+Node: Split view35010
+Node: Message view36089
+Node: MSGV Overview36576
+Node: MSGV Keybindings38415
+Node: Opening and saving attachments40897
+Ref: Opening and saving attachments-Footnote-142311
+Ref: Opening and saving attachments-Footnote-242359
+Node: Viewing images inline42467
+Ref: Viewing images inline-Footnote-143306
+Node: Displaying rich-text messages43343
+Ref: Displaying rich-text messages-Footnote-144699
+Ref: Displaying rich-text messages-Footnote-244796
+Node: MSGV Crypto44838
+Ref: Decryption45730
+Ref: Verifying signatures46439
+Ref: MSGV Crypto-Footnote-147131
+Node: MSGV Actions47234
+Node: Editor view48721
+Node: EV Overview49237
+Node: Useful keybindings49621
+Node: Address autocompletion50209
+Ref: Address autocompletion-Footnote-152471
+Node: Compose hooks52514
+Node: Signing and encrypting55148
+Node: Queuing mail55958
+Node: Other settings57243
+Node: Searching57710
+Node: Queries58641
+Ref: Queries-Footnote-160667
+Node: Bookmarks60779
+Ref: Bookmarks-Footnote-163121
+Node: Maildir searches63164
+Node: Other search functionality65285
+Ref: Including related messages67155
+Ref: Skipping duplicates67614
+Node: Marking68186
+Node: Selecting messages for marking68755
+Node: What to mark for69572
+Ref: What to mark for-Footnote-171121
+Ref: What to mark for-Footnote-271220
+Node: Executing the marks71404
+Node: Leaving the headers buffer71673
+Node: Built-in marking functions72102
+Node: Custom mark functions72635
+Node: Dynamic folders74926
+Node: Smart refiling76066
+Ref: Smart refiling-Footnote-178516
+Node: Other dynamic folders78561
+Node: Actions79848
+Node: Defining actions80665
+Ref: Defining actions-Footnote-181924
+Ref: Defining actions-Footnote-282096
+Node: Adding an action in the headers view82283
+Node: Adding an action in the message view83276
+Node: Adding an attachment action84172
+Node: More example actions85003
+Node: Extending mu4e85407
+Node: Extension points85815
+Node: Available functions87119
+Node: Message functions88019
+Node: Utility functions89251
+Ref: Utility functions-Footnote-190442
+Node: Interaction with other tools90546
+Node: Setting the default emacs mail program91133
+Node: Creating org-mode links91696
+Node: Rich-text messages with org-mode92645
+Ref: Rich-text messages with org-mode-Footnote-194827
+Ref: Rich-text messages with org-mode-Footnote-294886
+Node: Maintaining an address-book with org-contacts95009
+Ref: Maintaining an address-book with org-contacts-Footnote-196250
+Node: Getting new mail notifications with Sauron96311
+Ref: Getting new mail notifications with Sauron-Footnote-198060
+Node: Speedbar support98203
+Node: Citations with mu-cite99194
+Ref: Citations with mu-cite-Footnote-199945
+Node: Attaching files with dired100021
+Node: Example configurations101360
+Node: Minimal configuration101818
+Node: Longer configuration103048
+Node: Gmail configuration105916
+Node: Some other useful settings110835
+Node: FAQ111462
+Node: General111817
+Node: Reading messages115249
+Node: Writing messages117407
+Node: Known issues119600
+Node: Tips and Tricks120448
+Node: Multiple accounts120671
+Node: Refiling message125293
+Node: Saving outgoing messages128806
+Node: How it works131235
+Node: High-level overview131606
+Node: mu server133100
+Node: Reading from the server134107
+Node: The message s-expression136360
+Ref: The message s-expression-Footnote-1139527
+Node: Logging and debugging139716
+Node: GNU Free Documentation License140775
 
 End Tag Table
 

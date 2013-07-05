@@ -1,7 +1,7 @@
 /* -*-mode: c; tab-width: 8; indent-tabs-mode: t; c-basic-offset: 8 -*-*/
 
 /*
-** Copyright (C) 2008-2011 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+** Copyright (C) 2008-2013 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 **
 ** This program is free software; you can redistribute it and/or modify it
 ** under the terms of the GNU General Public License as published by the
@@ -102,6 +102,18 @@ MuError mu_cmd_extract (MuConfig *opts, GError **err);
  * some error code otherwise
  */
 MuError mu_cmd_mv (MuConfig *opts, GError **err);
+
+
+/**
+ * execute the 'script' command
+ *
+ * @param opts configuration options
+ * @param err receives error information, or NULL
+ *
+ * @return MU_OK (0) if the command succeeds,
+ * some error code otherwise
+ */
+MuError mu_cmd_script (MuConfig *opts, GError **err);
 
 /**
  * execute the cfind command

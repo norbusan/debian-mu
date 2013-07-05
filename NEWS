@@ -1,6 +1,54 @@
 #+STARTUP:showall
 
 * NEWS (user visible changes)
+  
+** Release 0.9.9.5
+
+*** mu
+
+     - allow 'contact:' as a shortcut in queries for 'from:foo OR to:foo OR
+       cc:foo OR bcc:foo', and 'recip:' as a shortcut for 'to:foo OR
+       cc:foo OR bcc:foo'
+     - support getting related messages (--include-related), which includes
+       messages that may not match the query, but that are in the same threads
+       as messages that were
+     - support "list:"/"v:" for matching mailing list names, and the "v"
+       format-field to show them. E.g 'mu find list:emacs-orgmode.gnu.org'
+       
+*** mu4e
+
+    - scroll down in message view takes you to next message (but see
+      `mu4e-view-scroll-to-next')
+    - support 'human dates', that is, show the time for today's messages, and
+      the date for older messages in the headers view
+    - replace `mu4e-user-mail-address-regexp' and `mu4e-my-mail-addresses' with
+      `mu4e-user-mail-address-list'
+    - support tags (i.e.., X-Keywords and friends) in the headers-view, and the
+      message view. Thanks to Abdó Roig-Maranges. New field ":tags".
+    - automatically update the headers buffer when new messages are found during
+      indexing; set `mu4e-headers-auto-update' to nil to disable this.
+    - update mail/index with M-x mu4e-update-mail-and-index; which everywhere in
+      mu4e is available with key C-S-u. Use prefix argument to run in
+      background.
+    - add function `mu4e-update-index' to only update the index
+    - add 'friendly-names' for mailing lists, so they should up nicely in the
+      headers view
+
+*** guile
+
+    - add 'mu script' command to run mu script, for example to do statistics on
+      your message corpus. See the mu-script man-page.
+    
+*** mug
+
+    - ported to gtk+ 3; remove gtk+ 2.x code
+
+
+
+* Old news
+  :PROPERTIES:
+  :VISIBILITY: folded
+  :END:
 
 ** Release 0.9.9 <2012-10-14>
 
@@ -12,7 +60,7 @@
     - support signing / decryption of messages
     - improve address-autocompletion (e.g., ensure it's case-insensitive)
     - much faster when there are many maildirs
-    - improved line wrapping  
+    - improved line wrapping
     - better handle attached messages
     - improved URL-matching
     - improved messages to user (mu4e-(warn|error|message))
@@ -37,12 +85,6 @@
     - automated tests
     - add mu:timestamp, mu:count
     - handle db reopenings in the background
-
-
-* Old news
-  :PROPERTIES:
-  :VISIBILITY: folded
-  :END:
 
 
 ** Release 0.9.8.5 <2012-07-01>
@@ -70,8 +112,8 @@
     - fix sorting by subject (disregarding Re:, Fwd: etc.)
     - much faster handling when there are many maildirs (speedbar)
     - handle mailto: links
-    - improved, extended documentation  
-      
+    - improved, extended documentation
+
 *** mu
 
     - support .noupdate files (parallel to .noindex, dir is ignored unless we're

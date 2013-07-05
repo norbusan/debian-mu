@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2008-2011 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+** Copyright (C) 2008-2013 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 **
 ** This program is free software; you can redistribute it and/or modify
 ** it under the terms of the GNU General Public License as published by
@@ -166,6 +166,9 @@ public:
 
 		mu_msg_field_foreach ((MuMsgFieldForeachFunc)add_prefix,
 				      &_qparser);
+
+		/* add some convenient special prefixes */
+		add_special_prefixes ();
 	}
 
 	~_MuQuery () { mu_store_unref (_store); }
@@ -181,6 +184,28 @@ public:
 	Xapian::QueryParser& query_parser () { return _qparser; }
 
 private:
+	void add_special_prefixes () {
+		char pfx[] = { '\0', '\0' };
+
+		/* add 'contact' as a shortcut for From/Cc/Bcc/To: */
+		pfx[0] = mu_msg_field_xapian_prefix(MU_MSG_FIELD_ID_FROM);
+		_qparser.add_prefix (MU_MSG_FIELD_PSEUDO_CONTACT, pfx);
+		pfx[0] = mu_msg_field_xapian_prefix(MU_MSG_FIELD_ID_TO);
+		_qparser.add_prefix (MU_MSG_FIELD_PSEUDO_CONTACT, pfx);
+		pfx[0] = mu_msg_field_xapian_prefix(MU_MSG_FIELD_ID_CC);
+		_qparser.add_prefix (MU_MSG_FIELD_PSEUDO_CONTACT, pfx);
+		pfx[0] = mu_msg_field_xapian_prefix(MU_MSG_FIELD_ID_BCC);
+		_qparser.add_prefix (MU_MSG_FIELD_PSEUDO_CONTACT, pfx);
+
+		/* add 'recip' as a shortcut for Cc/Bcc/To: */
+		pfx[0] = mu_msg_field_xapian_prefix(MU_MSG_FIELD_ID_TO);
+		_qparser.add_prefix (MU_MSG_FIELD_PSEUDO_RECIP, pfx);
+		pfx[0] = mu_msg_field_xapian_prefix(MU_MSG_FIELD_ID_CC);
+		_qparser.add_prefix (MU_MSG_FIELD_PSEUDO_RECIP, pfx);
+		pfx[0] = mu_msg_field_xapian_prefix(MU_MSG_FIELD_ID_BCC);
+		_qparser.add_prefix (MU_MSG_FIELD_PSEUDO_RECIP, pfx);
+	}
+
 	Xapian::QueryParser	_qparser;
 	MuDateRangeProcessor	_date_range_processor;
 	MuSizeRangeProcessor	_size_range_processor;
@@ -228,7 +253,6 @@ add_prefix (MuMsgFieldId mfid, Xapian::QueryParser* qparser)
 	    !mu_msg_field_xapian_term(mfid) &&
 	    !mu_msg_field_xapian_contact(mfid))
 		return;
-
 	try {
 		const std::string  pfx
 			(1, mu_msg_field_xapian_prefix (mfid));
@@ -245,8 +269,9 @@ add_prefix (MuMsgFieldId mfid, Xapian::QueryParser* qparser)
 		 	qparser->add_prefix (shortcut, pfx);
 		}
 
-		if (!mu_msg_field_needs_prefix(mfid))
-			qparser->add_prefix ("", pfx);
+		// all fiels are also matched implicitly, withouth
+		// an
+		qparser->add_prefix ("", pfx);
 
 	} MU_XAPIAN_CATCH_BLOCK;
 }
@@ -264,8 +289,8 @@ mu_query_new (MuStore *store, GError **err)
 
 	try {
 		return new MuQuery (store);
-
 	} MU_XAPIAN_CATCH_BLOCK_G_ERROR_RETURN (err, MU_ERROR_XAPIAN, 0);
+
 	return 0;
 }
 
@@ -300,6 +325,10 @@ mu_query_preprocess (const char *query, GError **err)
 		 * xapian-pfx with '_' */
 		cur->data = mu_str_xapian_escape (data, TRUE, NULL);
 		g_free (data);
+		/* run term fixups */
+		data = (gchar*)cur->data;
+		cur->data = mu_str_xapian_fixup_terms (data);
+		g_free (data);
 	}
 
 	myquery = mu_str_from_list (parts, ' ');
@@ -313,50 +342,160 @@ mu_query_preprocess (const char *query, GError **err)
  * exception is raised. We try to reopen the database, and run the
  * query again. */
 static MuMsgIter *
-try_requery (MuQuery *self, const char* searchexpr, gboolean threads,
-	     MuMsgFieldId sortfieldid, gboolean revert, int maxnum,
-	     GError **err)
+try_requery (MuQuery *self, const char* searchexpr, MuMsgFieldId sortfieldid,
+	     int maxnum, MuQueryFlags flags, GError **err)
 {
 	try {
 		/* let's assume that infinite regression is
 		 * impossible */
 		self->db().reopen();
 		MU_WRITE_LOG ("reopening db after modification");
-		return mu_query_run (self, searchexpr, threads, sortfieldid,
-				     revert, maxnum, err);
+		return mu_query_run (self, searchexpr, sortfieldid,
+				     maxnum, flags, err);
 
 	} MU_XAPIAN_CATCH_BLOCK_G_ERROR_RETURN (err, MU_ERROR_XAPIAN, 0);
 }
 
 
+static MuMsgIterFlags
+msg_iter_flags (MuQueryFlags flags)
+{
+	MuMsgIterFlags iflags;
+
+	iflags = MU_MSG_ITER_FLAG_NONE;
+
+	if (flags & MU_QUERY_FLAG_DESCENDING)
+		iflags |= MU_MSG_ITER_FLAG_DESCENDING;
+	if (flags & MU_QUERY_FLAG_SKIP_UNREADABLE)
+		iflags |= MU_MSG_ITER_FLAG_SKIP_UNREADABLE;
+	if (flags & MU_QUERY_FLAG_SKIP_DUPS)
+		iflags |= MU_MSG_ITER_FLAG_SKIP_DUPS;
+	if (flags & MU_QUERY_FLAG_THREADS)
+		iflags |= MU_MSG_ITER_FLAG_THREADS;
+
+	return iflags;
+}
+
+
+
 static Xapian::Enquire
-get_enquire (MuQuery *self, const char *searchexpr, gboolean threads,
-	     MuMsgFieldId sortfieldid, gboolean revert, GError **err)
+get_enquire (MuQuery *self, const char *searchexpr, MuMsgFieldId sortfieldid,
+	     bool descending, GError **err)
 {
 	Xapian::Enquire enq (self->db());
 
-	/* note, when our result will be *threaded*, we sort
-	 * in our threading code (mu-threader etc.), and don't
-	 * let Xapian do any sorting */
-	if (!threads && sortfieldid != MU_MSG_FIELD_ID_NONE)
-			enq.set_sort_by_value ((Xapian::valueno)sortfieldid,
-					       revert ? true : false);
+	/* empty or "" means "matchall" */
 	if (!mu_str_is_empty(searchexpr) &&
 	    g_strcmp0 (searchexpr, "\"\"") != 0) /* NULL or "" or """" */
-			enq.set_query(get_query (self, searchexpr, err));
-		else
-			enq.set_query(Xapian::Query::MatchAll);
+		enq.set_query(get_query (self, searchexpr, err));
+	else
+		enq.set_query(Xapian::Query::MatchAll);
 
 	enq.set_cutoff(0,0);
 
 	return enq;
 }
 
+/*
+ * record all threadids for the messages; also 'orig_set' receives all
+ * original matches (a map msgid-->docid), so we can make sure the
+ * originals are not seen as 'duplicates' later (when skipping
+ * duplicates).  We want to favor the originals over the related
+ * messages, when skipping duplicates.
+ */
+static GHashTable*
+get_thread_ids (MuMsgIter *iter, GHashTable **orig_set)
+{
+	GHashTable *ids;
+	ids	  = g_hash_table_new_full (g_str_hash, g_str_equal,
+					   (GDestroyNotify)g_free, NULL);
+	*orig_set = g_hash_table_new_full (g_str_hash, g_str_equal,
+					   (GDestroyNotify)g_free, NULL);
+
+	while (!mu_msg_iter_is_done (iter)) {
+		const char *thread_id, *msgid;
+		unsigned docid;
+		/* record the thread id for the message */
+		if ((thread_id = mu_msg_iter_get_thread_id (iter)))
+			g_hash_table_insert (ids, g_strdup (thread_id),
+					     GSIZE_TO_POINTER(TRUE));
+		/* record the original set */
+		docid = mu_msg_iter_get_docid(iter);
+		if (docid != 0 && (msgid = mu_msg_iter_get_msgid (iter)))
+			g_hash_table_insert (*orig_set, g_strdup (msgid),
+					     GSIZE_TO_POINTER(docid));
+
+		if (!mu_msg_iter_next (iter))
+			break;
+	}
+
+	return ids;
+}
+
+
+static Xapian::Query
+get_related_query (MuMsgIter *iter, GHashTable **orig_set)
+{
+	GHashTable *hash;
+	GList *id_list, *cur;
+	std::vector<Xapian::Query> qvec;
+	static std::string pfx (1, mu_msg_field_xapian_prefix
+				(MU_MSG_FIELD_ID_THREAD_ID));
+
+	/* orig_set receives the hash msgid->docid of the set of
+	 * original matches */
+	hash = get_thread_ids (iter, orig_set);
+	/* id_list now gets a list of all thread-ids seen in the query
+	 * results; either in the Message-Id field or in
+	 * References. */
+	id_list = g_hash_table_get_keys (hash);
+
+	// now, we create a vector with queries for each of the
+	// thread-ids, which we combine below. This is /much/ faster
+	// than creating the query as 'query = Query (OR, query)'...
+	for (cur = id_list; cur; cur = g_list_next(cur))
+		qvec.push_back (Xapian::Query((std::string (pfx + (char*)cur->data))));
+
+	g_hash_table_destroy (hash);
+	g_list_free (id_list);
+
+	return Xapian::Query (Xapian::Query::OP_OR, qvec.begin(), qvec.end());
+}
+
+
+static void
+include_related (MuQuery *self, MuMsgIter **iter, int maxnum,
+		 MuMsgFieldId sortfieldid, MuQueryFlags flags)
+{
+	GHashTable *orig_set;
+	Xapian::Enquire enq (self->db());
+	MuMsgIter *rel_iter;
+
+	orig_set = NULL;
+	enq.set_query(get_related_query (*iter, &orig_set));
+	enq.set_cutoff(0,0);
+
+	rel_iter= mu_msg_iter_new (
+		reinterpret_cast<XapianEnquire*>(&enq),
+		maxnum,
+		sortfieldid,
+		msg_iter_flags (flags),
+		NULL);
+
+	mu_msg_iter_destroy (*iter);
+
+	// set the preferred set for the iterator (ie., the set not
+	// consider to be duplicates) to be the original matches
+	mu_msg_iter_set_preferred (rel_iter, orig_set);
+	g_hash_table_destroy (orig_set);
+
+	*iter = rel_iter;
+}
+
 
 MuMsgIter*
-mu_query_run (MuQuery *self, const char* searchexpr, gboolean threads,
-	      MuMsgFieldId sortfieldid, gboolean revert, int maxnum,
-	      GError **err)
+mu_query_run (MuQuery *self, const char *searchexpr, MuMsgFieldId sortfieldid,
+	      int maxnum, MuQueryFlags flags, GError **err)
 {
 	g_return_val_if_fail (self, NULL);
 	g_return_val_if_fail (searchexpr, NULL);
@@ -365,18 +504,45 @@ mu_query_run (MuQuery *self, const char* searchexpr, gboolean threads,
 			      NULL);
 	try {
 		MuMsgIter *iter;
-		Xapian::Enquire enq (get_enquire(self, searchexpr, threads,
-						 sortfieldid, revert, err));
-		iter = mu_msg_iter_new (
+		MuQueryFlags first_flags;
+		bool	inc_related = flags & MU_QUERY_FLAG_INCLUDE_RELATED;
+		bool	descending  = flags & MU_QUERY_FLAG_DESCENDING;
+		Xapian::Enquire enq (get_enquire(self, searchexpr, sortfieldid,
+						 descending, err));
+
+		/* when we're doing a 'include-related query', we're
+		 * actually doing /two/ queries; one to get the
+		 * initial matches, and based on that one to get all
+		 * messages in threads in those matches.
+		 */
+
+		/* get the 'real' maxnum if it was specified as < 0 */
+		maxnum = maxnum < 0 ? self->db().get_doccount() : maxnum;
+		/* if we do a include-related query, it's wasted
+		 * effort to calculate threads already in the first
+		 * query since we can do it in the second one
+		 */
+		first_flags = inc_related ? (flags & ~MU_QUERY_FLAG_THREADS) : flags;
+		iter   = mu_msg_iter_new (
 			reinterpret_cast<XapianEnquire*>(&enq),
-			maxnum <= 0 ? self->db().get_doccount() : maxnum,
-			threads, threads ? sortfieldid : MU_MSG_FIELD_ID_NONE,
-			revert,	err);
+			maxnum,
+			/* with inc_related, we do the sorting in the
+			 * second query
+			 */
+			inc_related ? MU_MSG_FIELD_ID_NONE : sortfieldid,
+			msg_iter_flags (first_flags),
+			err);
+		/*
+		 * if we want related messages, do a second query,
+		 * based on the message ids / refs of the first one
+		 * */
+		if (inc_related)
+			include_related (self, &iter, maxnum, sortfieldid, flags);
 
 		if (err && *err && (*err)->code == MU_ERROR_XAPIAN_MODIFIED) {
 			g_clear_error (err);
-			return try_requery (self, searchexpr, threads, sortfieldid,
-					    revert, maxnum, err);
+			return try_requery (self, searchexpr, sortfieldid,
+					    maxnum, flags, err);
 		} else
 			return iter;
 

@@ -2,7 +2,7 @@
 exec guile -e main -s $0 $@
 !#
 
-;; Copyright (C) 2012 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+;; Copyright (C) 2012-2013 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 ;;
 ;; This program is free software; you can redistribute it and/or modify it
 ;; under the terms of the GNU General Public License as published by the
@@ -50,8 +50,8 @@ exec guile -e main -s $0 $@
   (n-results-or-exit "file:custer.*" 1)
   (n-results-or-exit "j:sit*" 1)
   (n-results-or-exit "mime:image/jpeg" 1)
-  (n-results-or-exit "mime:text/plain" 12)
-  (n-results-or-exit "y:text*" 12)
+  (n-results-or-exit "mime:text/plain" 13)
+  (n-results-or-exit "y:text*" 13)
   (n-results-or-exit "y:image*" 1)
   (n-results-or-exit "mime:message/rfc822" 2))
 
@@ -97,9 +97,8 @@ exec guile -e main -s $0 $@
 (define (test-stats)
   "Test statistical functions."
   ;; average
-  (num-equal-or-exit (mu:average mu:size) 81709/12)
-  (num-equal-or-exit (floor (mu:stddev mu:size))
-    (floor 13414.7101616927))
+  (num-equal-or-exit (mu:average mu:size) 82054/13)
+  (num-equal-or-exit (floor (mu:stddev mu:size)) 13002.0)
   (num-equal-or-exit (mu:max mu:size) 46230)
   (num-equal-or-exit (mu:min mu:size) 111))
 
