@@ -1,3 +1,11 @@
+maildir-utils (0.9.9.5-1) UNRELEASED; urgency=low
+
+  * Imported Upstream version 0.9.9.5
+  * unfuzzify and adapt patches
+  * update build-dep to libgtk3
+
+ -- Norbert Preining <preining@debian.org>  Fri, 05 Jul 2013 13:34:21 +0900
+
 maildir-utils (0.9.9-1) unstable; urgency=low
 
   * new upstream release
