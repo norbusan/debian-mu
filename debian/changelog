@@ -4,8 +4,9 @@ maildir-utils (0.9.9.5-1) UNRELEASED; urgency=low
   * unfuzzify and adapt patches
   * update build-dep to libgtk3
   * use dh_autoreconf(_clean) in building
+  * bump standards version, no changes necessary
 
- -- Norbert Preining <preining@debian.org>  Fri, 05 Jul 2013 13:43:41 +0900
+ -- Norbert Preining <preining@debian.org>  Fri, 05 Jul 2013 13:44:57 +0900
 
 maildir-utils (0.9.9-1) unstable; urgency=low
 
