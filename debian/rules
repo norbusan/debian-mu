@@ -53,7 +53,8 @@ install-stamp: build-stamp
 	# mu4e package
 	mkdir -p $(mu4e)/usr/share
 	mv $(mu)/usr/share/emacs $(mu4e)/usr/share
-	mv $(mu)/usr/share/info $(mu4e)/usr/share
+	mkdir -p $(mu4e)/usr/share/info
+	mv $(mu)/usr/share/info/mu4e.info* $(mu4e)/usr/share/info
 	touch install-stamp
 
 binary-indep: install
