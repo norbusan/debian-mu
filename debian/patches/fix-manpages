@@ -1,42 +1,43 @@
 ---
  man/mu-add.1     |    4 ++--
- man/mu-cfind.1   |    4 ++--
+ man/mu-cfind.1   |    7 +++----
  man/mu-easy.1    |    2 +-
  man/mu-extract.1 |    5 ++---
  man/mu-find.1    |    4 ++--
+ man/mu-help.1    |    5 ++---
  man/mu-index.1   |    2 +-
  man/mu-mkdir.1   |    4 ++--
  man/mu-remove.1  |    4 ++--
+ man/mu-script.1  |    4 ++--
  man/mu-server.1  |    2 +-
+ man/mu-verify.1  |    4 ++--
  man/mu-view.1    |    4 ++--
- 10 files changed, 17 insertions(+), 18 deletions(-)
+ 13 files changed, 24 insertions(+), 27 deletions(-)
 
 --- maildir-utils.git.orig/man/mu-add.1
 +++ maildir-utils.git/man/mu-add.1
-@@ -1,4 +1,4 @@
+@@ -1,8 +1,8 @@
 -.TH MU ADD 1 "July 2012" "User Manuals"
 +.TH MU-ADD 1 "July 2012" "User Manuals"
  
  .SH NAME
  
-@@ -6,7 +6,7 @@
+-mu add\-  add one or more messages to the database
++mu_add \-  add one or more messages to the database
  
  .SH SYNOPSIS
  
--.B mu add <file> [<files>]
-+.B mu_add <file> [<files>]
- 
- .SH DESCRIPTION
- 
 --- maildir-utils.git.orig/man/mu-cfind.1
 +++ maildir-utils.git/man/mu-cfind.1
-@@ -1,4 +1,4 @@
+@@ -1,13 +1,12 @@
 -.TH MU CFIND 1 "October 2012" "User Manuals"
 +.TH MU-CFIND 1 "October 2012" "User Manuals"
  
  .SH NAME
  
-@@ -7,7 +7,7 @@
+-\fBmu cfind\fR is the \fBmu\fR command to find contacts in the \fBmu\fR
+-database and export them for use in other programs.
++mu_cfind \- find and expert contacts in the \fBmu\fR database
  
  .SH SYNOPSIS
  
@@ -141,6 +142,46 @@
  
 -mu view\- display an e-mail message file
 +mu_view \- display an e-mail message file
+ 
+ .SH SYNOPSIS
+ 
+--- maildir-utils.git.orig/man/mu-help.1
++++ maildir-utils.git/man/mu-help.1
+@@ -1,9 +1,8 @@
+-.TH MU HELP 1 "July 2012" "User Manuals"
++.TH MU-HELP 1 "July 2012" "User Manuals"
+ 
+ .SH NAME
+ 
+-\fBmu help\fR is a \fBmu\fR command that gives help information about mu
+-commands.
++mu_help \- help information about mu commands.
+ 
+ .SH SYNOPSIS
+ 
+--- maildir-utils.git.orig/man/mu-script.1
++++ maildir-utils.git/man/mu-script.1
+@@ -1,8 +1,8 @@
+-.TH MU SCRIPT 1 "March 2013" "User Manuals"
++.TH MU-SCRIPT 1 "March 2013" "User Manuals"
+ 
+ .SH NAME
+ 
+-mu script\- run a mu script
++mu_script \- run a mu script
+ 
+ .SH SYNOPSIS
+ 
+--- maildir-utils.git.orig/man/mu-verify.1
++++ maildir-utils.git/man/mu-verify.1
+@@ -1,8 +1,8 @@
+-.TH MU VERIFY 1 "September 2012" "User Manuals"
++.TH MU-VERIFY 1 "September 2012" "User Manuals"
+ 
+ .SH NAME
+ 
+-mu verify\- verify message signatures and display information about them
++mu_verify \- verify message signatures and display information about them
  
  .SH SYNOPSIS
  
