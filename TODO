@@ -9,7 +9,7 @@
   - put threading information in the database, and enable getting the complete
      threads when searching
   - refactor fill_database function in test cases
-  - add 'contact:' as alias for to: or cc: or bcc: or from:
+  - don't show duplicate e-mails (i.e.. for Gmail); check the message-id
 
 *** mu-guile
 
@@ -17,18 +17,13 @@
   - fix logging
 
 *** mu4e
-
+    
+  - special-case replying to messages sent by self
   - identities (see Jacek's 'mu4e: From field in replies' mail)
     ==> [ workaround available, using mu4e-pre-compose-hook, dynamic folders ]
   - new-mail warning
     ==> [ workaround available, using mu4e-index-updated-hook ]
   - custom header fields in headers-view, message-view
-    - 'human' dates
-  - guile integration
-    - statistics
-  - check if we can speed up mu4e-proc parsing by using search rather than
-    regexp search
-     ==> probably not
   - show maildirs as a tree, not a list in speed bar
   - review emacs menus
   - re-factor / separate window/buffer management
@@ -45,70 +40,80 @@
     - open links to mails through headers-mode somehow (i.e..,
      mu4e-view-message-with-msgid)
   - improve mouse interaction (i.e., cursor vs point)
-  - check move + create new dir
   - show counts of messages in searches (in main view)
   - show flush only if there's something to flush (and # of flushables)
   - fix unsafe temp-file handling
+  - make copy paste name/address in mu4e-view possible
 
 
-* Done (0.9.9)
+* Done (0.9.9.x)
 
-  - make contacts in the view clickable (toggle long/short display, compose message)
-  - opening urls is too eager (now use M-RET for opening url at point, not just
-    RET, which conflicted with using RET for scrolling)
-  - document quoting of queries
-  - use mu-error
-  - tooltips in header labels
-  - tooltip for flags field
-  - remove --summary option (for mu find, mu view); use --summary-len instead
-  - add sort buttons to header labels (and do the sorting)
-  - cleanup mu-cmd-find
-  - implement --after for mu find, to only show message files changed after a
-    certain time (mtime)
-  - add mu:timestamp for guile (referring to the message file's mtime)
-  - guile automated tests
-  - add 'mu verify'
-    - automated tests
-    - handle verbose/quiet/normal output 'mu verify'
-    - check gmime 2.4 does not break
-  - hook up mu4e with 'mu verify'
-  - add 'help' command
-  - refactor mu-msg-part
-  - move widgets/ into toys/mug2, remove toys/mug/, rename toys/mug2 -> toys/mug
-  - add guile mu:count
-  - don't show GPG/PKCS7 sigs as attachments
-  - fix address completion (quote names)
-  - add support for X-Keywords (in addition to X-Label)
-  - guile: add stats test cases
-  - fixed iso-2022-jp (japanese) decoding
-  - make address completion case-insensitive
-  - recognize '*' in urls
-  - handle exception 'The revision being read has been discarded - you should
-    call Xapian::Database::reopen() and retry the operation'
-  - handle passwords from get-mail shell command
-  - support fancy (non-ascii) chars for header flags, thread prefix strings
-  - improve performance of getting the list of maildirs
-  - fix setting wrapped/hide state in viewer
-  - fix ' realpath() failed for...' stuff
-  - allow for fancy chars (> ascii), make it configurable (mu4e-use-fancy-chars)
-  - don't user `error' for user-errors
-  - better echo-area reporting
-  - improve help feedback for user (command line)
-  - handling of encrypted messages
-  - improved checked for gmime-2.6 crypto funcs
-  - handling of command line options / help
-  - fix / add support for :size
-  - mu4e~view-wrap-lines (use visual-line-mode? see Jacek's mu4e~view-wrap-lines
-    mail)
-  - better help
-  - threading optimizations
-  - actions for /all/ headers, actions for /all/ attachment
-  - handle attached messages with attachments
+  - mu4e: scroll down –> go to next message
+  - mu: add contact: as a shortcut for matching from/to/cc/bcc:
+  - guile integration
+    - statistics
+  - 'human' dates in the headers view
+  - :tags in headers, message view
 
 * Done
   :PROPERTIES:
   :VISIBILITY: folded
   :END:
+
+
+** Done (0.9.9)
+
+   - make contacts in the view clickable (toggle long/short display, compose message)
+   - opening urls is too eager (now use M-RET for opening url at point, not just
+     RET, which conflicted with using RET for scrolling)
+   - document quoting of queries
+   - use mu-error
+   - tooltips in header labels
+   - tooltip for flags field
+   - remove --summary option (for mu find, mu view); use --summary-len instead
+   - add sort buttons to header labels (and do the sorting)
+   - cleanup mu-cmd-find
+   - implement --after for mu find, to only show message files changed after a
+     certain time (mtime)
+   - add mu:timestamp for guile (referring to the message file's mtime)
+   - guile automated tests
+   - add 'mu verify'
+     - automated tests
+     - handle verbose/quiet/normal output 'mu verify'
+     - check gmime 2.4 does not break
+   - hook up mu4e with 'mu verify'
+   - add 'help' command
+   - refactor mu-msg-part
+   - move widgets/ into toys/mug2, remove toys/mug/, rename toys/mug2 -> toys/mug
+   - add guile mu:count
+   - don't show GPG/PKCS7 sigs as attachments
+   - fix address completion (quote names)
+   - add support for X-Keywords (in addition to X-Label)
+   - guile: add stats test cases
+   - fixed iso-2022-jp (japanese) decoding
+   - make address completion case-insensitive
+   - recognize '*' in urls
+   - handle exception 'The revision being read has been discarded - you should
+     call Xapian::Database::reopen() and retry the operation'
+   - handle passwords from get-mail shell command
+   - support fancy (non-ascii) chars for header flags, thread prefix strings
+   - improve performance of getting the list of maildirs
+   - fix setting wrapped/hide state in viewer
+   - fix ' realpath() failed for...' stuff
+   - allow for fancy chars (> ascii), make it configurable (mu4e-use-fancy-chars)
+   - don't user `error' for user-errors
+   - better echo-area reporting
+   - improve help feedback for user (command line)
+   - handling of encrypted messages
+   - improved checked for gmime-2.6 crypto funcs
+   - handling of command line options / help
+   - fix / add support for :size
+   - mu4e~view-wrap-lines (use visual-line-mode? see Jacek's mu4e~view-wrap-lines
+     mail)
+   - better help
+   - threading optimizations
+   - actions for /all/ headers, actions for /all/ attachment
+   - handle attached messages with attachments
 
 ** Done (0.8.9.5)
 
@@ -152,4 +157,3 @@
 # Local Variables:
 # mode: org
 # End:
-   

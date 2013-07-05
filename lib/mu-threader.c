@@ -1,6 +1,6 @@
 /* -*-mode: c; tab-width: 8; indent-tabs-mode: t; c-basic-offset: 8 -*-*/
 /*
-** Copyright (C) 2011 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+** Copyright (C) 2012-2013 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 **
 ** This program is free software; you can redistribute it and/or modify it
 ** under the terms of the GNU General Public License as published by the
@@ -48,18 +48,18 @@
  *
  */
 
-
 /* step 1 */ static GHashTable* create_containers (MuMsgIter *iter);
 /* step 2 */ static MuContainer *find_root_set (GHashTable *ids);
 static MuContainer* prune_empty_containers (MuContainer *root);
 /* static void group_root_set_by_subject (GSList *root_set); */
-GHashTable* create_doc_id_thread_path_hash (MuContainer *root, size_t match_num);
+GHashTable* create_doc_id_thread_path_hash (MuContainer *root,
+					    size_t match_num);
 
 /* msg threading algorithm, based on JWZ's algorithm,
  * http://www.jwz.org/doc/threading.html */
 GHashTable*
 mu_threader_calculate (MuMsgIter *iter, size_t matchnum,
-		       MuMsgFieldId sortfield, gboolean revert)
+		       MuMsgFieldId sortfield, gboolean descending)
 {
 	GHashTable *id_table, *thread_ids;
 	MuContainer *root_set;
@@ -71,6 +71,8 @@ mu_threader_calculate (MuMsgIter *iter, size_t matchnum,
 
 	/* step 1 */
 	id_table = create_containers (iter);
+	if (matchnum == 0)
+		return id_table; /* just return an empty table */
 
 	/* step 2 -- the root_set is the list of children without parent */
 	root_set = find_root_set (id_table);
@@ -82,7 +84,7 @@ mu_threader_calculate (MuMsgIter *iter, size_t matchnum,
 
 	/* sort root set */
 	if (sortfield != MU_MSG_FIELD_ID_NONE)
-		root_set = mu_container_sort (root_set, sortfield, revert,
+		root_set = mu_container_sort (root_set, sortfield, descending,
 					      NULL);
 
 	/* step 5: group root set by subject */
@@ -125,9 +127,8 @@ assert_no_duplicates (GHashTable *ids)
 }
 
 
-
-
-/* a referred message is a message that is refered by some other message */
+/* a referred message is a message that is refered by some other
+ * message */
 static MuContainer*
 find_or_create_referred (GHashTable *id_table, const char *msgid,
 			 gboolean *created)
@@ -248,6 +249,11 @@ handle_references (GHashTable *id_table, MuContainer *c)
 		child = find_or_create_referred (id_table, (gchar*)cur->data,
 						 &created);
 
+		/* if we find the current message in their own refs, break now
+		   so that parent != c in next step */
+		if (child == c)
+			break;
+
 		/*Link the References field's MuContainers together in
 		 * the order implied by the References header.
 
@@ -284,10 +290,25 @@ handle_references (GHashTable *id_table, MuContainer *c)
 	   Note that at all times, the various ``parent'' and ``child'' fields
 	   must be kept inter-consistent. */
 
-           /* optimization: if the the message was newly added, it's by
-	    * definition not reachable yet */
-	if (child_elligible (parent, c, created))
+        /* optimization: if the the message was newly added, it's by
+   	   definition not reachable yet */
+
+	/* So, we move c and its descendants to become a child of parent if:
+	   * both are not NULL
+	   * parent is not a descendant of c.
+	   * both are different from each other (guaranteed in last loop) */
+
+	if (parent && c && !(c->child && mu_container_reachable (c->child, parent))) {
+
+		/* if c already has a parent, remove c from its parent children
+		   and reparent it, as now we know who is c's parent reliably */
+		if (c->parent) {
+			mu_container_remove_child(c->parent, c);
+			c->next = c->last = c->parent = NULL;
+		}
+
 		parent = mu_container_append_children (parent, c);
+	}
 }
 
 
@@ -297,8 +318,7 @@ static GHashTable*
 create_containers (MuMsgIter *iter)
 {
 	GHashTable *id_table;
-	id_table = g_hash_table_new_full (g_str_hash,
-					  g_str_equal,
+	id_table = g_hash_table_new_full (g_str_hash, g_str_equal,
 					  NULL,
 					  (GDestroyNotify)mu_container_destroy);
 

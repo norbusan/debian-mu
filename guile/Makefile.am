@@ -1,4 +1,4 @@
-## Copyright (C) 2011-2012 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+## Copyright (C) 2011-2013 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 ##
 ## This program is free software; you can redistribute it and/or modify
 ## it under the terms of the GNU General Public License as published by
@@ -18,9 +18,9 @@ include $(top_srcdir)/gtest.mk
 
 # note, we need top_builddir for snarfing with 'make distcheck' (ie.,
 # with separate builddir)
-SUBDIRS= . mu examples tests
+SUBDIRS= . mu scripts examples tests
 
-INCLUDES=-I. -I${top_builddir} -I${top_srcdir}/lib ${GUILE_CFLAGS} ${GLIB_CFLAGS}
+AM_CPPFLAGS=-I. -I${top_builddir} -I${top_srcdir}/lib ${GUILE_CFLAGS} ${GLIB_CFLAGS}
 
 # don't use -Werror, as it might break on other compilers
 # use -Wno-unused-parameters, because some callbacks may not
@@ -54,7 +54,7 @@ mu_guile_TEXINFOS=			\
 
 BUILT_SOURCES=$(XFILES)
 
-snarfcppopts= $(DEFS) $(AM_CPPFLAGS) $(CPPFLAGS) $(CFLAGS) $(INCLUDES)
+snarfcppopts= $(DEFS) $(AM_CPPFLAGS) $(CPPFLAGS) $(CFLAGS) $(AM_CPPFLAGS)
 SUFFIXES = .x .doc
 .c.x:
 	$(GUILE_SNARF) -o $@ $< $(snarfcppopts)

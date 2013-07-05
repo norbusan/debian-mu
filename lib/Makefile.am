@@ -1,4 +1,4 @@
-## Copyright (C) 2010-2012 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+## Copyright (C) 2010-2013 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 ##
 ## This program is free software; you can redistribute it and/or modify
 ## it under the terms of the GNU General Public License as published by
@@ -26,7 +26,7 @@ else
 crypto=
 endif
 
-INCLUDES=$(XAPIAN_CXXFLAGS) $(GMIME_CFLAGS) $(GLIB_CFLAGS)
+AM_CPPFLAGS=$(XAPIAN_CXXFLAGS) $(GMIME_CFLAGS) $(GLIB_CFLAGS) $(GUILE_CFLAGS)
 
 # don't use -Werror, as it might break on other compilers
 # use -Wno-unused-parameters, because some callbacks may not
@@ -76,6 +76,8 @@ libmu_la_SOURCES=			\
 	mu-query.h			\
 	mu-runtime.c			\
 	mu-runtime.h			\
+	mu-script.c			\
+	mu-script.h			\
 	mu-store.cc			\
 	mu-store.h			\
 	mu-store-read.cc		\
@@ -92,6 +94,9 @@ libmu_la_SOURCES=			\
 libmu_la_LIBADD=			\
 	$(XAPIAN_LIBS)			\
 	$(GMIME_LIBS)			\
-	$(GLIB_LIBS)
+	$(GLIB_LIBS)			\
+	$(GUILE_LIBS)
 
-EXTRA_DIST=mu-msg-crypto.c
+EXTRA_DIST=				\
+	mu-msg-crypto.c			\
+	doxyfile.in

@@ -1,7 +1,7 @@
 /* -*-mode: c; tab-width: 8; indent-tabs-mode: t; c-basic-offset: 8 -*-*/
 
 /*
-** Copyright (C) 2008-2012 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+** Copyright (C) 2008-2013 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 **
 ** This program is free software; you can redistribute it and/or modify it
 ** under the terms of the GNU General Public License as published by the
@@ -44,7 +44,8 @@
 #include "mu-cmd.h"
 #include "mu-threader.h"
 
-typedef gboolean (OutputFunc) (MuMsg *msg, MuMsgIter *iter, MuConfig *opts, GError **err);
+typedef gboolean (OutputFunc) (MuMsg *msg, MuMsgIter *iter,
+			       MuConfig *opts, GError **err);
 
 static gboolean
 print_xapian_query (MuQuery *xapian, const gchar *query, GError **err)
@@ -112,6 +113,7 @@ run_query (MuQuery *xapian, const gchar *query, MuConfig *opts,  GError **err)
 {
 	MuMsgIter *iter;
 	MuMsgFieldId sortid;
+	MuQueryFlags qflags;
 
 	sortid = MU_MSG_FIELD_ID_NONE;
 	if (opts->sortfield) {
@@ -120,8 +122,17 @@ run_query (MuQuery *xapian, const gchar *query, MuConfig *opts,  GError **err)
 			return FALSE;
 	}
 
-	iter = mu_query_run (xapian, query, opts->threads, sortid,
-			     opts->reverse, -1, err);
+	qflags = MU_QUERY_FLAG_NONE;
+	if (opts->reverse)
+		qflags |= MU_QUERY_FLAG_DESCENDING;
+	if (opts->skip_dups)
+		qflags |= MU_QUERY_FLAG_SKIP_DUPS;
+	if (opts->include_related)
+		qflags |= MU_QUERY_FLAG_INCLUDE_RELATED;
+	if (opts->threads)
+		qflags |= MU_QUERY_FLAG_THREADS;
+
+	iter = mu_query_run (xapian, query, sortid, -1, qflags, err);
 	return iter;
 }
 
@@ -173,35 +184,6 @@ resolve_bookmark (MuConfig *opts, GError **err)
 }
 
 
-
-gchar*
-str_quoted_from_strv (const gchar **params)
-{
-	GString *str;
-	int i;
-
-	g_return_val_if_fail (params, NULL);
-
-	if (!params[0])
-		return g_strdup ("");
-
-	str = g_string_sized_new (64); /* just a guess */
-
-	for (i = 0; params[i]; ++i) {
-
-		if (i > 0)
-			g_string_append_c (str, ' ');
-
-		g_string_append_c (str, '"');
-		g_string_append (str, params[i]);
-		g_string_append_c (str, '"');
-	}
-
-	return g_string_free (str, FALSE);
-}
-
-
-
 static gchar*
 get_query (MuConfig *opts, GError **err)
 {
@@ -221,7 +203,7 @@ get_query (MuConfig *opts, GError **err)
 			return NULL;
 	}
 
-	query = str_quoted_from_strv ((const gchar**)&opts->params[1]);
+	query = mu_str_quoted_from_strv ((const gchar**)&opts->params[1]);
 	if (bookmarkval) {
 		gchar *tmp;
 		tmp = g_strdup_printf ("%s %s", bookmarkval, query);
@@ -252,9 +234,9 @@ get_query_obj (MuStore *store, GError **err)
 		return NULL;
 	}
 
-	if (mu_store_needs_upgrade (store)) {
-		g_set_error (err, MU_ERROR_DOMAIN, MU_ERROR_XAPIAN_NOT_UP_TO_DATE,
-			     "the database is not up-to-date");
+	if (!mu_store_versions_match (store)) {
+		g_set_error (err, MU_ERROR_DOMAIN, MU_ERROR_XAPIAN_VERSION_MISMATCH,
+			     "the database needs a rebuild");
 		return NULL;
 	}
 
@@ -592,7 +574,12 @@ output_query_results (MuMsgIter *iter, MuConfig *opts, GError **err)
 		msg = get_message (iter, opts->after);
 		if (!msg)
 			break;
+		/* { */
+		/* 	const char* thread_id; */
+		/* 	thread_id = mu_msg_iter_get_thread_id (iter); */
+		/* 	g_print ("%s ", thread_id ? thread_id : "<none>"); */
 
+		/* } */
 		rv = output_func (msg, iter, opts, err);
 		if (!rv)
 			break;

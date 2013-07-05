@@ -1,12 +1,7 @@
 This is mu-guile.info, produced by makeinfo version 4.13 from
 mu-guile.texi.
 
-INFO-DIR-SECTION The Algorithmic Language Scheme
-START-INFO-DIR-ENTRY
-* mu-guile manual: (mu-guile).  Guile bindings for the mu e-mail indexer/searcher.
-END-INFO-DIR-ENTRY
-
-   Copyright (C) 2012 Dirk-Jan C. Binnema
+Copyright (C) 2012 Dirk-Jan C. Binnema
 
      Permission is granted to copy, distribute and/or modify this
      document under the terms of the GNU Free Documentation License,
@@ -15,21 +10,38 @@ END-INFO-DIR-ENTRY
      no Back-Cover Texts.  A copy of the license is included in the
      section entitled "GNU Free Documentation License."
 
+INFO-DIR-SECTION The Algorithmic Language Scheme
+START-INFO-DIR-ENTRY
+* Mu-guile: (mu-guile).        Guile-bindings for the mu e-mail indexer/searcher
+END-INFO-DIR-ENTRY
+
 
-File: mu-guile.info,  Node: Top,  Next: Introduction,  Up: (dir)
+File: mu-guile.info,  Node: Top,  Next: Getting started,  Up: (dir)
 
-mu4e Manual
-***********
+mu-guile manual
+***************
 
-Welcome to mu-guile!
+   Welcome to mu-guile!
 
-   mu-guile is a binding of the mu email search engine for the guile
-programming language. That means that you can write simple (and not so
-simple) programs to data-mine your e-mail database.
+   mu is a program for indexing and searching your e-mails. It can
+search your messages in many different ways, but sometimes that may not
+be enough. If you have very specific queries, or want do generate some
+statistics, you need some more power.
+
+   mu-guile is made for those cases. mu-guile exposes the internals of
+mu and its database to the guile programming language. Guile is the
+_GNU Ubiquitous Intelligent Language for Extensions_ - a version of the
+_Scheme_ programming language and the official GNU extension language.
+
+   Guile/Scheme is a member of the _Lisp_ family of programming
+languages - like emacs-lisp, _Racket_, Common Lisp. If you're not
+familiar with Scheme, mu-guile is an excellent opportunity to learn a
+bit about!
+
+   Trust me, it's not very hard - and it it's _fun_!
 
 * Menu:
 
-* Introduction::
 * Getting started::
 * Initializing mu-guile::
 * Messages::
@@ -43,50 +55,65 @@ Appendices
 * GNU Free Documentation License::  The license of this manual.
 
 
-File: mu-guile.info,  Node: Introduction,  Next: Getting started,  Prev: Top,  Up: Top
+File: mu-guile.info,  Node: Getting started,  Next: Initializing mu-guile,  Prev: Top,  Up: Top
 
-1 Introduction
-**************
-
-mu is a program for indexing / searching e-mails stored in Maildirs.
-
-   guile is the _GNU Ubiquitous Intelligent Language for Extensions_ - a
-version of the _Scheme_ programming language and the official GNU
-extension language.
-
-   mu-guile connects mu and guile, and allows you to easily write
-programs for your specific needs.
-
-
-File: mu-guile.info,  Node: Getting started,  Next: Initializing mu-guile,  Prev: Introduction,  Up: Top
-
-2 Getting started
+1 Getting started
 *****************
 
 * Menu:
 
 * Installation::
-* First steps::
+* Making sure it works::
 
-   This chapter walks you through the installation and some basic steps
-to ensure things work correctly.
+   This chapter walks you through the installation and the basic setup.
 
 
-File: mu-guile.info,  Node: Installation,  Next: First steps,  Up: Getting started
+File: mu-guile.info,  Node: Installation,  Next: Making sure it works,  Up: Getting started
 
-2.1 Installation
+1.1 Installation
 ================
 
-mu-guile is part of mu - by installing the latter, the former will be
-installed as well, provided that you have guile version 2.0 installed.
+mu-guile is part of mu - by installing the latter, the former is
+installed as well. At the time of writing, there are no
+distribution-provided packaged versions of mu-guile; so for now, you
+need to follow the steps below.
 
-   At the time of writing, there are no distribution packages for
-mu-guile, so we are assuming installation from source packages.
+1.1.1 Guile 2.x
+---------------
 
-   Installation follows the normal sequence of:
-     $ tar xvfz mu-<version>.tar.gz  # use the specific version
-     $ cd mu-<version>
-     $./configure
+mu-guile is built automatically when mu is built, if you have guile
+installed (mu checks for this during configure). Thus, the first step
+is to ensure you have guile installed.
+
+   On Debian/Ubuntu you can install guile 2.x using the guile-2.0-dev
+package (and its dependencies):
+     $ sudo apt-get install guile-2.0-dev
+
+   At the time of write, there are no official packages for Fedora(1).
+If you are using Fedora or any other system that does not have
+packages, you need to compile guile from source(2).
+
+1.1.2 gnuplot
+-------------
+
+For creating graphs with mu-guile, you need the gnuplot program - most
+likely, there is a package available for your system; for example:
+
+     $ sudo apt-get install gnuplot
+
+   and in Fedora:
+
+     $ sudo yum install gnuplot
+
+1.1.3 mu
+--------
+
+At the time of writing, there are no distribution packages for mu-guile,
+so we are assuming installation from source packages.
+
+   Assuming guile 2.x is installed correctly, mu finds it during its
+configure-stage, and creates mu-guile. Building mu follows the normal
+steps - please see the mu documentation for the details.
 
    The output of ./configure should end with a little text describing
 the detected versions of various libraries mu depends on. In
@@ -95,49 +122,53 @@ particular, it should mention the guile version, e.g.
      Guile version                        : 2.0.3.82-a2c66
 
    If you don't see any line referring to guile, please install it, and
-run configure again. Note once more, mu-guile requires guile version
-2.0.
-
-   After a succesfull ./configure, we can make and install the package:
+run configure again. After a succesfull ./configure, we can make and
+install the package:
 
      $ make && sudo make install
 
-   After this, mu and mu-guile should be installed. Note that the above
-instructions will normally install things under /usr/local; you may need
-to update guile's %load-path to find it there.
+1.1.4 mu-guile
+--------------
 
-   You can check the current load-path with the following:
+After this, mu and mu-guile are installed - usually somewhere under
+/usr/local.You may need to update guile's `%load-path' to find it
+there. You can check the current `%load-path' with the following:
 
      guile -c '(display %load-path)(newline)'
 
-   If necessary, you can add the %load-path by adding something like the
-following to your `~/.guile':
+   If necessary, you can add the %load-path by adding to your
+`~/.guile':
 
      (set! %load-path (cons "/usr/local/share/guile/site/2.0" %load-path))
 
    Or, alternatively, you can set GUILE_LOAD_PATH:
      export GUILE_LOAD_PATH="/usr/local/share/guile/site/2.0"
 
-   Note, in both cases the directory should be the directory that
-contains the installed mu.scm; so if you installed mu under a different
-prefix, you must change the load-path accordingly.
+   In both cases the directory should be the directory that contains the
+installed mu.scm; if you installed mu under a different prefix, you
+must change the `%load-path' accordingly. After this, you should be
+ready to go!
 
-   After this, you should be ready to go.
+   ---------- Footnotes ----------
+
+   (1) `https://bugzilla.redhat.com/show_bug.cgi?id=678238'
+
+   (2)
+`http://www.gnu.org/software/guile/manual/html_node/Obtaining-and-Installing-Guile.html#Obtaining-and-Installing-Guile'
 
 
-File: mu-guile.info,  Node: First steps,  Prev: Installation,  Up: Getting started
+File: mu-guile.info,  Node: Making sure it works,  Prev: Installation,  Up: Getting started
 
-2.2 First steps
-===============
+1.2 Making sure it works
+========================
 
 Assuming mu-guile has been installed correctly (*note Installation::),
 and also assuming that you have already indexed your e-mail messages (if
 necessary, see the mu-index man-page), we are ready to start mu-guile;
 a session may look something like this:
 
-$ guile
-GNU Guile 2.0.3.82-a2c66
-Copyright (C) 1995-2011 Free Software Foundation, Inc.
+GNU Guile 2.0.5.123-4bd53
+Copyright (C) 1995-2012 Free Software Foundation, Inc.
 
 Guile comes with ABSOLUTELY NO WARRANTY; for details type `,show w'.
 This program is free software, and you are welcome to redistribute it
@@ -146,48 +177,48 @@ under certain conditions; type `,show c' for details.
 Enter `,help' for help.
 scheme@(guile-user)>
 
-   Now, we need to load some of the mu-guile modules:
+Now, copy-paste the following after the prompt:
 
-scheme@(guile-user)> (use-modules (mu) (mu message))
+     (use-modules (mu))
+     (mu:initialize)
+     (for-each
+         (lambda(msg)
+            (format #t "Subject: ~a\n" (mu:subject msg)))
+             (mu:message-list "hello"))
 
-   This will load the basic modules for dealing with messages. After we
-have loaded the modules, we need to initialize the mu-guile system:
+After pressing <Enter>, you should get a list of all subjects of
+messages that match hello:
 
-scheme@(guile-user)> (mu:initialize)
+...
+Subject: RE: The Bird Serpent War Cataclysm
+Subject: Hello!
+Subject: Re: post-run tomorrow
+Subject: When all is lost
+...
 
-   When this is done, we can start querying the database. We discuss
-various methods and functions later in this manual, but just to give an
-example, let's get a list of the subjects of all messages that mention
-_hello_:
-
-scheme@(guile-user)> (for-each
-                        (lambda(msg)
-                          (format #t "Subject: ~a\n" (mu:subject msg)))
-                        (mu:message-list "hello"))
-
-   Note, the multi-lines in the example are only for readability; since
-it can be a bit uncomfortable to type long sequences at the 'REPL' (the
-Guile command-line), we recommend using a tool like Geiser(1).
-
-   ---------- Footnotes ----------
-
-   (1) `http://www.nongnu.org/geiser/'
+If all this works, congratulations! mu-guile is installed now, ready to
+serve your every whim!
 
 
 File: mu-guile.info,  Node: Initializing mu-guile,  Next: Messages,  Prev: Getting started,  Up: Top
 
-3 Initializing mu-guile
+2 Initializing mu-guile
 ***********************
 
-It is of course possible to write separate programs with mu-guile, but
-for now we'll do things _interactively_, i.e., from the Guile-prompt
+We now have installed mu-guile, and in *note Making sure it works::
+confirmed that things work by trying some simple script. In this and the
+following chapters, we take a closer look at programming with mu-guile.
+
+   It is possible to write separate programs with mu-guile, but for now
+we'll do things _interactively_, that is, from the Guile-prompt
 ("REPL").
 
-   We start our mu-guile session by starting guile:
+   As we have seen, we start our mu-guile session by starting guile:
 
 $ guile
-GNU Guile 2.0.3.82-a2c66
-Copyright (C) 1995-2011 Free Software Foundation, Inc.
+
+GNU Guile 2.0.5.123-4bd53
+Copyright (C) 1995-2012 Free Software Foundation, Inc.
 
 Guile comes with ABSOLUTELY NO WARRANTY; for details type `,show w'.
 This program is free software, and you are welcome to redistribute it
@@ -198,48 +229,49 @@ scheme@(guile-user)>
 
    The first thing we need to do is loading the modules. All the basics
 are in the (mu) module, with some statistical extras in (mu stats), and
-some graph plotting functionality in (mu plot).
-
-   Let's simply load all of them:
-
+some graph plotting functionality in (mu plot)(1). Let's load all of
+them:
 scheme@(guile-user)> (use-modules (mu) (mu stats) (mu plot))
 
-   Assuming you have installed everything correctly, the first time you
-do this, guile will probably respond by showing some message about
-compiling the modules, and then return to you with another prompt.
-
-   Before we can do anything with mu guile, we need to initialize the
-system. This goes like this:
+   The first time you do this, guile will probably respond by showing
+some messages about compiling the modules, and then return to you with
+another prompt. Before we can do anything with mu guile, we need to
+initialize the system:
 
 scheme@(guile-user)> (mu:initialize)
 
-   Which will use the default location of `~/.mu'. Or, instead, if you
-keep your mu data in a non-standard place:
+   This opens the database for reading, using the default location of
+`~/.mu'(2)
 
-scheme@(guile-user)> (mu:initialize "/path/to/my/mu/")
+   Now, mu-guile is ready to go. In the next chapter, we go through the
+modules and show what you can do with them.
 
-   If all worked up until here, we're ready to go with mu-guile -
-hurray! In the next chapters we'll walk through all the modules.
+   ---------- Footnotes ----------
+
+   (1) `(mu plot)' requires the gnuplot program
+
+   (2) If you keep your mu database in a non-standard place, use
+`(mu:initialize "/path/to/my/mu/")'
 
 
 File: mu-guile.info,  Node: Messages,  Next: Contacts,  Prev: Initializing mu-guile,  Up: Top
 
-4 Messages
+3 Messages
 **********
 
-In this chapter, we discuss how to find messages and how to do various
-things with them.
+In this chapter, we discuss searching messages and doing things with
+them.
 
 * Menu:
 
-* Finding messages::
-* Message methods::
-* Example - the longest subject::
+* Finding messages:: query for messages in the databse
+* Message methods::  what methods are available for messages?
+* Example - the longest subject:: find the messages with the longest subject
 
 
 File: mu-guile.info,  Node: Finding messages,  Next: Message methods,  Up: Messages
 
-4.1 Finding messages
+3.1 Finding messages
 ====================
 
 Now we are ready to retrieve some messages from the system. There are
@@ -249,21 +281,19 @@ two main functions to do this:
 
    * `(mu:for-each-message <function> [<search-expression>])'
 
-   The first function, `mu:message-list' returns a list of all messages
+The first function, `mu:message-list' returns a list of all messages
 matching <search-expression>; if you leave <search-expression> out, it
-returns _all_ messages.
-
-   For example, to get all messages with _coffee_ in the subject line,
-you could do:
+returns _all_ messages. For example, to get all messages with coffee in
+the subject line:
 
 scheme@(guile-user)> (mu:message-list "subject:coffee")
 $1 = (#<<mu:message> 9040640> #<<mu:message> 9040630>
       #<<mu:message> 9040570>)
 
-   So, since apparently we have three messages matching subject:coffee,
-we get a list of three <mu:message> objects. Let's just use the
-`mu:subject' function ('method') provided by <mu:message> objects to
-retrieve the subject-field (more about methods in the next section).
+Apparently, we have three messages matching subject:coffee, so we get a
+list of three `<mu:message>' objects. Let's just use the `mu:subject'
+function ('method') provided by `<mu:message>' objects to retrieve the
+subject-field (more about methods in the next section).
 
    For your convenience, guile has saved the result of our last query
 in a variable called $1, so to get the subject of the first message in
@@ -272,9 +302,9 @@ the list, we can do:
 scheme@(guile-user)> (mu:subject (car $1))
 $2 = "Re: best coffee ever!"
 
-   The second function we mentioned, `mu:for-each-message', executes
-some function for each message matched by the search expression (or
-_all_ messages if the search expression is omitted).
+The second function we mentioned, `mu:for-each-message', executes some
+function for each message matched by the search expression (or _all_
+messages if the search expression is omitted):
 
 scheme@(guile-user)> (mu:for-each-message
                        (lambda(msg)
@@ -286,9 +316,9 @@ best coffee ever!
 Coffee beans
 scheme@(guile-user)>
 
-   Using `mu:message-list' and/or `mu:for-each-message'(1) and a couple
-of <mu:message> methods, together with what Guile/Scheme provides,
-should allow for many interesting programs.
+Using `mu:message-list' and/or `mu:for-each-message'(1) and a couple of
+<mu:message> methods, together with what Guile/Scheme provides, should
+allow for many interesting programs.
 
    ---------- Footnotes ----------
 
@@ -300,7 +330,7 @@ combination of `for-each' and `mu:message-list'
 
 File: mu-guile.info,  Node: Message methods,  Next: Example - the longest subject,  Prev: Finding messages,  Up: Messages
 
-4.2 Message methods
+3.2 Message methods
 ===================
 
 Now that we've seen how to retrieve lists of message objects
@@ -382,7 +412,7 @@ $3 = "2011-01-15"
 
 File: mu-guile.info,  Node: Example - the longest subject,  Prev: Message methods,  Up: Messages
 
-4.3 Example - the longest subject
+3.3 Example - the longest subject
 =================================
 
 Now, let's write a little example - let's find out what is the _longest
@@ -420,7 +450,7 @@ questions about your e-mail corpus.
 
 File: mu-guile.info,  Node: Contacts,  Next: Attachments and other parts,  Prev: Messages,  Up: Top
 
-5 Contacts
+4 Contacts
 **********
 
 We can retrieve the sender and recipients of an e-mail message using
@@ -438,7 +468,7 @@ often it is more useful to deal with recipients as separate objects.
 
 File: mu-guile.info,  Node: Contact functions and objects,  Next: All contacts,  Up: Contacts
 
-5.1 Contact functions and objects
+4.1 Contact functions and objects
 =================================
 
 Message objects (*note Messages::) have a method mu:contacts:
@@ -477,7 +507,7 @@ please refer to *Note All contacts::.
 
 File: mu-guile.info,  Node: All contacts,  Next: Utility functions,  Prev: Contact functions and objects,  Up: Contacts
 
-5.2 All contacts
+4.2 All contacts
 ================
 
 Sometimes you may want to inspect _all_ the different contacts in the
@@ -511,7 +541,7 @@ uses the most recent non-empty name.
 
 File: mu-guile.info,  Node: Utility functions,  Next: Example - mutt export,  Prev: All contacts,  Up: Contacts
 
-5.3 Utility functions
+4.3 Utility functions
 =====================
 
 To make dealing with contacts even easier, there are a number of utility
@@ -526,7 +556,7 @@ formats are "org-contact, "mutt-alias", "mutt-ab", "wanderlust" and
 
 File: mu-guile.info,  Node: Example - mutt export,  Prev: Utility functions,  Up: Contacts
 
-5.4 Example - mutt export
+4.4 Example - mutt export
 =========================
 
 Let's see how we could export the addresses in the mu database to the
@@ -581,7 +611,7 @@ an excercise to the reader.
 
 File: mu-guile.info,  Node: Attachments and other parts,  Next: Statistics,  Prev: Contacts,  Up: Top
 
-6 Attachments and other parts
+5 Attachments and other parts
 *****************************
 
 To deal with _attachments_, or, more in general _MIME-parts_, there is
@@ -595,7 +625,7 @@ the mu part module.
 
 File: mu-guile.info,  Node: Parts and their methods,  Next: Attachment example,  Up: Attachments and other parts
 
-6.1 Parts and their methods
+5.1 Parts and their methods
 ===========================
 
 The module defines the `<mu-part>' class, and adds two methods to
@@ -631,7 +661,7 @@ msg-path, part-index)
 
 File: mu-guile.info,  Node: Attachment example,  Prev: Parts and their methods,  Up: Attachments and other parts
 
-6.2 Attachment example
+5.2 Attachment example
 ======================
 
 Let's look at some small example. Let's get a list of the biggest
@@ -671,19 +701,71 @@ be a bit more elegant.
 
 File: mu-guile.info,  Node: Statistics,  Next: Plotting data,  Prev: Attachments and other parts,  Up: Top
 
-7 Statistics
+6 Statistics
 ************
 
 mu-guile offers some convenience functions to determine various
 statistics about the messages in the database.
 
-   `(mu:tabulate <function> [<search-expr>])' applies <function> to
-each message matching <search-expr> (leave empty to match _all_
-messages), and returns a associative list (a list of pairs) with each
-of the different results of <function> and their frequencies.
+* Menu:
 
-   This can best be demonstrated with a little example. Suppose we want
-to know how many messages we receive per weekday:
+* Basics:: `mu:count', `mu:average', ...
+* Tabulating values:: `mu:tabulate'
+* Most frequent values:: `mu:top-n-most-frequent'
+
+
+File: mu-guile.info,  Node: Basics,  Next: Tabulating values,  Up: Statistics
+
+6.1 Basics
+==========
+
+Let's look at some of the basic statistical operations available, in an
+interactive session:
+     GNU Guile 2.0.5.123-4bd53
+     Copyright (C) 1995-2012 Free Software Foundation, Inc.
+
+     Guile comes with ABSOLUTELY NO WARRANTY; for details type `,show w'.
+     This program is free software, and you are welcome to redistribute it
+     under certain conditions; type `,show c' for details.
+
+     Enter `,help' for help.
+     scheme@(guile-user)> ;; load modules, initialize mu
+     scheme@(guile-user)> (use-modules (mu) (mu stats))
+     scheme@(guile-user)> (mu:initialize)
+     scheme@(guile-user)>
+     scheme@(guile-user)> ;; count the number of messages with 'hello' in their subject
+     scheme@(guile-user)> (mu:count "subject:hello")
+     $1 = 162
+     scheme@(guile-user)> ;; average the size of messages with hello in their subject
+     scheme@(guile-user)> (mu:average mu:size "subject:hello")
+     $2 = 34597733/81
+     scheme@(guile-user)> (exact->inexact $2)
+     $3 = 427132.506172839
+     scheme@(guile-user)> ;; calculate the correlation between message size and
+     scheme@(guile-user)> ;; subject length
+     scheme@(guile-user)> (mu:correl mu:size (lambda (msg)
+                             (string-length (mu:subject msg))) "subject:hello")
+     $5 = -0.10804368622292
+     scheme@(guile-user)>
+
+
+File: mu-guile.info,  Node: Tabulating values,  Next: Most frequent values,  Prev: Basics,  Up: Statistics
+
+6.2 Tabulating values
+=====================
+
+`(mu:tabulate <function> [<search-expr>])' applies <function> to each
+message matching <search-expr> (leave empty to match _all_ messages),
+and returns a associative list (a list of pairs) with each of the
+different results of <function> and their frequencies. For fields that
+contain lists of values (such as address-fields), each of the values in
+the list is added separately.
+
+6.2.1 Example: messages per weekday
+-----------------------------------
+
+We demonstrate `mu:tabulate' with an example. Suppose we want to know
+how many messages we receive per weekday:
 
      #!/bin/sh
      exec guile -s $0 $ !#
@@ -727,18 +809,51 @@ Sat: 1856
    Clearly, Saturday is a slow day for e-mail...
 
 
+File: mu-guile.info,  Node: Most frequent values,  Prev: Tabulating values,  Up: Statistics
+
+6.3 Most frequent values
+========================
+
+In the above example, the number of values is small (the seven
+weekdays); however, in many cases there can be many different values
+(for example, all different message subjects), many of which may not be
+very interesting - all we need to know is the top-10 of most frequently
+seen values.
+
+   This is fairly easy to achieve using `mu:tabulate' - to get the
+top-10 subjects(1), we can use something like this:
+     (take
+       (sort
+         (mu:tabulate mu:subject)
+         (lambda (a b) (> (cdr a) (cdr b))))
+       10)
+
+   If this is not short enough, mu-guile offers a convenience function
+to do this: `mu:top-n-most-frequent'. For example, to get the top-10
+people we sent mail to most often:
+
+     (mu:top-n-most-frequent mu:to 10 "maildir:/sent")
+
+   Can't make it much easier than that!
+
+   ---------- Footnotes ----------
+
+   (1) this requires the `(srfi srfi-1)'-module
+
+
 File: mu-guile.info,  Node: Plotting data,  Next: GNU Free Documentation License,  Prev: Statistics,  Up: Top
 
-8 Plotting data
+7 Plotting data
 ***************
 
 You can plot the results in the format produced by `mu:tabulate' with
 the (mu plot) module, an experimental module that requires the
 gnuplot(1) program to be installed on your system.
 
-   The `mu:plot' function takes the following arguments:
+   The `mu:plot-histogram' function takes the following arguments:
 
-   `(mu:plot <data> <title> <x-label> <y-label> [<want-ascii>])'
+   `(mu:plot-histogram <data> <title> <x-label> <y-label>
+[<want-ascii>])'
 
    Here, `<data>' is a table of data in the format that `mu:tabulate'
 produces. `<title>', `<x-label>' and `<y-lablel>' are, respectively,
@@ -763,29 +878,30 @@ number of message per hour:
      	(tm:hour (localtime (mu:date msg)))))
          (lambda (x y) (< (car x) (car y)))))
 
-     (mu:plot (mail-per-hour-table) "Mail per hour" "Hour" "Frequency" #t)
+     (mu:plot-histogram (mail-per-hour-table) "Mail per hour" "Hour" "Frequency"
+     #t)
 
-                                  Mail per hour
- Frequency
-   1200 ++--+--+--+--+-+--+--+--+--+-+--+--+--+-+--+--+--+--+-+--+--+--+--++
-        |+  +  +  +  + +  + "/tmp/fileHz7D2u" using 2:xticlabels(1) ********
-   1100 ++                                                            *** +*
-        ****                                                          * *  *
-   1000 *+ *                                                       **** * +*
-        *  *                           ******  ****                * ** *  *
-    900 *+ *                           * ** ****  *             **** ** * +*
-        *  *                           * ** *  *  *********     * ** ** *  *
-    800 *+ *                        **** ** *  *  *  * ** *     * ** ** * +*
-    700 *+ ***                   ****  * ** *  *  *  * ** ****  * ** ** * +*
-        *  * *                ****  *  * ** *  *  *  * ** *  **** ** ** *  *
-    600 *+ * ****             *  *  *  * ** *  *  *  * ** *  *  * ** ** * +*
-        *  * ** *             *  *  *  * ** *  *  *  * ** *  *  * ** ** *  *
-    500 *+ * ** *             *  *  *  * ** *  *  *  * ** *  *  * ** ** * +*
-        *  * ** ****        ***  *  *  * ** *  *  *  * ** *  *  * ** ** *  *
-    400 *+ * ** ** ****     * *  *  *  * ** *  *  *  * ** *  *  * ** ** * +*
-        *+ *+**+**+* +*******+* +* +*+ *+**+* +*+ *+ *+**+* +*+ *+**+**+* +*
-    300 ********************************************************************
-         0  1  2  3  4 5  6  7  8  910 11 12 1314 15 16 17 1819 20 21 22 23
+				 Mail per hour
+Frequency
+  1200 ++--+--+--+--+-+--+--+--+--+-+--+--+--+-+--+--+--+--+-+--+--+--+--++
+       |+  +  +	 +  + +	 + "/tmp/fileHz7D2u" using 2:xticlabels(1) ********
+  1100 ++							     *** +*
+       ****							     * *  *
+  1000 *+ *							  **** * +*
+       *  *			      ******  ****		  * ** *  *
+   900 *+ *			      * ** ****	 *	       **** ** * +*
+       *  *			      * ** *  *	 *********     * ** ** *  *
+   800 *+ *			   **** ** *  *	 *  * ** *     * ** ** * +*
+   700 *+ ***			****  * ** *  *	 *  * ** ****  * ** ** * +*
+       *  * *		     ****  *  * ** *  *	 *  * ** *  **** ** ** *  *
+   600 *+ * ****	     *	*  *  * ** *  *	 *  * ** *  *  * ** ** * +*
+       *  * ** *	     *	*  *  * ** *  *	 *  * ** *  *  * ** ** *  *
+   500 *+ * ** *	     *	*  *  * ** *  *	 *  * ** *  *  * ** ** * +*
+       *  * ** ****	   ***	*  *  * ** *  *	 *  * ** *  *  * ** ** *  *
+   400 *+ * ** ** ****	   * *	*  *  * ** *  *	 *  * ** *  *  * ** ** * +*
+       *+ *+**+**+* +*******+* +* +*+ *+**+* +*+ *+ *+**+* +*+ *+**+**+* +*
+   300 ********************************************************************
+	0  1  2	 3  4 5	 6  7  8  910 11 12 1314 15 16 17 1819 20 21 22 23
                                        Hour
 
    ---------- Footnotes ----------
@@ -1227,32 +1343,38 @@ permit their use in free software.
 
 
 Tag Table:
-Node: Top694
-Node: Introduction1243
-Node: Getting started1695
-Node: Installation1989
-Node: First steps3864
-Ref: First steps-Footnote-15514
-Node: Initializing mu-guile5554
-Node: Messages7178
-Node: Finding messages7473
-Ref: Finding messages-Footnote-19415
-Node: Message methods9665
-Node: Example - the longest subject12509
-Node: Contacts13769
-Node: Contact functions and objects14281
-Node: All contacts15674
-Node: Utility functions17053
-Node: Example - mutt export17603
-Ref: Example - mutt export-Footnote-119315
-Node: Attachments and other parts19346
-Node: Parts and their methods19665
-Ref: Parts and their methods-Footnote-120775
-Node: Attachment example20867
-Node: Statistics22060
-Node: Plotting data23843
-Ref: Plotting data-Footnote-126734
-Node: GNU Free Documentation License26769
+Node: Top689
+Node: Getting started1840
+Node: Installation2101
+Ref: Installation-Footnote-14844
+Ref: Installation-Footnote-24905
+Node: Making sure it works5033
+Node: Initializing mu-guile6302
+Ref: Initializing mu-guile-Footnote-18004
+Ref: Initializing mu-guile-Footnote-28053
+Node: Messages8155
+Node: Finding messages8555
+Ref: Finding messages-Footnote-110463
+Node: Message methods10713
+Node: Example - the longest subject13557
+Node: Contacts14817
+Node: Contact functions and objects15329
+Node: All contacts16722
+Node: Utility functions18101
+Node: Example - mutt export18651
+Ref: Example - mutt export-Footnote-120363
+Node: Attachments and other parts20394
+Node: Parts and their methods20713
+Ref: Parts and their methods-Footnote-121823
+Node: Attachment example21915
+Node: Statistics23108
+Node: Basics23494
+Node: Tabulating values24919
+Node: Most frequent values26786
+Ref: Most frequent values-Footnote-127765
+Node: Plotting data27814
+Ref: Plotting data-Footnote-130399
+Node: GNU Free Documentation License30434
 
 End Tag Table
 

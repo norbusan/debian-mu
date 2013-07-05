@@ -1,7 +1,7 @@
 /* -*-mode: c; tab-width: 8; indent-tabs-mode: t; c-basic-offset: 8 -*-*/
 
 /*
-** Copyright (C) 2008-2012 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+** Copyright (C) 2008-2013 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 **
 ** This program is free software; you can redistribute it and/or modify it
 ** under the terms of the GNU General Public License as published by the
@@ -130,8 +130,8 @@ run_and_count_matches (const char *xpath, const char *query)
 	}
 
 
-	iter = mu_query_run (mquery, query, FALSE, MU_MSG_FIELD_ID_NONE,
-			     FALSE, -1, NULL);
+	iter = mu_query_run (mquery, query, MU_MSG_FIELD_ID_NONE, -1,
+			     MU_QUERY_FLAG_NONE, NULL);
 	mu_query_destroy (mquery);
 	g_assert (iter);
 
@@ -180,7 +180,8 @@ test_mu_query_01 (void)
 	};
 
  	for (i = 0; i != G_N_ELEMENTS(queries); ++i)
-		g_assert_cmpuint (run_and_count_matches (DB_PATH1, queries[i].query),
+		g_assert_cmpuint (run_and_count_matches (DB_PATH1,
+							 queries[i].query),
 				  ==, queries[i].count);
 }
 
@@ -215,12 +216,13 @@ test_mu_query_03 (void)
 		{ "subject:Re: Learning LISP; Scheme vs elisp.", 0},
 		{ "subject:\"Re: Learning LISP; Scheme vs elisp.\"", 1},
 		{ "to:help-gnu-emacs@gnu.org", 4},
-		{ "t:help-gnu-emacs", 0},
+		{ "t:help-gnu-emacs", 4},
 		{ "flag:flagged", 1}
 	};
 
  	for (i = 0; i != G_N_ELEMENTS(queries); ++i)
-		g_assert_cmpuint (run_and_count_matches (DB_PATH1, queries[i].query),
+		g_assert_cmpuint (run_and_count_matches (DB_PATH1,
+							 queries[i].query),
 				  ==, queries[i].count);
 }
 
@@ -247,7 +249,8 @@ test_mu_query_04 (void)
 	};
 
  	for (i = 0; i != G_N_ELEMENTS(queries); ++i)
-		g_assert_cmpuint (run_and_count_matches (DB_PATH1, queries[i].query),
+		g_assert_cmpuint (run_and_count_matches (DB_PATH1,
+							 queries[i].query),
 				  ==, queries[i].count);
 }
 
@@ -268,7 +271,8 @@ test_mu_query_logic (void)
 	};
 
  	for (i = 0; i != G_N_ELEMENTS(queries); ++i)
-		g_assert_cmpuint (run_and_count_matches (DB_PATH1, queries[i].query),
+		g_assert_cmpuint (run_and_count_matches (DB_PATH1,
+							 queries[i].query),
 				  ==, queries[i].count);
 }
 
@@ -291,8 +295,8 @@ test_mu_query_accented_chars_01 (void)
 	query = mu_query_new (store, NULL);
 	mu_store_unref (store);
 
-	iter = mu_query_run (query, "fünkÿ", FALSE, MU_MSG_FIELD_ID_NONE,
-			     FALSE, -1, NULL);
+	iter = mu_query_run (query, "fünkÿ", MU_MSG_FIELD_ID_NONE,
+			     -1, MU_QUERY_FLAG_NONE, NULL);
 	err = NULL;
 	msg = mu_msg_iter_get_msg_floating (iter); /* don't unref */
 	if (!msg) {
@@ -305,8 +309,10 @@ test_mu_query_accented_chars_01 (void)
 			 "Greetings from Lothlórien");
 	/* TODO: fix this again */
 
-	summ = mu_str_summarize (mu_msg_get_body_text(msg, MU_MSG_OPTION_NONE), 5);
-	g_assert_cmpstr (summ,==, "Let's write some fünkÿ text using umlauts. Foo.");
+	summ = mu_str_summarize (mu_msg_get_body_text
+				 (msg, MU_MSG_OPTION_NONE), 5);
+	g_assert_cmpstr (summ,==,
+			 "Let's write some fünkÿ text using umlauts. Foo.");
 	g_free (summ);
 
 	mu_msg_iter_destroy (iter);
@@ -325,13 +331,43 @@ test_mu_query_accented_chars_02 (void)
 		{ "t:Kröger", 1},
 		{ "s:MotorHeäD", 1},
 		{ "queensryche", 1},
-		{ "Queensrÿche", 1},
+		{ "Queensrÿche", 1}
 	};
 
  	for (i = 0; i != G_N_ELEMENTS(queries); ++i)
-		g_assert_cmpuint (run_and_count_matches (DB_PATH1, queries[i].query),
+		g_assert_cmpuint (run_and_count_matches (DB_PATH1,
+							 queries[i].query),
 				  ==, queries[i].count);
 }
+
+
+static void
+test_mu_query_accented_chars_fraiche (void)
+{
+	int i;
+
+	QResults queries[] = {
+		{ "crème fraîche", 1},
+		{ "creme fraiche", 1},
+		{ "fraîche crème", 1},
+		{ "будланула", 1},
+		{ "БУДЛАНУЛА", 1},
+		{ "CRÈME FRAÎCHE", 1},
+		{ "CREME FRAICHE", 1}
+	};
+
+ 	for (i = 0; i != G_N_ELEMENTS(queries); ++i) {
+
+		if (g_test_verbose ())
+			g_print ("'%s'\n", queries[i].query);
+
+		g_assert_cmpuint (run_and_count_matches (DB_PATH2,
+							 queries[i].query),
+				  ==, queries[i].count);
+	}
+}
+
+
 
 
 static void
@@ -348,7 +384,8 @@ test_mu_query_wildcards (void)
 	};
 
  	for (i = 0; i != G_N_ELEMENTS(queries); ++i)
-		g_assert_cmpuint (run_and_count_matches (DB_PATH1, queries[i].query),
+		g_assert_cmpuint (run_and_count_matches (DB_PATH1,
+							 queries[i].query),
 				  ==, queries[i].count);
 }
 
@@ -374,7 +411,8 @@ test_mu_query_dates_helsinki (void)
 	g_assert (xpath != NULL);
 
  	for (i = 0; i != G_N_ELEMENTS(queries); ++i)
-		g_assert_cmpuint (run_and_count_matches (xpath, queries[i].query),
+		g_assert_cmpuint (run_and_count_matches
+				  (xpath, queries[i].query),
 				  ==, queries[i].count);
 
 	g_free (xpath);
@@ -403,7 +441,8 @@ test_mu_query_dates_sydney (void)
 	g_assert (xpath != NULL);
 
  	for (i = 0; i != G_N_ELEMENTS(queries); ++i)
-		g_assert_cmpuint (run_and_count_matches (xpath, queries[i].query),
+		g_assert_cmpuint (run_and_count_matches
+				  (xpath, queries[i].query),
 				  ==, queries[i].count);
 
 	g_free (xpath);
@@ -432,7 +471,8 @@ test_mu_query_dates_la (void)
 	g_assert (xpath != NULL);
 
  	for (i = 0; i != G_N_ELEMENTS(queries); ++i)
-		g_assert_cmpuint (run_and_count_matches (xpath, queries[i].query),
+		g_assert_cmpuint (run_and_count_matches
+				  (xpath, queries[i].query),
 				  ==, queries[i].count);
 
 	g_free (xpath);
@@ -453,7 +493,8 @@ test_mu_query_sizes (void)
 	};
 
  	for (i = 0; i != G_N_ELEMENTS(queries); ++i)
-		g_assert_cmpuint (run_and_count_matches (DB_PATH1, queries[i].query),
+		g_assert_cmpuint (run_and_count_matches (DB_PATH1,
+							 queries[i].query),
 				  ==, queries[i].count);
 
 }
@@ -472,7 +513,8 @@ test_mu_query_attach (void)
  	for (i = 0; i != G_N_ELEMENTS(queries); ++i) {
 		if (g_test_verbose())
 			g_print ("query: %s\n", queries[i].query);
-		g_assert_cmpuint (run_and_count_matches (DB_PATH2, queries[i].query),
+		g_assert_cmpuint (run_and_count_matches (DB_PATH2,
+							 queries[i].query),
 				  ==, queries[i].count);
 	}
 }
@@ -526,7 +568,8 @@ test_mu_query_tags_02 (void)
 	};
 
  	for (i = 0; i != G_N_ELEMENTS(queries); ++i) {
-		g_assert_cmpuint (run_and_count_matches (DB_PATH2, queries[i].query),
+		g_assert_cmpuint (run_and_count_matches (DB_PATH2,
+							 queries[i].query),
 				  ==, queries[i].count);
 	}
 }
@@ -586,6 +629,9 @@ main (int argc, char *argv[])
 			 test_mu_query_accented_chars_01);
 	g_test_add_func ("/mu-query/test-mu-query-accented-chars-2",
 			 test_mu_query_accented_chars_02);
+	g_test_add_func ("/mu-query/test-mu-query-accented-chars-fraiche",
+			 test_mu_query_accented_chars_fraiche);
+
 	g_test_add_func ("/mu-query/test-mu-query-wildcards",
 			 test_mu_query_wildcards);
 	g_test_add_func ("/mu-query/test-mu-query-sizes",
@@ -607,7 +653,8 @@ main (int argc, char *argv[])
 
 	if (!g_test_verbose())
 	    g_log_set_handler (NULL,
-			       G_LOG_LEVEL_MASK | G_LOG_FLAG_FATAL| G_LOG_FLAG_RECURSION,
+			       G_LOG_LEVEL_MASK | G_LOG_FLAG_FATAL|
+			       G_LOG_FLAG_RECURSION,
 			       (GLogFunc)black_hole, NULL);
 
 	rv = g_test_run ();

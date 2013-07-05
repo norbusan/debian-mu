@@ -1,4 +1,4 @@
-# Copyright (C) 2008-2011 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+# Copyright (C) 2008-2013 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 ##
 ## This program is free software; you can redistribute it and/or modify it
 ## under the terms of the GNU General Public License as published by the
@@ -16,7 +16,7 @@
 
 include $(top_srcdir)/gtest.mk
 
-INCLUDES=$(XAPIAN_CXXFLAGS)					\
+AM_CPPFLAGS=$(XAPIAN_CXXFLAGS)					\
 	 $(GMIME_CFLAGS)					\
 	 $(GLIB_CFLAGS)						\
 	-I ${top_srcdir}					\

@@ -1,6 +1,6 @@
 /* -*- mode: c; tab-width: 8; indent-tabs-mode: t; c-basic-offset: 8 -*-
 **
-** Copyright (C) 2010-2012 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+** Copyright (C) 2010-2013 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 **
 ** This program is free software; you can redistribute it and/or modify
 ** it under the terms of the GNU General Public License as published by
@@ -126,8 +126,6 @@ gboolean mu_msg_load_msg_file (MuMsg *msg, GError **err);
  * @param msg a message object
  */
 void mu_msg_unload_msg_file (MuMsg *msg);
-
-
 
 /**
  * increase the reference count for this message
@@ -263,11 +261,24 @@ const char*     mu_msg_get_subject         (MuMsg *msg);
  *
  * @param msg a valid MuMsg* instance
  *
- * @return the Message-Id of this Message (without the enclosing <>)
+ * @return the Message-Id of this message (without the enclosing <>)
  * or NULL in case of error or if there is none. the returned string
  * should *not* be modified or freed.
  */
 const char*     mu_msg_get_msgid           (MuMsg *msg);
+
+
+/**
+ * get the mailing list for a message, i.e. the mailing-list
+ * identifier in the List-Id header.
+ *
+ * @param msg a valid MuMsg* instance
+ *
+ * @return the mailing list id for this message (without the enclosing <>)
+ * or NULL in case of error or if there is none. the returned string
+ * should *not* be modified or freed.
+ */
+const char*     mu_msg_get_mailing_list            (MuMsg *msg);
 
 
 /**
@@ -379,12 +390,11 @@ time_t     mu_msg_get_timestamp       (MuMsg *msg);
 const char* mu_msg_get_header (MuMsg *self, const char *header);
 
 
-
 /**
- * get the list of references, with the direct parent as the final
- * one; this final one is typically the 'In-reply-to' field. Note, any
- * reference (message-id) will appear at most once, duplicates are
- * filtered out.
+ * get the list of references (consisting of both the References and
+ * In-Reply-To fields), with the oldest first and the direct parent as
+ * the last one. Note, any reference (message-id) will appear at most
+ * once, duplicates are filtered out.
  *
  * @param msg a valid MuMsg
  *

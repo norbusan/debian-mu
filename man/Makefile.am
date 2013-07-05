@@ -1,4 +1,4 @@
-## Copyright (C) 2008-2011 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+## Copyright (C) 2008-2013 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 ##
 ## This program is free software; you can redistribute it and/or modify
 ## it under the terms of the GNU General Public License as published by
@@ -28,6 +28,7 @@ dist_man_MANS =		\
 	mu-mkdir.1	\
 	mu-remove.1	\
 	mu-server.1	\
+	mu-script.1	\
 	mu-verify.1     \
 	mu-view.1	\
 	mu.1		\

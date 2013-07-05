@@ -1,4 +1,4 @@
-## Copyright (C) 2008-2012 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+## Copyright (C) 2008-2013 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 ##
 ## This program is free software; you can redistribute it and/or modify
 ## it under the terms of the GNU General Public License as published by
@@ -46,7 +46,7 @@ tags:
 # which is a sign that it needs some refactoring. requires the pmccabe
 # tool. If all is fine, it outputs nothing
 cc10:
-	@$(PMCCABE) `find -name '*.c' -o -name '*.cc'`		\
+	@$(PMCCABE) `find . -name '*.c' -o -name '*.cc'`		\
 	| grep -v mu-str-normalize.c				\
 	| grep -v mu_str_subject_normalize			\
 	| grep -v tests						\
@@ -57,7 +57,7 @@ cc10:
 # all is fine, it outputs nothing
 # note, some functions are  exempted from this rule.
 line35:
-	@$(PMCCABE) -c `find -name '*.c' -o -name '*.cc'`	\
+	@$(PMCCABE) -c `find . -name '*.c' -o -name '*.cc'`	\
 	 | grep -v mu-str-normalize.c				\
 	 | grep -v mu_str_subject_normalize			\
 	 | grep -v config_options_group_find			\

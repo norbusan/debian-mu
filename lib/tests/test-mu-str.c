@@ -1,7 +1,7 @@
 /* -*-mode: c; tab-width: 8; indent-tabs-mode: t; c-basic-offset: 8 -*-*/
 
 /*
-** Copyright (C) 2008-2010 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+** Copyright (C) 2008-2013 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 **
 ** This program is free software; you can redistribute it and/or modify it
 ** under the terms of the GNU General Public License as published by the
@@ -149,6 +149,9 @@ test_mu_str_normalize_02 (void)
 
 	for (i = 0; i != G_N_ELEMENTS(words); ++i) {
 		gchar *str;
+		if (g_test_verbose())
+			g_print ("[%s] <=> [%s] <=> [%s]\n", words[i].word, words[i].norm,
+				 mu_str_normalize (words[i].word, FALSE, NULL));
 		str = mu_str_normalize (words[i].word, FALSE, NULL);
 		g_assert_cmpstr (str, ==, words[i].norm);
 		g_free (str);
@@ -357,89 +360,11 @@ test_mu_str_to_list (void)
 static void
 test_mu_str_to_list_strip (void)
 {
-	{
-		const char *items[]= {"foo", "bar", "cuux", NULL};
-		GSList *lst = mu_str_to_list ("foo@bar @cuux",'@', TRUE);
-		assert_cmplst (lst, items);
+	const char *items[]= {"foo", "bar", "cuux", NULL};
+	GSList *lst = mu_str_to_list ("foo@bar @cuux",'@', TRUE);
+	assert_cmplst (lst, items);
 		mu_str_free_list (lst);
-	}
 }
-
-
-
-
-static void
-test_mu_str_guess_first_name (void)
-{
-	int i;
-
-	struct {
-		char *src, *exp;
-	} tests[] = {
-		{ "Richard M. Stallman", "Richard M." },
-		{ "John Rambo", "John" },
-		{ "Ivanhoe", "Ivanhoe" },
-		{ "", "" }
-	};
-
-	for (i = 0; i != G_N_ELEMENTS(tests); ++i) {
-		gchar *s;
-
-		s  = mu_str_guess_first_name (tests[i].src);
-		g_assert_cmpstr (s, ==, tests[i].exp);
-		g_free (s);
-	}
-}
-
-
-static void
-test_mu_str_guess_last_name (void)
-{
-	int i;
-
-	struct {
-		char *src, *exp;
-	} tests[] = {
-		{ "Richard M. Stallman", "Stallman" },
-		{ "John Rambo", "Rambo" },
-		{ "Ivanhoe", "" },
-		{ "", "" }
-	};
-
-	for (i = 0; i != G_N_ELEMENTS(tests); ++i) {
-		gchar *s;
-
-		s  = mu_str_guess_last_name (tests[i].src);
-		g_assert_cmpstr (s, ==, tests[i].exp);
-		g_free (s);
-	}
-}
-
-
-
-static void
-test_mu_str_guess_nick (void)
-{
-	int i;
-
-	struct {
-		char *src, *exp;
-	} tests[] = {
-		{ "Richard M. Stallman", "RichardMS" },
-		{ "John Rambo", "JohnR" },
-		{ "Ivanhoe", "Ivanhoe" },
-		{ "", "" }
-	};
-
-	for (i = 0; i != G_N_ELEMENTS(tests); ++i) {
-		gchar *s;
-
-		s  = mu_str_guess_nick (tests[i].src);
-		g_assert_cmpstr (s, ==, tests[i].exp);
-		g_free (s);
-	}
-}
-
 
 
 static void
@@ -462,6 +387,36 @@ test_mu_str_subject_normalize (void)
 		g_assert_cmpstr (mu_str_subject_normalize (tests[i].src), ==,
 				 tests[i].exp);
 }
+
+
+
+static void
+test_mu_term_fixups (void)
+{
+	unsigned u;
+	struct {
+		const gchar *expr, *expected;
+	} testcases [] = {
+		{ "date:19700101", "date:19700101..19700101" },
+		{ "date:19700101..19700101", "date:19700101..19700101" },
+		{ "(date:20121107))", "(date:20121107..20121107))" },
+		{ "maildir:/somepath", "maildir:/somepath" },
+		{ "([maildir:/somepath]", "([maildir:/somepath]" },
+		/* add more */
+		{ "({", "({" },
+		{ "({abc", "({abc" },
+		{ "abc)}", "abc)}" },
+		{ "", "" }
+	};
+
+ 	for (u = 0; u != G_N_ELEMENTS(testcases); ++u) {
+		gchar *prep;
+		prep = mu_str_xapian_fixup_terms (testcases[u].expr);
+		g_assert_cmpstr (prep, ==, testcases[u].expected);
+		g_free (prep);
+	}
+}
+
 
 
 
@@ -509,15 +464,19 @@ main (int argc, char *argv[])
 	g_test_add_func ("/mu-str/mu-str-esc-to-list",
 			 test_mu_str_esc_to_list);
 
-	g_test_add_func ("/mu-str/mu_str_guess_first_name",
-			 test_mu_str_guess_first_name);
-	g_test_add_func ("/mu-str/mu_str_guess_last_name",
-			 test_mu_str_guess_last_name);
-	g_test_add_func ("/mu-str/mu_str_guess_nick",
-			 test_mu_str_guess_nick);
+	/* g_test_add_func ("/mu-str/mu_str_guess_first_name", */
+	/* 		 test_mu_str_guess_first_name); */
+	/* g_test_add_func ("/mu-str/mu_str_guess_last_name", */
+	/* 		 test_mu_str_guess_last_name); */
+	/* g_test_add_func ("/mu-str/mu_str_guess_nick", */
+	/* 		 test_mu_str_guess_nick); */
 
 	g_test_add_func ("/mu-str/mu_str_subject_normalize",
 			 test_mu_str_subject_normalize);
+
+	/* mu_str_xapian_fixup_terms */
+	g_test_add_func ("/mu-str/mu_term_fixups",
+			 test_mu_term_fixups);
 
 
 	/* FIXME: add tests for mu_str_flags; but note the

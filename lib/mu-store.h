@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2008-2010 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+** Copyright (C) 2008-2013 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 **
 ** This program is free software; you can redistribute it and/or modify it
 ** under the terms of the GNU General Public License as published by the
@@ -153,7 +153,7 @@ void mu_store_set_my_addresses (MuStore *store, const char **my_addresses);
  * @return the number of documents in the database; (unsigned)-1 in
  * case of error
  */
-unsigned mu_store_count (MuStore *store, GError **err);
+unsigned mu_store_count (const MuStore *store, GError **err);
 
 /**
  * get a version string for the database; it's a const string, which
@@ -164,7 +164,7 @@ unsigned mu_store_count (MuStore *store, GError **err);
  *
  * @return the version string or NULL in case of error
  */
-const char* mu_store_version (MuStore *store);
+const char* mu_store_version (const MuStore *store);
 
 
 /**
@@ -244,7 +244,7 @@ gboolean mu_store_remove_path (MuStore *store, const char* msgpath);
  *
  * @return TRUE if the message exists, FALSE otherwise
  */
-gboolean mu_store_contains_message (MuStore *store,  const char* path,
+gboolean mu_store_contains_message (const MuStore *store,  const char* path,
 				    GError **err);
 
 
@@ -258,7 +258,7 @@ gboolean mu_store_contains_message (MuStore *store,  const char* path,
  *
  * @return the docid if the message was found, MU_STORE_INVALID_DOCID (0) otherwise
  * */
-unsigned mu_store_get_docid_for_path (MuStore *store, const char* path, GError **err);
+unsigned mu_store_get_docid_for_path (const MuStore *store, const char* path, GError **err);
 
 /**
  * store a timestamp for a directory
@@ -282,7 +282,7 @@ gboolean mu_store_set_timestamp (MuStore *store, const char* msgpath,
  *
  * @return the timestamp, or 0 in case of error
  */
-time_t mu_store_get_timestamp (MuStore *store, const char* msgpath,
+time_t mu_store_get_timestamp (const MuStore *store, const char* msgpath,
 			       GError **err);
 
 
@@ -294,7 +294,7 @@ time_t mu_store_get_timestamp (MuStore *store, const char* msgpath,
  * @return TRUE if the store is read-only, FALSE otherwise (and in
  * case of error)
  */
-gboolean mu_store_is_read_only (MuStore *store);
+gboolean mu_store_is_read_only (const MuStore *store);
 
 
 /**
@@ -335,7 +335,7 @@ gboolean mu_store_set_metadata (MuStore *store, const char *key, const char *val
  * @return the value of the metadata (gfree when done with it), or
  * NULL in case of error
  */
-char* mu_store_get_metadata (MuStore *store, const char *key, GError **err)
+char* mu_store_get_metadata (const MuStore *store, const char *key, GError **err)
 	G_GNUC_WARN_UNUSED_RESULT;
 
 
@@ -353,14 +353,15 @@ gchar* mu_store_database_version (const gchar *xpath) G_GNUC_WARN_UNUSED_RESULT;
 
 
 /**
- * check whether the database needs to be upgraded, e.g., when it was
- * created with a different version of mu
+ * check whether the database schema's version is the same as the one
+ * that the current mu uses. If they are not the same, we'll need a
+ * database rebuild.
  *
  * @param store a MuStore instance
  *
- * @return TRUE if the database needs upgrading, FALSE otherwise
+ * @return TRUE if the versions are the same, FALSE otherwise.
  */
-gboolean mu_store_needs_upgrade (MuStore *store);
+gboolean mu_store_versions_match (const MuStore *store);
 
 /**
  * clear the database, ie., remove all of the contents. This is a
@@ -396,7 +397,7 @@ gboolean mu_store_database_is_locked (const gchar *xpath);
  * @return a MuMsg instance (use mu_msg_unref when done with it), or
  * NULL in case of error
  */
-MuMsg* mu_store_get_msg (MuStore *self, unsigned docid, GError **err)
+MuMsg* mu_store_get_msg (const MuStore *self, unsigned docid, GError **err)
 	G_GNUC_WARN_UNUSED_RESULT;
 
 

@@ -1,4 +1,4 @@
-## Copyright (C) 2008-2011 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+## Copyright (C) 2008-2013 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 ##
 ## This program is free software; you can redistribute it and/or modify it
 ## under the terms of the GNU General Public License as published by the
@@ -16,7 +16,7 @@
 
 include $(top_srcdir)/gtest.mk
 
-INCLUDES=$(XAPIAN_CXXFLAGS)					\
+AM_CPPFLAGS=$(XAPIAN_CXXFLAGS)					\
 	 $(GMIME_CFLAGS)					\
 	 $(GLIB_CFLAGS)						\
 	-I ${top_srcdir}					\
@@ -120,6 +120,7 @@ EXTRA_DIST=						\
 	testdir2/bar/new/.noindex			\
 	testdir2/Foo/cur/mail5				\
 	testdir2/Foo/cur/arto.eml			\
+	testdir2/Foo/cur/fraiche.eml			\
 	testdir2/Foo/tmp/.noindex			\
 	testdir2/Foo/new/.noindex			\
 	testdir2/wom_bat/cur/atomic			\

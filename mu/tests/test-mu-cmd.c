@@ -1,6 +1,6 @@
 /* -*- mode: c; tab-width: 8; indent-tabs-mode: t; c-basic-offset: 8 -*-
 **
-** Copyright (C) 2008-2012 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+** Copyright (C) 2008-2013 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 **
 ** This program is free software; you can redistribute it and/or modify it
 ** under the terms of the GNU General Public License as published by the
@@ -123,7 +123,7 @@ test_mu_index (void)
 	store = mu_store_new_read_only (xpath, NULL);
 	g_assert (store);
 
-	g_assert_cmpuint (mu_store_count (store, NULL), ==, 12);
+	g_assert_cmpuint (mu_store_count (store, NULL), ==, 13);
 	mu_store_unref (store);
 
 	g_free (xpath);
@@ -133,10 +133,8 @@ test_mu_index (void)
 static void
 test_mu_find_empty_query (void)
 {
-	search ("\"\"", 12);
+	search ("\"\"", 13);
 }
-
-
 
 
 static void
@@ -146,6 +144,7 @@ test_mu_find_01 (void)
 	search ("f:soc@example.com", 1);
 	search ("t:alki@example.com", 1);
 	search ("t:alcibiades", 1);
+	search ("http-emacs", 1);
 	search ("f:soc@example.com OR f:john", 2);
 	search ("f:soc@example.com OR f:john OR t:edmond", 3);
 	search ("t:julius", 1);
@@ -184,8 +183,8 @@ static void
 test_mu_find_mime (void)
 {
 	search ("mime:image/jpeg", 1);
-	search ("mime:text/plain", 12);
-	search ("y:text*", 12);
+	search ("mime:text/plain", 13);
+	search ("y:text*", 13);
 	search ("y:image*", 1);
 	search ("mime:message/rfc822", 2);
 }

@@ -1,6 +1,6 @@
 /* -*-mode: c; tab-width: 8; indent-tabs-mode: t; c-basic-offset: 8 -*-*/
 /*
-** Copyright (C) 2008-2011 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+** Copyright (C) 2008-2013 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 **
 ** This program is free software; you can redistribute it and/or modify it
 ** under the terms of the GNU General Public License as published by the
@@ -311,7 +311,7 @@ mu_result_to_mug_error (MuError r)
 	switch (r) {
 	case MU_ERROR_XAPIAN_DIR_NOT_ACCESSIBLE:
 		return MUG_ERROR_XAPIAN_DIR;
-	case MU_ERROR_XAPIAN_NOT_UP_TO_DATE:
+	case MU_ERROR_XAPIAN_VERSION_MISMATCH:
 		return MUG_ERROR_XAPIAN_NOT_UPTODATE;
 	case MU_ERROR_XAPIAN_QUERY:
 		return MUG_ERROR_QUERY;
@@ -327,6 +327,7 @@ run_query (const char *xpath, const char *query, MugMsgListView * self)
 	MuQuery *xapian;
 	MuMsgIter *iter;
 	MuStore *store;
+	MuQueryFlags qflags;
 
 	err = NULL;
 	if (! (store = mu_store_new_read_only (xpath, &err)) ||
@@ -342,8 +343,14 @@ run_query (const char *xpath, const char *query, MugMsgListView * self)
 	}
 	mu_store_unref (store);
 
-	iter = mu_query_run (xapian, query, TRUE, MU_MSG_FIELD_ID_DATE,
-			     TRUE, -1, &err);
+	qflags =
+		MU_QUERY_FLAG_DESCENDING         |
+		MU_QUERY_FLAG_SKIP_UNREADABLE    |
+		MU_QUERY_FLAG_SKIP_DUPS          |
+		MU_QUERY_FLAG_THREADS;
+
+	iter = mu_query_run (xapian, query, MU_MSG_FIELD_ID_DATE,
+			     -1, qflags, &err);
 	mu_query_destroy (xapian);
 	if (!iter) {
 		g_warning ("Error: %s", err->message);

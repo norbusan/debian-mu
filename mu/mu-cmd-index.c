@@ -1,7 +1,7 @@
 /* -*-mode: c; tab-width: 8; indent-tabs-mode: t; c-basic-offset: 8 -*-*/
 
 /*
-** Copyright (C) 2008-2012 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+** Copyright (C) 2008-2013 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 **
 ** This program is free software; you can redistribute it and/or modify it
 ** under the terms of the GNU General Public License as published by the
@@ -203,7 +203,7 @@ database_version_check_and_update (MuStore *store, MuConfig *opts,
 		return mu_store_clear (store, err);
 	}
 
-	if (!mu_store_needs_upgrade (store))
+	if (mu_store_versions_match (store))
 		return TRUE; /* ok, nothing to do */
 
 	/* ok, database is not up to date */

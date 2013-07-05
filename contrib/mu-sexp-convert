@@ -89,7 +89,7 @@ into a list of pairs
 
 (define (etime->time_t t)
   "Convert elisp time object T into a time_t value."
-  (logior (ash (car t) 16) (car t)))
+  (logior (ash (car t) 16) (car (cdr t))))
 
 (define (sexp->xml)
   "Convert string INPUT to XML, return the XML (string)."
@@ -156,7 +156,7 @@ into a list of pairs
 				     (if (string? (cdr addr))
 				       (format #f "\"email\": \"~a\""
 					 (string->json (cdr addr))) "")))
-			expr " ")
+			expr ", ")
 		      "]"))
 		  ((string= parent "parts") "[]") ;; todo 
 		  ;; convert the crazy emacs time thingy to time_t...

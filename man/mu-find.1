@@ -1,4 +1,4 @@
-.TH MU FIND 1 "August 2012" "User Manuals"
+.TH MU FIND 1 "December 2012" "User Manuals"
 
 .SH NAME
 
@@ -51,7 +51,7 @@ characters. All match. In general, \fBmu\fR tries to be 'eager' in matching,
 as filtering out unwanted results is usually preferrable over non matching
 messages.
 
-A wildcard search is a search where a \fB*\fR matches the last \fIn\R
+A wildcard search is a search where a \fB*\fR matches the last \fIn\fR
 character(s) in some string. The string must always start with one or more
 characters before the wildcards. Since version 0.9.6, \fBmu\fR also supports
 wildcard searches for all fields except maildirs and paths. So, to get all
@@ -105,8 +105,8 @@ search fields and their abbreviations:
 	cc,c            Cc (carbon-copy) recipient(s)
 	bcc,h           Bcc (blind-carbon-copy) recipient(s)
 	from,f          Message sender
-	subject,s       Message subject
 	to,t            To: recipient(s)
+	subject,s       Message subject
 	maildir,m       Maildir
 	msgid,i         Message-ID
 	prio,p          Message priority ('low', 'normal' or 'high')
@@ -117,15 +117,17 @@ search fields and their abbreviations:
 	file,j          Attachment filename
 	mime,y          MIME-type of one or more message parts
 	tag,x           Tags for the message (\fIX-Label\fR and/or \fIX-Keywords\fR)
+	list,v          Mailing list (e.g. the List-Id value)
 .fi
 
-For clarity, this man-page uses the longer versions.
+There are also the special fields \fBcontact\fR, which matches all
+contact-fields (\fBfrom\fR, \fBto\fR, \fBcc\fR and \fBbcc\fR), and
+\fBrecip\fR, which matches all recipient-fields (\fBto\fR, \fBcc\fR and
+\fBbcc\fR).
 
-`The meaning of most of these fields should be clear, but some require some
-extra discusion.
-
-First, the message flags field describes certain properties of the message, as
-listed in the following table:
+The meaning of most of the above fields should be clear, but some require some
+extra discusion. First, the message flags field describes certain properties
+of the message, as listed in the following table:
 
 .nf
 	d,draft         Draft Message
@@ -426,10 +428,24 @@ use a bookmarked search query. Using this option, a query from your bookmark
 file will be prepended to other search queries. See mu-bookmarks(1) for the
 details of the bookmarks file.
 
-.T
-\fB\-t\fR, \fB\-\-threads\fR
-show messages in 'threaded' format -- that is, with indentation and arrows
-showing the conversation threads in the list of matching messages.
+
+.TP
+\fB\-\-skip\-dups\fR,\fB-u\fR whenever there are multiple messages with the
+same name, only show the first one. This is useful if you have copies of the
+same message, which is a common occurence when using e.g. Gmail together with
+\fBofflineimap\fR.
+
+.TP
+\fB\-\-include\-related\fR,\fB-r\fR also include messages being refered to by
+the matched messages -- i.e.. include messages that are part of the same
+message thread as some matched messages. This is useful if you want
+Gmail-style 'conversations'. Note, finding these related messages make
+searches slower.
+
+.TP
+\fB\-t\fR, \fB\-\-threads\fR show messages in a 'threaded' format -- that is,
+with indentation and arrows showing the conversation threads in the list of
+matching messages.
 
 Messages in the threaded list are indented based on the depth in the
 discussion, and are prefix with a kind of arrow with thread-related
@@ -442,9 +458,10 @@ information about the message, as in the following table:
 | other       | |->    | |*>    | |=>       |
 .fi
 
-Here, the an 'orphan' is a message without a parent message (in the list of
+Here, an 'orphan' is a message without a parent message (in the list of
 matches), and a duplicate is a message whose message-id was already seen
-before.
+before; not this may not really be the same message, if the message-id was
+copied.
 
 The algorithm used for determining the threads is based on Jamie Zawinksy's
 description:

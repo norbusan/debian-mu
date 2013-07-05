@@ -1,7 +1,7 @@
 /* -*-mode: c; tab-width: 8; indent-tabs-mode: t; c-basic-offset: 8 -*-*/
 
 /*
-** Copyright (C) 2008-2012 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+** Copyright (C) 2008-2013 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 **
 ** This program is free software; you can redistribute it and/or modify
 ** it under the terms of the GNU General Public License as published by
@@ -145,7 +145,6 @@ gboolean mu_util_is_local_file (const char* path);
  */
 gboolean mu_util_locale_is_utf8 (void) G_GNUC_CONST;
 
-
 /**
  * write a string (assumed to be in utf8-format) to a stream,
  * converted to the current locale
@@ -178,7 +177,6 @@ gboolean mu_util_print_encoded (const char *frm, ...) G_GNUC_PRINTF(1,2);
 gboolean mu_util_printerr_encoded (const char *frm, ...) G_GNUC_PRINTF(1,2);
 
 
-
 /**
  * read a password from stdin (without echoing), and return it.
  *
@@ -204,6 +202,34 @@ char* mu_util_read_password (const char *prompt)
  */
 gboolean mu_util_play (const char *path, gboolean allow_local,
 		       gboolean allow_remote, GError **err);
+
+/**
+ * Check whether program prog exists in PATH
+ *
+ * @param prog a program (executable)
+ *
+ * @return TRUE if it exists and is executable, FALSE otherwise
+ */
+gboolean mu_util_program_in_path (const char *prog);
+
+
+
+enum _MuFeature {
+	MU_FEATURE_GUILE     = 1 << 0,  /* do we support Guile 2.0? */
+	MU_FEATURE_GNUPLOT   = 1 << 1,  /* do we have gnuplot installed? */
+	MU_FEATURE_CRYPTO    = 1 << 2   /* do we support crypto (Gmime >= 2.6) */
+};
+typedef enum _MuFeature MuFeature;
+
+
+/**
+ * Check whether mu supports some particular feature
+ *
+ * @param feature a feature (multiple features can be logical-or'd together)
+ *
+ * @return TRUE if the feature is supported, FALSE otherwise
+ */
+gboolean mu_util_supports (MuFeature feature);
 
 
 
@@ -303,7 +329,7 @@ typedef gpointer XapianEnquire;
 
 #define MU_STORE_CATCH_BLOCK_RETURN(GE,R)				\
         catch (const MuStoreError& merr) {				\
-		mu_util_g_set_error ((GE),					\
+		mu_util_g_set_error ((GE),				\
 			     merr.mu_error(), "%s",			\
 			     merr.what().c_str());			\
 		return (R);						\
@@ -320,17 +346,17 @@ typedef gpointer XapianEnquire;
 
 #define MU_XAPIAN_CATCH_BLOCK_G_ERROR(GE,E)					\
 	  catch (const Xapian::DatabaseLockError &xerr) {			\
-		mu_util_g_set_error ((GE),						\
+		mu_util_g_set_error ((GE),					\
 			     MU_ERROR_XAPIAN_CANNOT_GET_WRITELOCK,		\
 			     "%s: xapian error '%s'",				\
 			     __FUNCTION__, xerr.get_msg().c_str());		\
 	} catch (const Xapian::DatabaseCorruptError &xerr) {			\
-		mu_util_g_set_error ((GE),						\
+		mu_util_g_set_error ((GE),					\
 				MU_ERROR_XAPIAN_CORRUPTION,			\
 			     "%s: xapian error '%s'",				\
 			     __FUNCTION__, xerr.get_msg().c_str());		\
 	} catch (const Xapian::DatabaseError &xerr) {				\
-		  mu_util_g_set_error ((GE),MU_ERROR_XAPIAN,				\
+		  mu_util_g_set_error ((GE),MU_ERROR_XAPIAN,			\
 			     "%s: xapian error '%s'",				\
 			     __FUNCTION__, xerr.get_msg().c_str());		\
 	} catch (const Xapian::Error &xerr) {					\
@@ -361,7 +387,7 @@ typedef gpointer XapianEnquire;
 		return (R);						\
         } catch (...) {							\
 		if ((GE)&&!(*(GE)))					\
-			mu_util_g_set_error ((GE),				\
+			mu_util_g_set_error ((GE),			\
 				     (MU_ERROR_INTERNAL),		\
 			     "%s: caught exception", __FUNCTION__);	\
 		return (R);						\
@@ -411,7 +437,7 @@ enum _MuError {
 	/* xapian dir is not accessible */
 	MU_ERROR_XAPIAN_DIR_NOT_ACCESSIBLE    = 14,
 	/* database version is not up-to-date */
-	MU_ERROR_XAPIAN_NOT_UP_TO_DATE        = 15,
+	MU_ERROR_XAPIAN_VERSION_MISMATCH      = 15,
 	/* missing data for a document */
 	MU_ERROR_XAPIAN_MISSING_DATA          = 16,
 	/* database corruption */
@@ -447,14 +473,15 @@ enum _MuError {
 	MU_ERROR_FILE_CANNOT_LINK             = 72,
 	MU_ERROR_FILE_CANNOT_OPEN             = 73,
 	MU_ERROR_FILE_CANNOT_READ             = 74,
-	MU_ERROR_FILE_CANNOT_CREATE           = 75,
-	MU_ERROR_FILE_CANNOT_MKDIR            = 76,
-	MU_ERROR_FILE_STAT_FAILED             = 77,
-	MU_ERROR_FILE_READDIR_FAILED          = 78,
-	MU_ERROR_FILE_INVALID_SOURCE          = 79,
-	MU_ERROR_FILE_TARGET_EQUALS_SOURCE    = 80,
-	MU_ERROR_FILE_CANNOT_WRITE            = 81,
-	MU_ERROR_FILE_CANNOT_UNLINK           = 82,
+	MU_ERROR_FILE_CANNOT_EXECUTE          = 75,
+	MU_ERROR_FILE_CANNOT_CREATE           = 76,
+	MU_ERROR_FILE_CANNOT_MKDIR            = 77,
+	MU_ERROR_FILE_STAT_FAILED             = 78,
+	MU_ERROR_FILE_READDIR_FAILED          = 79,
+	MU_ERROR_FILE_INVALID_SOURCE          = 80,
+	MU_ERROR_FILE_TARGET_EQUALS_SOURCE    = 81,
+	MU_ERROR_FILE_CANNOT_WRITE            = 82,
+	MU_ERROR_FILE_CANNOT_UNLINK           = 83,
 
 	/* not really an error, used in callbacks */
 	MU_STOP                               = 99
@@ -473,6 +500,20 @@ typedef enum _MuError MuError;
  */
 gboolean mu_util_g_set_error (GError **err, MuError errcode, const char *frm, ...)
 	G_GNUC_PRINTF(3,4);
+
+
+/**
+ * calculate a 64-bit hash for the given string, based on a
+ * combination of the DJB and BKDR hash functions
+ *
+ * @param a string
+ *
+ * @return the hash as a static string, which stays valid until this
+ * function is called again.
+ */
+const char* mu_util_get_hash (const char* str);
+
+
 
 
 #define MU_COLOR_RED		"\x1b[31m"

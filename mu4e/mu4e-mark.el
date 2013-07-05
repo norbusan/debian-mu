@@ -31,13 +31,15 @@
 (require 'mu4e-message)
 
 (defcustom mu4e-headers-leave-behavior 'ask
-  "What to do when user leaves the headers view (e.g. quits,
-  refreshes or does a new search). Value is one of the following
-  symbols:
-- ask (ask the user whether to ignore the marks)
-- apply (automatically apply the marks before doing anything else)
-- ignore (automatically ignore the marks without asking)."
-  :type 'symbol
+  "What to do when user leaves the headers view.
+That is when he e.g. quits, refreshes or does a new search.
+Value is one of the following symbols:
+- `ask'     ask user whether to ignore the marks
+- `apply'   automatically apply the marks before doing anything else
+- `ignore'  automatically ignore the marks without asking"
+  :type '(choice (const ask    :tag "ask user whether to ignore marks")
+		 (const apply  :tag "apply marks without asking")
+		 (const ignore :tag "ignore marks without asking"))
   :group 'mu4e-headers)
 
 (defvar mu4e-headers-show-target t
@@ -81,11 +83,11 @@ where
   (clrhash mu4e~mark-map))
 
 (defun mu4e-mark-at-point (mark &optional target)
-  "Mark (or unmark) message at point. MARK specifies the
-mark-type. For `move'-marks and `trash'-marks there is also the
-TARGET argument, which specifies to which maildir the message is to
-be moved/trashed. The function works in both headers buffers and
-message buffers.
+  "Mark (or unmark) message at point.
+MARK specifies the mark-type. For `move'-marks and `trash'-marks
+there is also the TARGET argument, which specifies to which
+maildir the message is to be moved/trashed. The function works in
+both headers buffers and message buffers.
 
 The following marks are available, and the corresponding props:
 
@@ -177,15 +179,19 @@ otherwise return nil."
 (defun mu4e-mark-set (mark &optional target)
   "Mark the header at point, or, if region is active, mark all
 headers in the region. Optionally, provide TARGET (for moves)."
+  (unless target
+    (setq target (mu4e~mark-get-target mark target)))
   (if (not (use-region-p))
     ;; single message
-    (mu4e-mark-at-point mark (or target (mu4e~mark-get-target mark target)))
+    (mu4e-mark-at-point mark target)
     ;; mark all messages in the region.
     (save-excursion
       (let ((cant-go-further) (eor (region-end)))
 	(goto-char (region-beginning))
 	(while (and (<= (point) eor) (not cant-go-further))
-	  (mu4e-mark-at-point mark (or target (mu4e~mark-get-target mark target)))
+	  (when (eq mark 'refile)
+            (setq target (mu4e~mark-get-target mark target)))
+	  (mu4e-mark-at-point mark target)
 	  (setq cant-go-further (not (mu4e-headers-next))))))))
 
 (defun mu4e-mark-restore (docid)
@@ -197,8 +203,9 @@ headers in the region. Optionally, provide TARGET (for moves)."
 	  (mu4e-mark-at-point (car markcell) (cdr markcell)))))))
 
 (defun mu4e~mark-get-markpair (prompt &optional allow-something)
-  "Ask user for a mark; return (MARK . TARGET). If ALLOW-SOMETHING
-is non-nil, allow the 'something' pseudo mark as well."
+  "Ask user for a mark; return (MARK . TARGET).
+If ALLOW-SOMETHING is non-nil, allow the 'something' pseudo mark
+as well."
   (let* ((marks '( ("refile"    . refile)
 		   ("move"	. move)
 		   ("dtrash"	. trash)
@@ -218,8 +225,9 @@ is non-nil, allow the 'something' pseudo mark as well."
 
 
 (defun mu4e-mark-resolve-deferred-marks ()
-  "Check if there are any deferred ('something') marks. If there are such marks,
-replace them with a _real_ mark (ask the user which one)."
+  "Check if there are any deferred ('something') marks.
+If there are such marks, replace them with a _real_ mark (ask the
+user which one)."
   (interactive)
   (let ((markpair))
     (maphash
@@ -244,11 +252,11 @@ replace them with a _real_ mark (ask the user which one)."
 
 
 (defun mu4e-mark-execute-all (&optional no-confirmation)
-  "Execute the actions for all marked messages in this
-buffer. After the actions have been executed succesfully, the
-affected messages are *hidden* from the current header list. Since
-the headers are the result of a search, we cannot be certain that
-the messages no longer matches the current one - to get that
+  "Execute the actions for all marked messages in this buffer.
+After the actions have been executed succesfully, the affected
+messages are *hidden* from the current header list. Since the
+headers are the result of a search, we cannot be certain that the
+messages no longer matches the current one - to get that
 certainty, we need to rerun the search, but we don't want to do
 that automatically, as it may be too slow and/or break the users
 flow. Therefore, we hide the message, which in practice seems to
@@ -302,6 +310,9 @@ If NO-CONFIRMATION is non-nil, don't ask user for confirmation."
   (when (gethash docid mu4e~mark-map) t))
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+(defun mu4e-mark-marks-num ()
+  "Return the number of marks in the current buffer."
+  (if mu4e~mark-map (hash-table-count mu4e~mark-map) 0))
 
 (defun mu4e-mark-handle-when-leaving ()
   "If there are any marks in the current buffer, handle those
@@ -309,12 +320,12 @@ according to the value of `mu4e-headers-leave-behavior'. This
 function is to be called before any further action (like searching,
 quiting the buffer) is taken; returning t means 'take the following
 action', return nil means 'don't do anything'"
-  (let ((marknum (if mu4e~mark-map (hash-table-count mu4e~mark-map) 0))
+  (let ((marknum (mu4e-mark-marks-num))
 	 (what mu4e-headers-leave-behavior))
     (unless (zerop marknum) ;; nothing to do?
       (when (eq what 'ask)
 	(setq what (mu4e-read-option
-		     "There are existing marks; should we: "
+		     (format  "There are %d existing mark(s); should we: " marknum)
 		     '( ("apply marks"   . apply)
 			("ignore marks?" . ignore)))))
       ;; we determined what to do... now do it

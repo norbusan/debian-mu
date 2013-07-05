@@ -1,4 +1,4 @@
-## Copyright (C) 2008-2012 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+## Copyright (C) 2008-2013 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 ##
 ## This program is free software; you can redistribute it and/or modify
 ## it under the terms of the GNU General Public License as published by
@@ -14,7 +14,7 @@
 ## along with this program; if not, write to the Free Software Foundation,
 ## Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
 
-AC_INIT([mu],[0.9.9],[http://code.google.com/p/mu0/issues/list],[mu])
+AC_INIT([mu],[0.9.9.5],[http://code.google.com/p/mu0/issues/list],[mu])
 AC_CONFIG_HEADERS([config.h])
 AC_CONFIG_SRCDIR([mu/mu.cc])
 # libtoolize wants to put some stuff in here; if you have an old
@@ -42,12 +42,12 @@ AM_PROG_LIBTOOL
 #LT_INIT([disable-shared])
 
 AC_PROG_AWK
+AC_CHECK_PROG(SORT,sort,sort)
 
-AC_CHECK_HEADERS([locale.h langinfo.h wordexp.h])
+AC_CHECK_HEADERS([wordexp.h])
 
 # use the 64-bit versions
 AC_SYS_LARGEFILE
-
 
 # check for makeinfo
 AC_CHECK_PROG(have_makeinfo,makeinfo,yes,no)
@@ -110,6 +110,11 @@ AC_SUBST(GLIB_CFLAGS)
 AC_SUBST(GLIB_LIBS)
 glib_version="`$PKG_CONFIG --modversion glib-2.0`"
 
+PKG_CHECK_MODULES(GIO,gio-2.0,[have_gio=yes],[have_gio=no])
+AC_SUBST(GIO_CFLAGS)
+AC_SUBST(GIO_LIBS)
+gio_version="`$PKG_CONFIG --modversion gio-2.0`"
+
 # gmime 2.4 or 2.6?
 PKG_CHECK_MODULES(GMIME,gmime-2.6,[have_gmime_26=yes],[have_gmime_26=no])
 AS_IF([test "x$have_gmime_26" = "xno"],[
@@ -164,87 +169,33 @@ AC_SUBST(XAPIAN_LIBS)
 # note that MU_STORE_SCHEMA_VERSION does not necessarily follow MU
 # versioning, as we hopefully don't have updates for each version;
 # also, this has nothing to do with Xapian's software version
-AC_DEFINE(MU_STORE_SCHEMA_VERSION,["9.8"], ['Schema' version of the database])
+AC_DEFINE(MU_STORE_SCHEMA_VERSION,["9.9"], ['Schema' version of the database])
 ###############################################################################
 
 
 ###############################################################################
-# we need gtk (2 or 3) for some of the graphical tools
-#
-AC_ARG_WITH([gui],
-   [AS_HELP_STRING([--with-gui=gtk2|gtk3|none])],
-   [gui=$withval],[gui=auto])
-
-AS_IF([test "x$gui" != "xgtk2" -a "x$gui" != "xgtk3" -a "x$gui" != "xnone" \
-	-a "x$gui" != "xauto"],
-      AC_MSG_ERROR([the argument for --with-gui= must be either \
-      			gtk2|gtk3|auto|no ($gui)]))
-AS_IF([test "x$gui" != "xnone"],[
-   # check for gtk3
-   AS_IF([test "x$gui" = "xgtk3"],[
-     PKG_CHECK_MODULES(GTK,gtk+-3.0,[have_gtk3=yes],[have_gtk3=no])
+# we need GTK+3 for some of the graphical tools
+# use --without-gtk to disable it
+AC_ARG_ENABLE([gtk],AS_HELP_STRING([--disable-gtk],[Disable GTK+]))
+AS_IF([test "x$enable_gtk" != "xno"],[
+     PKG_CHECK_MODULES(GTK,gtk+-3.0,[have_gtk=yes],[have_gtk=no])
      AC_SUBST(GTK_CFLAGS)
      AC_SUBST(GTK_LIBS)
-     gtk_version="`$PKG_CONFIG --modversion gtk+-3.0`"
-   ])
-   AS_IF([test "x$gui"="gtk3" -a "x$have_gtk3" = "xno"],
-      AC_MSG_ERROR([GTK+ 3.x not found]))
-
-   # check for gtk2 if we did not find gtk3 already
-   # (gtk3 is only sought if asked for it explicitly)
-   AS_IF([test "x$gui" != "xno" -a "x$have_gtk3" != "xyes"],[
-     PKG_CHECK_MODULES(GTK,gtk+-2.0,[have_gtk2=yes],[have_gtk2=no])
-     AC_SUBST(GTK_CFLAGS)
-     AC_SUBST(GTK_LIBS)
-     gtk_version="`$PKG_CONFIG --modversion gtk+-2.0`"
-   ])
-   # only an error if we explicitly asked for it
-   AS_IF([test "x$have_gtk2" = "xno" -a "x$gui" != "xauto"],
-      AC_MSG_ERROR([GTK+ 2.x not found]))
-])
-
-AM_CONDITIONAL(HAVE_GTK,[test "x$have_gtk2" = "xyes" -o "x$have_gtk3" = "xyes" ])
-AS_IF([test "x$have_gtk2" = "xyes" -o "x$have_gtk3" = "xyes"],[buildgui=yes],
-    	    [buildgui=no])
-AS_IF([test "x$have_gtk3" = "xyes"],
-    [AC_DEFINE_UNQUOTED([HAVE_GTK3],1,[Whether we have GTK+ 3.x])])
+     gtk_version="`$PKG_CONFIG --modversion gtk+-3.0`"])
+AM_CONDITIONAL(HAVE_GTK,[test "x$have_gtk" = "xyes"])
 
 # webkit? needed for the fancy web widget
 # use --disable-webkit to disable it, even if you have it
-# note; gtk2 and gtk3 imply different webkit versions
-build_webkit=no
-AC_ARG_ENABLE([webkit],
-   AS_HELP_STRING([--disable-webkit],[Disable webkit]))
-AS_IF([test "x$enable_webkit" != "xno"], [
-   AS_IF([test "x$have_gtk2" = "xyes"],[
-       PKG_CHECK_MODULES(WEBKIT,webkit-1.0 >= 1.0.3,[build_webkit=yes],[build_webkit=no])
-       AS_IF([test "x$build_webkit" = "xyes"],[
-	    webkit_version="`$PKG_CONFIG --modversion webkit-1.0`"])
-       AC_SUBST(WEBKIT_CFLAGS)
-       AC_SUBST(WEBKIT_LIBS)])
-
-   AS_IF([test "x$have_gtk3" = "xyes"],[
-       PKG_CHECK_MODULES(WEBKIT,webkitgtk-3.0 >= 1.8.0, [build_webkit=yes],[build_webkit=no])
-       AS_IF([test "x$build_webkit" = "xyes"],[
+AC_ARG_ENABLE([webkit],AS_HELP_STRING([--disable-webkit],[Disable webkit]))
+AS_IF([test "x$enable_webkit" != "xno"],[
+       PKG_CHECK_MODULES(WEBKIT,webkitgtk-3.0 >= 1.8.0,[have_webkit=yes],[have_webkit=no])
+       AS_IF([test "x$have_webkit" = "xyes"],[
 	    webkit_version="`$PKG_CONFIG --modversion webkitgtk-3.0`"])
        AC_SUBST(WEBKIT_CFLAGS)
-       AC_SUBST(WEBKIT_LIBS)])
+       AC_SUBST(WEBKIT_LIBS)
 ])
-AM_CONDITIONAL(BUILD_WEBKIT, [test "x$build_webkit" = "xyes"])
-
-
-# gio is needed for some widget/ things
-AS_IF([test "x$buildgui"="xyes"],[
-   PKG_CHECK_MODULES(GIO,gio-2.0,[have_gio=yes],[have_gio=no])
-   AS_IF([test "x$have_gio" = "xyes"],[
-	    gio_version="`$PKG_CONFIG --modversion gio-2.0`"])
-   AC_SUBST(GIO_CFLAGS)
-   AC_SUBST(GIO_LIBS)
-])
-AM_CONDITIONAL(HAVE_GIO, [test "x$have_gio" = "xyes"])
-
-# should we build the gui toys?
-AM_CONDITIONAL(BUILD_GUI, [test "x$build_webkit" = "xyes" -a "x$have_gio" = "xyes"])
+AM_CONDITIONAL(HAVE_WEBKIT, [test "x$have_webkit" = "xyes"])
+AM_CONDITIONAL(BUILD_GUI,[test "x$have_webkit" = "xyes" -a "x$have_gtk" = "xyes"])
 ###############################################################################
 
 
@@ -303,20 +254,22 @@ AS_IF([test "x$PMCCABE" = "xno"],[
 ],[have_pmccabe="yes"])
 ###############################################################################
 
-
 AC_CONFIG_FILES([
 Makefile
 mu/Makefile
 mu/tests/Makefile
 lib/Makefile
+lib/doxyfile
 lib/tests/Makefile
 mu4e/Makefile
 mu4e/mu4e-meta.el
-mu4e/version.texi
+mu4e/texi.texi
 guile/Makefile
+guile/texi.texi
 guile/mu/Makefile
 guile/examples/Makefile
 guile/tests/Makefile
+guile/scripts/Makefile
 toys/Makefile
 toys/mug/Makefile
 toys/msg2pdf/Makefile
@@ -342,30 +295,24 @@ echo "Xapian version                       : $xapian_version"
 echo "GLib version                         : $glib_version"
 echo "GMime version                        : $gmime_version"
 
-if test "x$buildgui" = "xyes"; then
+AM_COND_IF([BUILD_GUI],[
 echo "GTK+ version                         : $gtk_version"
-fi
-
-if test "x$have_gio" = "xyes"; then
-echo "GIO version                          : $gio_version"
-fi
-
-if test "x$build_webkit" = "xyes"; then
 echo "Webkit version                       : $webkit_version"
-fi
-
-if test "x$build_guile" = "xyes"; then
-echo "Guile version                        : $guile_version"
-fi
+])
 
 if test "x$build_mu4e" = "xyes"; then
 echo "Emacs version                        : $emacs_version"
 fi
 
 echo
+echo "Have wordexp                         : $ac_cv_header_wordexp_h"
 echo "Build mu4e emacs frontend            : $build_mu4e"
 echo "Build crypto support (gmime >= 2.6)  : $have_gmime_26"
-echo "Build 'mug' toy-ui (gtk+/webkit)     : $buildgui"
+AM_COND_IF([BUILD_GUI],[
+echo "Build 'mug' toy-ui (gtk+/webkit)     : yes"],[
+echo "Build 'mug' toy-ui (gtk+/webkit)     : no"
+])
+
 echo "McCabe's Cyclomatic Complexity tool  : $have_pmccabe"
 echo
 
@@ -374,31 +321,34 @@ echo "Have direntry->d_type                : $use_dirent_d_type"
 echo "------------------------------------------------"
 echo
 
+#
+# Warnings / notes
+#
+
+# makeinfo
 if test "x$have_makeinfo" != "xyes"; then
-    echo "You do not seem to have the makeinfo program; if you are building from git"
-    echo "you need that to create documentation for guile and emacs. It is in the"
-    echo "texinfo package in debian/ubuntu (ie., apt-get install texinfo)"
+    echo "* You do not seem to have the makeinfo program; if you are building from git"
+    echo "  you need that to create documentation for guile and emacs. It is in the"
+    echo "  texinfo package in debian/ubuntu (ie., apt-get install texinfo)"
+    echo
 fi
 
-
+# gui
 if test "x$buildgui" = "xyes"; then
-     echo "The demo UIs are in toys/mug and toys/mug2"
-     if test "x$gui" = "xgtk3"; then
-     	echo "Note that mug2 will *not* work with gtk+3, because it depends"
-    	echo "on libraries that use gtk+2, and the two can't be in one process"
-     fi
+     echo "* The demo UI will be built in toys/mug"
+     echo
 fi
 
-if test "x$GUILE_MAJOR_VERSION" = "x1"; then
-   echo
-   echo "NOTE: If you have troubles with linking the guile-related stuff, it"
-   echo "might help to move .la-files out of the way"
-   echo
-   echo "See e.g: http://blog.flameeyes.eu/2008/04/14/what-about-those-la-files"
+# wordexp
+if test "x$ac_cv_header_wordexp_h" != "xyes"; then
+   echo "* Your system does not seem to have the 'wordexp' function."
+   echo "  This means that you cannot use shell-like expansion in options and "
+   echo "  some other places. So, for example, instead of"
+   echo "    --maildir=~/Maildir"
+   echo "  you should use the complete path, something like:"
+   echo "    --maildir=/home/user/Maildir"
 fi
 
 echo
-echo "Now, type 'make' to build mu."
+echo "Now, type 'make' to build mu (or 'make check' to run the unit tests, too)"
 echo
-echo "If unit tests are built (see above), you can run 'make check'"
-echo "for some basic testing of mu functionality."

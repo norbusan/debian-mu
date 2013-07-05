@@ -1,6 +1,6 @@
 /* -*-mode: c; tab-width: 8; indent-tabs-mode: t; c-basic-offset: 8 -*-*/
 /*
-** Copyright (C) 2008-2012 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+** Copyright (C) 2008-2013 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 **
 ** This program is free software; you can redistribute it and/or modify
 ** it under the terms of the GNU General Public License as published by
@@ -437,6 +437,13 @@ check_for_field (const char *str, gboolean *is_field,
 
 	mu_msg_field_foreach ((MuMsgFieldForeachFunc)each_check_prefix,
 			      &pfx);
+	/* also check special prefixes... */
+	if (!pfx.match)
+		pfx.match =
+			g_str_has_prefix
+			(str, MU_MSG_FIELD_PSEUDO_CONTACT ":") ||
+			g_str_has_prefix
+			(str, MU_MSG_FIELD_PSEUDO_RECIP ":");
 
 	*is_field	= pfx.match;
 	*is_range_field = pfx.range_field;
@@ -494,7 +501,7 @@ mu_str_xapian_escape_in_place_try (char *term, gboolean esc_space, GStringChunk 
 	}
 
 	/* downcase try to remove accents etc. */
-	return mu_str_normalize_in_place_try (term, TRUE, strchunk);
+	return mu_str_normalize_in_place (term, TRUE, strchunk);
 }
 
 char*
@@ -512,6 +519,164 @@ mu_str_xapian_escape (const char *query, gboolean esc_space, GStringChunk *strch
 	return mu_str_xapian_escape_in_place_try (mystr, esc_space, strchunk);
 }
 
+/*
+ * Split simple search term into prefix, expression and suffix.
+ * Meant to handle cases like "(maildir:/abc)", prefix and
+ * suffix are the non-alphanumeric stuff at the beginning
+ * and the end of string.
+ *
+ * Values of *pfx, *cond and *sfx will be allocated from heap
+ * and must be g_free()d.
+ *
+ * Returns TRUE if all went fine and FALSE if some error was
+ * occured.
+ */
+static gboolean
+split_term (const gchar *term,
+  const gchar **pfx, const gchar **cond, const gchar **sfx)
+{
+	size_t l;
+	const gchar *start, *tail;
+	const gchar *p, *c, *s;
+
+	g_return_val_if_fail (term, FALSE);
+	g_return_val_if_fail (pfx, FALSE);
+	g_return_val_if_fail (cond, FALSE);
+	g_return_val_if_fail (sfx, FALSE);
+
+	l = strlen (term);
+	if (l == 0) {
+		p = g_strdup ("");
+		c = g_strdup ("");
+		s = g_strdup ("");
+		goto _done;
+	}
+
+	/*
+	 * Invariants:
+	 * - start will point to the first symbol after leading
+	 *   non-alphanumerics (can be alphanumeric or '\0');
+	 * - tail will point to the beginning of trailing
+	 *   non-alphanumerics or '\0'.
+	 * So:
+	 * - len (prefix) = start - term;
+	 * - len (cond) = tail - start;
+	 * - len (suffix) = term + len (term) - tail.
+	 */
+	for (start = term; *start && !isalnum (*start); start++);
+	for (tail = term + l; tail > start && !isalnum (*(tail-1)); tail--);
+
+	p = g_strndup (term, start - term);
+	c = g_strndup (start, tail - start);
+	s = g_strndup (tail, term + l - tail);
+
+_done:
+	if (!p || !c || !s) {
+		g_free ((gchar *)p);
+		g_free ((gchar *)c);
+		g_free ((gchar *)s);
+		return FALSE;
+	} else {
+		*pfx = p;
+		*cond = c;
+		*sfx = s;
+		return TRUE;
+	}
+	/* NOTREACHED */
+}
+
+
+/*
+ * Fixup handlers.
+ *
+ * Every fixup handler will take three string arguments,
+ * prefix, condition and suffix (as split by split_term).
+ *
+ * It will either return NULL that means "no fixup was done"
+ * or the pointer to the newly-allocated string with the
+ * new contents.
+ */
+typedef gchar *
+  (*fixup_handler_t)(const gchar *pfx, const gchar *cond, const gchar *sfx);
+
+static gchar*
+fixup_date(const gchar *pfx, const gchar *cond, const gchar *sfx)
+{
+	const gchar *p;
+
+	p = cond + sizeof ("date:") - 1;
+
+	if (strstr (p, ".."))
+		return NULL;
+	return g_strdup_printf ("%s%s..%s%s", pfx, cond, p, sfx);
+}
+
+
+/*
+ * Looks up fixup handler for the given condition.
+ *
+ * Returns fixup handler if we can and NULL if there is
+ * no fixup for this condition.
+ */
+static fixup_handler_t
+find_fixup (const gchar *cond)
+{
+	size_t n;
+	/* NULL-terminated list of term names for fixups. */
+	static struct {
+		const char *name;
+		size_t len;
+		fixup_handler_t handler;
+	} fixups[] = {
+	  {"date:", sizeof("date:") - 1, fixup_date},
+	  {NULL, 0, NULL}
+	};
+
+	g_return_val_if_fail (cond, NULL);
+
+	for (n = 0; fixups[n].name; n++) {
+		if (!strncasecmp (cond, fixups[n].name, fixups[n].len))
+			break;
+	}
+
+	return fixups[n].handler;
+}
+
+
+gchar*
+mu_str_xapian_fixup_terms (const gchar *term)
+{
+	gboolean is_field, is_range_field;
+	const gchar *cond, *pfx, *sfx;
+	gchar *retval;
+	fixup_handler_t fixup;
+
+	g_return_val_if_fail (term, NULL);
+
+	if (strlen (term) == 0)
+		return g_strdup (term);
+
+	check_for_field (term, &is_field, &is_range_field);
+	if (!is_field || !is_range_field)
+		return g_strdup (term);
+
+	if (!split_term (term, &pfx, &cond, &sfx))
+		return g_strdup (term);
+
+	retval = NULL;
+	fixup = find_fixup (cond);
+	if (fixup)
+		retval = fixup (pfx, cond, sfx);
+	if (!retval)
+		retval = g_strdup (term);
+
+	/* At this point retval should contain the result */
+	g_free ((gchar *)pfx);
+	g_free ((gchar *)sfx);
+	g_free ((gchar *)cond);
+
+	return retval;
+}
 
 /* note: this function is *not* re-entrant, it returns a static buffer */
 const char*
@@ -621,95 +786,28 @@ mu_str_convert_to_utf8 (const char* buffer, const char *charset)
 }
 
 
-
 gchar*
-mu_str_guess_last_name (const char *name)
+mu_str_quoted_from_strv (const gchar **params)
 {
-	const gchar *lastsp;
+	GString *str;
+	int i;
 
-	if (!name)
+	g_return_val_if_fail (params, NULL);
+
+	if (!params[0])
 		return g_strdup ("");
 
-	lastsp = g_strrstr (name, " ");
+	str = g_string_sized_new (64); /* just a guess */
 
-	return g_strdup (lastsp ? lastsp + 1 : "");
-}
+	for (i = 0; params[i]; ++i) {
 
+		if (i > 0)
+			g_string_append_c (str, ' ');
 
-gchar*
-mu_str_guess_first_name (const char *name)
-{
-	const gchar *lastsp;
-
-	if (!name)
-		return g_strdup ("");
-
-	lastsp = g_strrstr (name, " ");
-
-	if (lastsp)
-		return g_strndup (name, lastsp - name);
-	else
-		return g_strdup (name);
-}
-
-static gchar*
-cleanup_str (const char* str)
-{
-	gchar *s;
-	const gchar *cur;
-	unsigned i;
-
-	if (mu_str_is_empty(str))
-		return g_strdup ("");
-
-	s = g_new0 (char, strlen(str) + 1);
-
-	for (cur = str, i = 0; *cur; ++cur) {
-		if (ispunct(*cur) || isspace(*cur))
-			continue;
-		else
-			s[i++] = *cur;
+		g_string_append_c (str, '"');
+		g_string_append (str, params[i]);
+		g_string_append_c (str, '"');
 	}
 
-	return s;
-}
-
-
-gchar*
-mu_str_guess_nick (const char* name)
-{
-	gchar *fname, *lname, *nick;
-	gchar initial[7];
-
-	fname	  = mu_str_guess_first_name (name);
-	lname	  = mu_str_guess_last_name (name);
-
-	/* if there's no last name, use first name as the nick */
-	if (mu_str_is_empty(fname) || mu_str_is_empty(lname)) {
-		g_free (lname);
-		nick = fname;
-		goto leave;
-	}
-
-	memset (initial, 0, sizeof(initial));
-	/* couldn't we get an initial for the last name? */
-	if (g_unichar_to_utf8 (g_utf8_get_char (lname), initial) == 0) {
-		g_free (lname);
-		nick = fname;
-		goto leave;
-	}
-
-	nick = g_strdup_printf ("%s%s", fname, initial);
-	g_free (fname);
-	g_free (lname);
-
-leave:
-	{
-		gchar *tmp;
-		tmp = cleanup_str (nick);
-		g_free (nick);
-		nick = tmp;
-	}
-
-	return nick;
+	return g_string_free (str, FALSE);
 }

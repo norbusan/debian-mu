@@ -1,6 +1,7 @@
 ;;; mu4e-utils.el -- part of mu4e, the mu mail user agent
 ;;
 ;; Copyright (C) 2011-2012 Dirk-Jan C. Binnema
+;; Copyright (C) 2013 Tibor Simko
 
 ;; Author: Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 ;; Maintainer: Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
@@ -28,8 +29,11 @@
 (eval-when-compile (byte-compile-disable-warning 'cl-functions))
 (require 'cl)
 
+(eval-when-compile (require 'org nil 'noerror))
+
 (require 'mu4e-vars)
 (require 'mu4e-about)
+(require 'mu4e-lists)
 (require 'doc-view)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -47,8 +51,8 @@ used on a string that terminates immediately after the date.")
 (defun mu4e-parse-time-string (s &optional nodefault)
   "Parse the standard Org-mode time string.
 This should be a lot faster than the normal `parse-time-string'.
-If time is not given, defaults to 0:00.  However, with optional NODEFAULT,
-hour and minute fields will be nil if not given."
+If time is not given, defaults to 0:00.  However, with optional
+NODEFAULT, hour and minute fields will be nil if not given."
   (if (string-match mu4e~ts-regexp0 s)
       (list 0
 	    (if (or (match-beginning 8) (not nodefault))
@@ -60,6 +64,14 @@ hour and minute fields will be nil if not given."
 	    (string-to-number (match-string 2 s))
 	    nil nil nil)
     (mu4e-error "Not a standard mu4e time string: %s" s)))
+
+
+(defun mu4e-user-mail-address-p (addr)
+  "If ADDR is one of user's e-mail addresses return t, nil otherwise.
+User's addresses are set in `mu4e-user-mail-address-list')."
+  (when (and addr mu4e-user-mail-address-list
+	  (find addr mu4e-user-mail-address-list :test 'string=))
+    t))
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 
@@ -68,9 +80,10 @@ hour and minute fields will be nil if not given."
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; the standard folders can be functions too
 (defun mu4e~get-folder (foldervar msg)
-  "Get message folder FOLDER. If FOLDER is a string, return it, if
-it is a function, evaluate this function with MSG as
-parameter (which may be `nil'), and return the result."
+  "Get message folder FOLDER.
+If FOLDER is a string, return it, if it is a function, evaluate
+this function with MSG as parameter (which may be `nil'), and
+return the result."
   (unless (member foldervar '(mu4e-sent-folder mu4e-drafts-folder
 			       mu4e-trash-folder mu4e-refile-folder))
     (mu4e-error "Folder must be either mu4e-sent-folder,
@@ -127,15 +140,17 @@ see its docstring)."
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defun mu4e-create-maildir-maybe (dir)
-  "Offer to create maildir DIR (full filesystem path) if it does
-not exist yet. Return t if the dir already existed, or has been
-created, nil otherwise."
+  "Offer to create maildir DIR if it does not exist yet.
+Return t if the dir already existed, or an attempt has been made to
+create it -- we cannot be sure creation succeeded here, since this
+is done asynchronously. Otherwise, return nil. NOte, DIR has to be
+an absolute path."
   (if (and (file-exists-p dir) (not (file-directory-p dir)))
     (mu4e-error "%s exists, but is not a directory." dir))
   (cond
     ((file-directory-p dir) t)
     ((yes-or-no-p (mu4e-format "%s does not exist yes. Create now?" dir))
-      (mu4e~proc-mkdir dir))
+      (mu4e~proc-mkdir dir) t)
     (t nil)))
 
 (defun mu4e-format (frm &rest args)
@@ -145,31 +160,33 @@ created, nil otherwise."
     (apply 'format frm args)))
 
 (defun mu4e-message (frm &rest args)
-  "Like `message', but prefixed with mu4e. If we're waiting for
-user-input, don't show anyhting."
+  "Like `message', but prefixed with mu4e.
+If we're waiting for user-input, don't show anyhting."
   (unless (active-minibuffer-window)
     (message "%s" (apply 'mu4e-format frm args))
     nil))
 
 (defun mu4e-error (frm &rest args)
-  "Create [mu4e]-prefixed error based on format FRM and ARGS. Does
-a local-exit and does not return, and raises a
+  "Create [mu4e]-prefixed error based on format FRM and ARGS.
+Does a local-exit and does not return, and raises a
 debuggable (backtrace) error."
   (mu4e-log 'error (apply 'mu4e-format frm args))
   (error "%s" (apply 'mu4e-format frm args)))
 
+;; the user-error function is only available in emacs-trunk
+(unless (fboundp 'user-error)
+  (defalias 'user-error 'error))
+
 (defun mu4e-warn (frm &rest args)
-  "Create [mu4e]-prefixed warning based on format FRM and
-ARGS. Does a local-exit and does not return. In emacs versions
-below 24.2, the functions is the same as `mu4e-error'."
+  "Create [mu4e]-prefixed warning based on format FRM and ARGS.
+Does a local-exit and does not return. In emacs versions below
+24.2, the functions is the same as `mu4e-error'."
   (mu4e-log 'error (apply 'mu4e-format frm args))
-  (if (fboundp 'user-error)
-    (user-error "%s" (apply 'mu4e-format frm args)) ;; only in emacs-trunk
-    (error "%s" (apply 'mu4e-format frm args))))
+  (user-error "%s" (apply 'mu4e-format frm args)))
 
 (defun mu4e~read-char-choice (prompt choices)
-  "Compatiblity wrapper for `read-char-choice', which is emacs-24
-only."
+  "Compatiblity wrapper for `read-char-choice'.
+That function is available which emacs-24 only."
   (let ((choice) (ok) (inhibit-quit nil))
     (while (not ok)
       (message nil);; this seems needed...
@@ -178,17 +195,17 @@ only."
     choice))
 
 (defun mu4e-read-option (prompt options)
-  "Ask user for an option from a list on the input area. PROMPT
-describes a multiple-choice question to the user, OPTIONS describe
-the options, and is a list of cells describing particular
-options. Cells have the following structure:
+  "Ask user for an option from a list on the input area.
+PROMPT describes a multiple-choice question to the user.
+OPTIONS describe the options, and is a list of cells describing
+particular options. Cells have the following structure:
 
    (OPTIONSTRING . RESULT)
 
- where OPTIONSTRING is a non-empty string describing the
- option. The first character of OPTIONSTRING is used as the
- shortcut, and obviously all shortcuts must be different, so you
- can prefix the string with an uniquifying character.
+where OPTIONSTRING is a non-empty string describing the
+option. The first character of OPTIONSTRING is used as the
+shortcut, and obviously all shortcuts must be different, so you
+can prefix the string with an uniquifying character.
 
 The options are provided as a list for the user to choose from;
 user can then choose by typing CHAR.  Example:
@@ -207,7 +224,7 @@ Function will return the cdr of the list element."
 		;; try to detect old-style options, and warn
 		(when (characterp (car-safe (cdr-safe option)))
 		  (mu4e-error (concat "Please use the new format for options/actions; "
-			   "see the manual")))
+				"see the manual")))
 		(let* ((kar (substring (car option) 0 1))
 			(val (cdr option)))
 		  (concat
@@ -217,7 +234,7 @@ Function will return the cdr of the list element."
 	  (response
 	    (mu4e~read-char-choice
 	      (concat prompt optionsstr
-		" [" (propertize "C-g" 'face 'mu4e-highlight-face) " to quit]")
+		" [" (propertize "C-g" 'face 'mu4e-highlight-face) " to cancel]")
 	      ;; the allowable chars
 	      (map 'list (lambda(elm) (string-to-char (car elm))) options)))
 	  (chosen
@@ -230,8 +247,7 @@ Function will return the cdr of the list element."
 
 
 (defun mu4e~get-maildirs-1 (path mdir)
-  "Get maildirs under path, recursively, as a list of relative
-paths."
+  "Get maildirs under path, recursively, as a list of relative paths."
   (let ((dirs)
 	 (dentries
 	   (ignore-errors
@@ -268,8 +284,8 @@ the list of maildirs will not change until you restart mu4e."
   "Ask the user for a shortcut (using PROMPT) as defined in
 `mu4e-maildir-shortcuts', then return the corresponding folder
 name. If the special shortcut 'o' (for _o_ther) is used, or if
-`mu4e-maildir-shortcuts is not defined, let user choose from all
-maildirs under `mu4e-maildir."
+`mu4e-maildir-shortcuts' is not defined, let user choose from all
+maildirs under `mu4e-maildir'."
   (let ((prompt (mu4e-format "%s" prompt)))
     (if (not mu4e-maildir-shortcuts)
       (ido-completing-read prompt (mu4e-get-maildirs))
@@ -286,7 +302,7 @@ maildirs under `mu4e-maildir."
 		  mlist ", "))
 	      (kar (read-char (concat prompt fnames))))
 	(if (member kar '(?/ ?o)) ;; user chose 'other'?
-	  (ido-completing-read prompt (mu4e-get-maildirs))
+	  (ido-completing-read prompt (mu4e-get-maildirs) nil nil "/")
 	  (or (car-safe
 		(find-if (lambda (item) (= kar (cdr item))) mu4e-maildir-shortcuts))
 	    (mu4e-warn "Unknown shortcut '%c'" kar)))))))
@@ -387,7 +403,7 @@ Also see `mu4e-flags-to-string'.
 	(mu4e~string-to-flags-1 (substring str 1))))))
 
 (defun mu4e-string-to-flags (str)
-"Convert a string with message flags as seen in Maildir messages
+  "Convert a string with message flags as seen in Maildir messages
 into a list of flags in; flags are symbols draft, flagged, new,
 passed, replied, seen, trashed and the string is the concatenation
 of the uppercased first letters of these flags, as per [1]. Other
@@ -410,8 +426,8 @@ http://cr.yp.to/proto/maildir.html "
 
 
 (defun mu4e-display-manual ()
-  "Display the mu4e manual page for the current mode, or go to the
-top level if there is none."
+  "Display the mu4e manual page for the current mode.
+Or go to the top level if there is none."
   (interactive)
   (info (case major-mode
 	  ('mu4e-main-mode "(mu4e)Main view")
@@ -455,14 +471,33 @@ that has a live window), and vice versa."
 	(view-mode)))
     (switch-to-buffer buf)))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defvar mu4e~lists-hash nil
+  "Hashtable of mailing-list-id => shortname, based on
+  `mu4e~mailing-lists' and `mu4e-user-mailing-lists'.")
+
+(defun mu4e-get-mailing-list-shortname (list-id)
+  "Get the shortname for a mailing-list with list-id LIST-ID. based on `mu4e~mailing-lists'
+  and `mu4e-user-mailing-lists'."
+  (unless mu4e~lists-hash
+    (setq mu4e~lists-hash (make-hash-table :test 'equal))
+    (dolist (cell mu4e~mailing-lists) (puthash (car cell) (cdr cell) mu4e~lists-hash))
+    (dolist (cell mu4e-user-mailing-lists) (puthash (car cell) (cdr cell) mu4e~lists-hash)))
+  (or
+    (gethash list-id mu4e~lists-hash)
+    ;; if it's not in the db, take the part until the first dot if there is one;
+    ;; otherwise just return the whole thing
+    (if (string-match "\\([^.]*\\)\\." list-id)
+      (match-string 1 list-id)
+      list-id)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defvar mu4e-index-updated-hook nil
-  "Hook run when the indexing process had one or more updated
-messages. This can be used as a simple way to invoke some action
-when new messages appear, but note that an update in the index does
-not necessarily mean a new message.")
+  "Hook run when the indexing process had one or more updated messages.
+This can be used as a simple way to invoke some action when new
+messages appear, but note that an update in the index does not
+necessarily mean a new message.")
 
 ;; some handler functions for server messages
 ;;
@@ -495,44 +530,15 @@ process."
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 
-(defconst mu4e~update-buffer-name "*mu4e-update*"
-  "Name of the buffer for message retrieval/database updating.")
-
-(defconst mu4e~update-buffer-height 8
-  "Height of the mu4e message retrieval/update buffer.")
-
-(defun mu4e-update-mail-show-window ()
-  "Try to retrieve mail (using the user-provided shell command),
-and update the database afterwards, and show the progress in a
-split-window."
-  (interactive)
-  (unless mu4e-get-mail-command
-    (mu4e-error "`mu4e-get-mail-command' is not defined"))
-  ;; delete any old update buffer
-  (when (buffer-live-p mu4e~update-buffer-name)
-    (with-current-buffer mu4e~update-buffer-name
-      (kill-buffer-and-window)))
-  ;; create a new one
-  (let ((buf (get-buffer-create mu4e~update-buffer-name))
-	 (win (split-window (selected-window)
-	     (- (window-height (selected-window)) 8))))
-    (with-selected-window win
-      (switch-to-buffer buf)
-      (set-window-dedicated-p win t)
-      (erase-buffer)
-      (insert "\n") ;; FIXME -- needed so output starts
-      (mu4e-update-mail buf t))))
-
-
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; start and stopping
 (defun mu4e~fill-contacts (contacts)
   "We receive a list of contacts, which each contact of the form
-     (:name NAME :mail EMAIL)
+  (:name NAME :mail EMAIL)
 and fill the list `mu4e~contacts-for-completion' with it, with
 each element looking like
-    name <email>
+  name <email>
 This is used by the completion function in mu4e-compose."
   (let ((lst))
     (dolist (contact contacts)
@@ -582,13 +588,14 @@ This is used by the completion function in mu4e-compose."
 
 
 (defun mu4e-running-p ()
-  "Whether mu4e is running -- that is, the server process is live."
+  "Whether mu4e is running.
+Checks whether the server process is live."
   (mu4e~proc-running-p))
 
 (defun mu4e~start (&optional func)
-  "If mu4e is already running, execute function FUNC (if non-nil). Otherwise,
-check various requirements, then start mu4e. When succesful, call
-FUNC (if non-nil) afterwards."
+  "If mu4e is already running, execute function FUNC (if non-nil).
+Otherwise, check various requirements, then start mu4e. When
+successful, call FUNC (if non-nil) afterwards."
   ;; if we're already running, simply go to the main view
   (if (mu4e-running-p)   ;; already running?
     (when func                 ;; yes! run func if defined
@@ -608,7 +615,8 @@ FUNC (if non-nil) afterwards."
 	      (when (and mu4e-update-interval (null mu4e~update-timer))
 		(setq mu4e~update-timer
 		  (run-at-time
-		    0 mu4e-update-interval 'mu4e-update-mail)))
+		    0 mu4e-update-interval
+		    (lambda () (mu4e-update-mail-and-index t)))))
 	      (mu4e-message "Started mu4e with %d message%s in store"
 		doccount (if (= doccount 1) "" "s"))))))
 
@@ -624,7 +632,6 @@ FUNC (if non-nil) afterwards."
 	    (float-time
 	      (apply 'encode-time
 		(mu4e-parse-time-string mu4e-compose-complete-only-after)))))))))
-
 
 (defun mu4e~stop ()
   "Stop the mu4e session."
@@ -644,52 +651,80 @@ FUNC (if non-nil) afterwards."
 	  (kill-buffer))))
     (buffer-list)))
 
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; getting mail / updating the index
+;;
+;;
 (defvar mu4e~update-timer nil
   "The mu4e update timer.")
-
-(defconst mu4e~update-mail-name "*mu4e-update-mail*"
-  "Name of the process to update mail.")
+(defconst mu4e~update-name "*mu4e-update*"
+  "Name of the process and buffer to update mail.")
+(defconst mu4e~update-buffer-height 8
+  "Height of the mu4e message retrieval/update buffer.")
 
 (defvar mu4e~get-mail-ask-password "mu4e get-mail: Enter password: "
   "Query string for `mu4e-get-mail-command' password.")
-
 (defvar mu4e~get-mail-password-regexp "^Remote: Enter password: $"
   "Regexp to match a password query in the `mu4e-get-mail-command' output.")
 
-(defun mu4e~process-filter (proc msg)
+(defun mu4e~get-mail-process-filter (proc msg)
   "Filter the output of `mu4e-get-mail-command'.
-Currently the filter only checks if the command asks for a password by matching
-the output against `mu4e~get-mail-password-regexp'.  The messages are inserted
-into the process buffer."
-  (save-current-buffer
-    (when (process-buffer proc)
-      (set-buffer (process-buffer proc)))
-    (let ((inhibit-read-only t))
-      ;; Check whether process asks for a password and query user
-      (when (string-match mu4e~get-mail-password-regexp msg)
-        (if (process-get proc 'x-interactive)
-            (process-send-string proc (concat
-                                       (read-passwd mu4e~get-mail-ask-password)
-                                       "\n"))
-           ;; TODO kill process?
-          (error "Get-mail process requires a password")))
-      (when (process-buffer proc)
-        (insert msg)))))
+Currently the filter only checks if the command asks for a password
+by matching the output against `mu4e~get-mail-password-regexp'.
+The messages are inserted into the process buffer."
+  (when (string-match mu4e~get-mail-password-regexp msg)
+    (if (process-get proc 'x-interactive)
+        (process-send-string proc
+                             (concat (read-passwd mu4e~get-mail-ask-password) "\n"))
+      ;; TODO kill process?
+      (mu4e-error "Unrecognized password request")))
+  (when (process-buffer proc)
+    (let ((inhibit-read-only t)
+          (procwin (get-buffer-window (process-buffer proc))))
+      ;; Insert at end of buffer. Leave point alone.
+      (with-current-buffer (process-buffer proc)
+        (goto-char (point-max))
+        (insert msg))
+      ;; Auto-scroll unless user is interacting with the window.
+      (when (and (window-live-p procwin)
+	      (not (eq (selected-window) procwin)))
+        (with-selected-window procwin
+          (goto-char (point-max)))))))
 
-(defun mu4e-update-mail (&optional buf interactive)
-  "Update mail (retrieve using `mu4e-get-mail-command' and update
-the database afterwards), with output going to BUF if not nil, or
-discarded if nil. After retrieving mail, update the database. Note,
-function is asynchronous, returns (almost) immediately, and all the
-processing takes part in the background, unless buf is non-nil.
-If INTERACTIVE is not nil then the user might be asked for a
-password."
+(defun  mu4e-update-index ()
+  "Update the mu4e index."
+  (interactive)
+  (unless mu4e-maildir
+    (mu4e-error "`mu4e-maildir' is not defined"))
+  (mu4e~proc-index mu4e-maildir mu4e-user-mail-address-list))
+
+;; complicated function, as it:
+;;   - needs to check for errors
+;;   - (optionally) pop-up a window
+;;   - (optionally) check password requests
+(defun mu4e-update-mail-and-index (run-in-background)
+  "Get a new mail by running `mu4e-get-mail-command'. If
+run-in-background is non-nil (or functional called with
+prefix-argument), run in the background; otherwise, pop up a
+window."
+  (interactive "P")
   (unless mu4e-get-mail-command
     (mu4e-error "`mu4e-get-mail-command' is not defined"))
-  (let* ((process-connection-type t)
+  (let* ((buf (unless run-in-background
+		(get-buffer-create mu4e~update-name)))
+	  (win (and buf (split-window (selected-window)
+			  (- (window-height (selected-window)) 8))))
+	  (process-connection-type t)
 	  (proc (start-process-shell-command
-		 mu4e~update-mail-name buf mu4e-get-mail-command)))
+		  mu4e~update-name buf mu4e-get-mail-command)))
     (mu4e-message "Retrieving mail...")
+    (when (window-live-p win)
+      (with-selected-window win
+	(switch-to-buffer buf)
+	(set-window-dedicated-p win t)
+	(erase-buffer)
+	(insert "\n"))) ;; FIXME -- needed so output starts
     (set-process-sentinel proc
       (lambda (proc msg)
 	(let* ((status (process-status proc))
@@ -701,13 +736,14 @@ password."
 		(buf (process-buffer proc)))
 	  (message nil)
 	  ;; there may be an error, give the user up to 5 seconds to check
-	  (when maybe-error
-	    (sit-for 5))
-	  (mu4e~proc-index mu4e-maildir mu4e-my-email-addresses)
-	  (when (buffer-live-p buf)
-	    (kill-buffer buf)))))
-    (process-put proc 'x-interactive interactive)
-    (set-process-filter proc 'mu4e~process-filter)))
+	  (when maybe-error (sit-for 5))
+	  (mu4e-update-index)
+	  (when (buffer-live-p buf) (kill-buffer buf)))))
+    ;; if we're running in the foreground, handle password requests
+    (unless run-in-background
+      (process-put proc 'x-interactive (not run-in-background))
+      (set-process-filter proc 'mu4e~get-mail-process-filter))))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 
 
@@ -755,8 +791,6 @@ either 'to-server, 'from-server or 'misc. This function is meant for debugging."
 	      (forward-line (- mu4e~log-max-lines lines))
 	      (beginning-of-line)
 	      (delete-region (point-min) (point)))))))))
-
-
 
 (defun mu4e-toggle-logging ()
   "Toggle between enabling/disabling debug-mode (in debug-mode,
@@ -867,6 +901,10 @@ displaying it). Do _not_ bury the current buffer, though."
 (defconst mu4e~main-about-buffer-name "*mu4e-about*"
   "Name for the mu4e-about buffer.")
 
+(define-derived-mode mu4e-about-mode org-mode "mu4e:about"
+  "Major mode for the mu4e About page, derived from `org-mode'.")
+(define-key mu4e-about-mode-map (kbd "q") 'bury-buffer)
+
 (defun mu4e-about ()
   "Show a buffer with the mu4e-about text."
   (interactive)
@@ -875,14 +913,18 @@ displaying it). Do _not_ bury the current buffer, though."
     (let ((inhibit-read-only t))
       (erase-buffer)
       (insert mu4e-about)
-      (org-mode)
+      (mu4e-about-mode)
       (show-all)))
   (switch-to-buffer mu4e~main-about-buffer-name)
   (setq buffer-read-only t)
-  (local-set-key "q" 'bury-buffer)
   (goto-char (point-min)))
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+(defun mu4e-refresh-message (path maildir)
+  "Re-parse message at PATH and MAILDIR; if this works, we will
+receive (:info add :path <path> :docid <docid>) as well as (:update
+<msg-sexp>)."
+  (mu4e~proc-add path maildir))
 
 (provide 'mu4e-utils)
 ;;; End of mu4e-utils.el
