@@ -62,6 +62,7 @@ install-stamp: build-stamp
 binary-indep: install
 	dh_testdir
 	dh_testroot
+	dh_makeshlibs
 	dh_shlibdeps
 	dh_installdocs README NEWS TODO
 	dh_installchangelogs
