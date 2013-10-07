@@ -8,6 +8,16 @@ muextra := $(CURDIR)/debian/maildir-utils-extra
 mu4e := $(CURDIR)/debian/mu4e
 
 
+# ia64 cannot build guile-2.0, so we have to disable it
+# one part is in the control file removing the build-deps on libguile-2.0-dev
+# for ia64, one part is here to disable guile compiling and some rules
+DOGUILECONFIG=
+DEB_HOST_ARCH     ?= $(shell dpkg-architecture -qDEB_HOST_ARCH)
+ifeq ($(DEB_HOST_ARCH), ia64)
+  DOGUILECONFIG=--disable-guile
+endif
+
+
 CFLAGS := -g -Wall
 ifneq "$(findstring noopt,$(DEB_BUILD_OPTIONS))" ""
 CFLAGS += -O0
@@ -22,7 +32,7 @@ build-indep: build-stamp
 build-stamp:
 	dh_testdir
 	dh_autoreconf
-	CFLAGS="$(CFLAGS)" ./configure --prefix=/usr
+	CFLAGS="$(CFLAGS)" ./configure --prefix=/usr $(DOGUILECONFIG)
 	$(MAKE)
 	touch $@
 
@@ -56,7 +66,9 @@ install-stamp: build-stamp
 	mkdir -p $(mu4e)/usr/share/info
 	mv $(mu)/usr/share/info/mu4e.info* $(mu4e)/usr/share/info
 	# shared libs dealing
+ifneq ($(DEB_HOST_ARCH), ia64)
 	rm $(mu)/usr/lib/libguile-mu.la
+endif
 	touch install-stamp
 
 binary-indep: install
