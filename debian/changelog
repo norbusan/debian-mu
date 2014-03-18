@@ -2,9 +2,10 @@ maildir-utils (0.9.9.5-3) unstable; urgency=medium
 
   * fix FTBFS due to GTK_STOCK_* missing (Closes: #741777)
   * bump standards version, no changes necessary
-  * update git web adress
+  * update git web address
+  * activate hardening
 
- -- Norbert Preining <preining@debian.org>  Tue, 18 Mar 2014 15:07:19 +0900
+ -- Norbert Preining <preining@debian.org>  Tue, 18 Mar 2014 15:55:55 +0900
 
 maildir-utils (0.9.9.5-2) unstable; urgency=low
 

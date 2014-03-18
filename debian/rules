@@ -17,13 +17,12 @@ ifeq ($(DEB_HOST_ARCH), ia64)
   DOGUILECONFIG=--disable-guile
 endif
 
+CPPFLAGS:=$(shell dpkg-buildflags --get CPPFLAGS)
+CFLAGS:=$(shell dpkg-buildflags --get CFLAGS)
+CXXFLAGS:=$(shell dpkg-buildflags --get CXXFLAGS)
+LDFLAGS:=$(shell dpkg-buildflags --get LDFLAGS)
 
-CFLAGS := -g -Wall
-ifneq "$(findstring noopt,$(DEB_BUILD_OPTIONS))" ""
-CFLAGS += -O0
-else
-CFLAGS += -O2
-endif
+CFLAGS += -g -Wall
 
 build: build-arch build-indep
 build-arch: build-stamp
@@ -32,7 +31,8 @@ build-indep: build-stamp
 build-stamp:
 	dh_testdir
 	dh_autoreconf
-	CFLAGS="$(CFLAGS)" ./configure --prefix=/usr $(DOGUILECONFIG)
+	CXXFLAGS="$(CXXFLAGS)" CFLAGS="$(CFLAGS)" LDFLAGS="$(LDFLAGS)" \
+		./configure --prefix=/usr $(DOGUILECONFIG)
 	$(MAKE)
 	touch $@
 
