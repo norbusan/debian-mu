@@ -1,3 +1,9 @@
+maildir-utils (0.9.9.5-3) UNRELEASED; urgency=medium
+
+  * fix FTBFS due to GTK_STOCK_* missing (Closes: #741777)
+
+ -- Norbert Preining <preining@debian.org>  Tue, 18 Mar 2014 15:00:42 +0900
+
 maildir-utils (0.9.9.5-2) unstable; urgency=low
 
   * disable mu-guile building on ia64, it does not have guile-2.0
