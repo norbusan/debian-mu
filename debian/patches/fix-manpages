@@ -1,6 +1,6 @@
 ---
  man/mu-add.1     |    4 ++--
- man/mu-cfind.1   |    4 ++--
+ man/mu-cfind.1   |    5 ++---
  man/mu-easy.1    |    2 +-
  man/mu-extract.1 |    5 ++---
  man/mu-find.1    |    4 ++--
@@ -12,7 +12,7 @@
  man/mu-server.1  |    2 +-
  man/mu-verify.1  |    4 ++--
  man/mu-view.1    |    4 ++--
- 13 files changed, 23 insertions(+), 25 deletions(-)
+ 13 files changed, 23 insertions(+), 26 deletions(-)
 
 --- maildir-utils.git.orig/man/mu-add.1
 +++ maildir-utils.git/man/mu-add.1
@@ -29,20 +29,17 @@
  
 --- maildir-utils.git.orig/man/mu-cfind.1
 +++ maildir-utils.git/man/mu-cfind.1
-@@ -1,4 +1,4 @@
+@@ -1,9 +1,8 @@
 -.TH MU CFIND 1 "May 2013" "User Manuals"
 +.TH MU-CFIND 1 "May 2013" "User Manuals"
  
  .SH NAME
  
-@@ -7,7 +7,7 @@
+-\fBmu cfind\fR is the \fBmu\fR command to find contacts in the \fBmu\fR
+-database and export them for use in other programs.
++mu_cfind \- find and export contacts in the \fBmu\fR database
  
  .SH SYNOPSIS
- 
--.B mu cfind [options] [<pattern>]
-+.B mu_cfind [options] [<pattern>]
- 
- .SH DESCRIPTION
  
 --- maildir-utils.git.orig/man/mu-easy.1
 +++ maildir-utils.git/man/mu-easy.1
@@ -71,20 +68,16 @@
  
 --- maildir-utils.git.orig/man/mu-find.1
 +++ maildir-utils.git/man/mu-find.1
-@@ -1,4 +1,4 @@
+@@ -1,8 +1,8 @@
 -.TH MU FIND 1 "September 2013" "User Manuals"
 +.TH MU-FIND 1 "September 2013" "User Manuals"
  
  .SH NAME
  
-@@ -6,7 +6,7 @@
+-mu find \- find e-mail messages in the \fBmu\fR database.
++mu_find \- find e-mail messages in the \fBmu\fR database.
  
  .SH SYNOPSIS
- 
--.B mu find [options] <search expression>
-+.B mu_find [options] <search expression>
- 
- .SH DESCRIPTION
  
 --- maildir-utils.git.orig/man/mu-index.1
 +++ maildir-utils.git/man/mu-index.1
@@ -136,20 +129,16 @@
  
 --- maildir-utils.git.orig/man/mu-view.1
 +++ maildir-utils.git/man/mu-view.1
-@@ -1,4 +1,4 @@
+@@ -1,8 +1,8 @@
 -.TH MU VIEW 1 "June 2013" "User Manuals"
 +.TH MU-VIEW 1 "June 2013" "User Manuals"
  
  .SH NAME
  
-@@ -6,7 +6,7 @@
+-mu view\- display an e-mail message file
++mu_view \- display an e-mail message file
  
  .SH SYNOPSIS
- 
--.B mu view [options] <file> [<files>]
-+.B mu_view [options] <file> [<files>]
- 
- .SH DESCRIPTION
  
 --- maildir-utils.git.orig/man/mu-help.1
 +++ maildir-utils.git/man/mu-help.1
@@ -167,20 +156,16 @@
  
 --- maildir-utils.git.orig/man/mu-script.1
 +++ maildir-utils.git/man/mu-script.1
-@@ -1,4 +1,4 @@
+@@ -1,8 +1,8 @@
 -.TH MU SCRIPT 1 "June 2013" "User Manuals"
 +.TH MU-SCRIPT 1 "June 2013" "User Manuals"
  
  .SH NAME
  
-@@ -6,7 +6,7 @@
+-mu script\- show the available mu scripts, and run them.
++mu_script \- show the available mu scripts, and run them.
  
  .SH SYNOPSIS
- 
--.B mu script [options] [<pattern>]
-+.B mu_script [options] [<pattern>]
- 
- .B mu <script-name> [<script-options>]
  
 --- maildir-utils.git.orig/man/mu-verify.1
 +++ maildir-utils.git/man/mu-verify.1
