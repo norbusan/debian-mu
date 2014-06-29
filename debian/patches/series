@@ -1,4 +1,3 @@
 fix-mug-build
 fix-manpages
-disable-emacs-compile
-fix-mu-guile-texi
+#disable-emacs-compile
