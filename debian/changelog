@@ -1,3 +1,10 @@
+maildir-utils (0.9.9.6-1) unstable; urgency=medium
+
+  * Imported Upstream version 0.9.9.6
+  * adapt/remove patches for new release
+
+ -- Norbert Preining <preining@debian.org>  Mon, 30 Jun 2014 08:14:29 +0900
+
 maildir-utils (0.9.9.5-3) unstable; urgency=medium
 
   * fix FTBFS due to GTK_STOCK_* missing (Closes: #741777)
