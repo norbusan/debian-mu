@@ -146,8 +146,6 @@ config_options_group_index (void)
 	GOptionEntry entries[] = {
 		{"maildir", 'm', 0, G_OPTION_ARG_FILENAME, &MU_CONFIG.maildir,
 		 "top of the maildir", "<maildir>"},
-		{"reindex", 0, 0, G_OPTION_ARG_NONE, &MU_CONFIG.reindex,
-		 "index even already indexed messages (false)", NULL},
 		{"rebuild", 0, 0, G_OPTION_ARG_NONE, &MU_CONFIG.rebuild,
 		 "rebuild the database from scratch (false)", NULL},
 		{"my-address", 0, 0, G_OPTION_ARG_STRING_ARRAY,
@@ -182,10 +180,10 @@ set_group_find_defaults (void)
 	/* note, when no fields are specified, we use
 	 * date-from-subject, and sort descending by date. If fields
 	 * *are* specified, we sort in ascending order. */
-	if (!MU_CONFIG.fields) {
-		MU_CONFIG.fields = "d f s";
+	if (!MU_CONFIG.fields || !*MU_CONFIG.fields) {
+		MU_CONFIG.fields = g_strdup ("d f s");
 		if (!MU_CONFIG.sortfield)
-			MU_CONFIG.sortfield = "d";
+			MU_CONFIG.sortfield = g_strdup ("d");
 	}
 
 	if (!MU_CONFIG.formatstr) /* by default, use plain output */
@@ -207,6 +205,8 @@ config_options_group_find (void)
 		{"sortfield", 's', 0, G_OPTION_ARG_STRING,
 		 &MU_CONFIG.sortfield,
 		 "field to sort on", "<field>"},
+		{"maxnum", 'n', 0, G_OPTION_ARG_INT, &MU_CONFIG.maxnum,
+		 "number of entries to display in the output", "<number>"},
 		{"threads", 't', 0, G_OPTION_ARG_NONE, &MU_CONFIG.threads,
 		 "show message threads", NULL},
 		{"bookmark", 'b', 0, G_OPTION_ARG_STRING, &MU_CONFIG.bookmark,
@@ -226,6 +226,9 @@ config_options_group_find (void)
 		{"format", 'o', 0, G_OPTION_ARG_STRING, &MU_CONFIG.formatstr,
 		 "output format ('plain'(*), 'links', 'xml',"
 		 "'sexp', 'xquery')", "<format>"},
+		{"summary-len", 0, 0, G_OPTION_ARG_INT, &MU_CONFIG.summary_len,
+		 "use up to <n> lines for the summary, or 0 for none (0)",
+		 "<len>"},
 		{"exec", 'e', 0, G_OPTION_ARG_STRING, &MU_CONFIG.exec,
 		 "execute command on each match message", "<command>"},
 		{"after", 0, 0, G_OPTION_ARG_INT, &MU_CONFIG.after,
@@ -279,8 +282,8 @@ config_options_group_cfind (void)
 	GOptionGroup *og;
 	GOptionEntry entries[] = {
 		{"format", 'o', 0, G_OPTION_ARG_STRING, &MU_CONFIG.formatstr,
-		 "output format ('plain'(*), 'mutt', 'wl',"
-		 "'org-contact', 'csv')", "<format>"},
+		 "output format (plain(*), mutt-alias, mutt-ab, wl, "
+		 "org-contact, bbdb, csv)", "<format>"},
 		{"personal", 0, 0, G_OPTION_ARG_NONE, &MU_CONFIG.personal,
 		 "whether to only get 'personal' contacts", NULL},
 		{"after", 0, 0, G_OPTION_ARG_INT, &MU_CONFIG.after,
@@ -302,13 +305,14 @@ config_options_group_script (void)
 {
 	GOptionGroup *og;
 	GOptionEntry entries[] = {
-		{"script", 0, 0, G_OPTION_ARG_STRING, &MU_CONFIG.script,
-		 "script to run (see `mu help script')", "<script>"},
-		{NULL, 0, 0, 0, NULL, NULL, NULL}
+		{G_OPTION_REMAINING, 0,0, G_OPTION_ARG_STRING_ARRAY,
+		 &MU_CONFIG.params, "script parameters", NULL},
+                {NULL, 0, 0, 0, NULL, NULL, NULL}
 	};
 
 	og = g_option_group_new("script", "Options for the 'script' command",
 				"", NULL, NULL);
+
 	g_option_group_add_entries(og, entries);
 
 	return og;
@@ -376,6 +380,9 @@ config_options_group_view (void)
 static void
 set_group_extract_defaults (void)
 {
+	if (!MU_CONFIG.targetdir)
+		MU_CONFIG.targetdir = g_strdup (".");
+
 	expand_dir (MU_CONFIG.targetdir);
 }
 
@@ -402,9 +409,6 @@ config_options_group_extract (void)
 		 "try to 'play' (open) the extracted parts", NULL},
 		{NULL, 0, 0, 0, NULL, NULL, NULL}
 	};
-
-	MU_CONFIG.targetdir = g_strdup("."); /* default is the current dir */
-
 	og = g_option_group_new("extract",
 				"Options for the 'extract' command",
 				"", NULL, NULL);
@@ -463,7 +467,7 @@ cmd_from_string (const char *str)
 		{ "index",   MU_CONFIG_CMD_INDEX   },
 		{ "mkdir",   MU_CONFIG_CMD_MKDIR   },
 		{ "remove",  MU_CONFIG_CMD_REMOVE  },
-		{ "script",  MU_CONFIG_CMD_SCRIPT   },
+		{ "script",  MU_CONFIG_CMD_SCRIPT  },
 		{ "server",  MU_CONFIG_CMD_SERVER  },
 		{ "verify",  MU_CONFIG_CMD_VERIFY  },
 		{ "view",    MU_CONFIG_CMD_VIEW    }
@@ -475,6 +479,12 @@ cmd_from_string (const char *str)
 	for (i = 0; i != G_N_ELEMENTS(cmd_map); ++i)
 		if (strcmp (str, cmd_map[i].name) == 0)
 			return cmd_map[i].cmd;
+#ifdef BUILD_GUILE
+	/* if we don't recognize it and it's not an option, it may be
+	 * some script */
+	if (str[0] != '-')
+		return MU_CONFIG_CMD_SCRIPT;
+#endif /*BUILD_GUILE*/
 
 	return MU_CONFIG_CMD_UNKNOWN;
 }
@@ -495,7 +505,7 @@ parse_cmd (int *argcp, char ***argvp, GError **err)
 		 * etc.)*/
 		return TRUE;
 
-	MU_CONFIG.cmdstr = (*argvp)[1];
+	MU_CONFIG.cmdstr = g_strdup ((*argvp)[1]);
 	MU_CONFIG.cmd    = cmd_from_string (MU_CONFIG.cmdstr);
 
 #ifndef BUILD_GUILE
@@ -506,14 +516,13 @@ parse_cmd (int *argcp, char ***argvp, GError **err)
 	}
 #endif /*!BUILD_GUILE*/
 
-#ifndef BUILD_CRYPTO
-	if (MU_CONFIG.cmd == MU_CONFIG_CMD_VERIFY) {
+	if (MU_CONFIG.cmdstr && MU_CONFIG.cmdstr[0] != '-' &&
+	    MU_CONFIG.cmd == MU_CONFIG_CMD_UNKNOWN) {
 		mu_util_g_set_error (err, MU_ERROR_IN_PARAMETERS,
-				     "command 'verify' not supported");
+				     "unknown command '%s'",
+				     MU_CONFIG.cmdstr);
 		return FALSE;
 	}
-#endif /*!BUILD_CRYPTO */
-
 
 	return TRUE;
 }
@@ -675,6 +684,17 @@ parse_params (int *argcp, char ***argvp, GError **err)
 		rv = g_option_context_parse (context, argcp, argvp, err) &&
 			cmd_help ();
 		break;
+	case MU_CONFIG_CMD_SCRIPT:
+		/* all unknown commands are passed to 'script' */
+		g_option_context_set_ignore_unknown_options (context, TRUE);
+		group = get_option_group (MU_CONFIG.cmd);
+		g_option_context_add_group (context, group);
+		rv  = g_option_context_parse (context, argcp, argvp, err);
+		MU_CONFIG.script = g_strdup (MU_CONFIG.cmdstr);
+		/* argvp contains the script parameters */
+		MU_CONFIG.script_params = (const char**)&((*argvp)[1]);
+		break;
+
 	default:
 		group = get_option_group (MU_CONFIG.cmd);
 		if (group)
@@ -696,6 +716,8 @@ mu_config_init (int *argcp, char ***argvp, GError **err)
 	g_return_val_if_fail (argcp && argvp, NULL);
 
 	memset (&MU_CONFIG, 0, sizeof(MU_CONFIG));
+
+	MU_CONFIG.maxnum = -1; /* By default, output all matching entries. */
 
 	if (!parse_cmd (argcp, argvp, err))
 		goto errexit;
@@ -726,10 +748,18 @@ mu_config_uninit (MuConfig *opts)
 	if (!opts)
 		return;
 
+	g_free (opts->cmdstr);
 	g_free (opts->muhome);
 	g_free (opts->maildir);
+	g_free (opts->fields);
+	g_free (opts->sortfield);
+	g_free (opts->bookmark);
+	g_free (opts->formatstr);
+	g_free (opts->exec);
 	g_free (opts->linksdir);
 	g_free (opts->targetdir);
+	g_free (opts->parts);
+	g_free (opts->script);
 
 	g_strfreev (opts->params);
 

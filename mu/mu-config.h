@@ -91,25 +91,24 @@ typedef enum _MuConfigCmd MuConfigCmd;
 
 struct _MuConfig {
 
-	MuConfigCmd	cmd;           /* the command, or
+	MuConfigCmd	 cmd;           /* the command, or
 					 * MU_CONFIG_CMD_NONE */
-	const char	*cmdstr;       /* cmd string, for user
+	char		*cmdstr;       /* cmd string, for user
 					* info */
 	/* general options */
-	gboolean	quiet;		/* don't give any output */
-	gboolean	debug;		/* spew out debug info */
+	gboolean	 quiet;	/* don't give any output */
+	gboolean	 debug;	/* spew out debug info */
 	gchar		*muhome;	/* the House of Mu */
-	gboolean	version;	/* request mu version */
-	gboolean	log_stderr;	/* log to stderr (not logfile) */
-	gchar**	        params;		/* parameters (for querying) */
-	gboolean        nocolor;        /* don't use use ansi-colors
+	gboolean	 version;	/* request mu version */
+	gboolean	 log_stderr;	/* log to stderr (not logfile) */
+	gchar**		 params;	/* parameters (for querying) */
+	gboolean	 nocolor;        /* don't use use ansi-colors
 					 * in some output */
-	gboolean	verbose;	/* verbose output */
+	gboolean	 verbose;	/* verbose output */
 
 	/* options for indexing */
 	gchar	        *maildir;	/* where the mails are */
 	gboolean        nocleanup;	/* don't cleanup del'd mails from db */
-	gboolean        reindex;	/* re-index existing mails */
 	gboolean        rebuild;	/* empty the database before indexing */
 	gboolean        autoupgrade;    /* automatically upgrade db
 					 * when needed */
@@ -124,6 +123,7 @@ struct _MuConfig {
 	/* options for querying 'find' (and view-> 'summary') */
 	gchar		*fields;	/* fields to show in output */
 	gchar	        *sortfield;	/* field to sort by (string) */
+	int		 maxnum;	/* max # of entries to print */
 	gboolean	 reverse;	/* sort in revers order (z->a) */
 	gboolean	 threads;       /* show message threads */
 
@@ -174,8 +174,8 @@ struct _MuConfig {
 	mode_t		 dirmode;	/* mode for the created maildir */
 
 	/* options for extracting parts */
-	gboolean	*save_all;	/* extract all parts */
-	gboolean	*save_attachments; /* extract all attachment parts */
+	gboolean	save_all;	/* extract all parts */
+	gboolean	save_attachments; /* extract all attachment parts */
 	gchar		*parts;		/* comma-sep'd list of parts
 					 * to save /  open */
 	gchar		*targetdir;	/* where to save the attachments */
@@ -183,7 +183,8 @@ struct _MuConfig {
 	gboolean         play;          /* after saving, try to 'play'
 					 * (open) the attmnt using xdgopen */
 	/* options for mu-script */
-	gchar           *script;        /* script to run */
+	gchar           *script;         /* script to run */
+	const char      **script_params; /* parameters for scripts */
 };
 typedef struct _MuConfig MuConfig;
 

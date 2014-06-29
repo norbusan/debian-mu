@@ -231,6 +231,38 @@ each_contact_org_contact (const char *email, const char *name)
 			name, email);
 }
 
+
+
+
+
+static void
+print_csv_field (const char *str)
+{
+	char *s;
+
+	if (!str)
+		return;
+
+	s = mu_str_replace (str, "\"", "\"\"");
+	if (strchr (s, ','))
+		mu_util_print_encoded ("\"%s\"", s);
+	else
+		mu_util_print_encoded ("%s", s);
+
+	g_free (s);
+}
+
+static void
+each_contact_csv (const char *email, const char *name)
+{
+	print_csv_field (name);
+	mu_util_print_encoded (",");
+	print_csv_field (email);
+	mu_util_print_encoded ("\n");
+}
+
+
+
 static void
 print_plain (const char *email, const char *name, gboolean color)
 {
@@ -259,9 +291,10 @@ struct _ECData {
 typedef struct _ECData ECData;
 
 
+
 static void
 each_contact (const char *email, const char *name, gboolean personal,
-	      time_t tstamp, ECData *ecdata)
+	      time_t tstamp, unsigned freq, ECData *ecdata)
 {
 	if (ecdata->personal && !personal)
 		return;
@@ -287,7 +320,7 @@ each_contact (const char *email, const char *name, gboolean personal,
 		each_contact_bbdb (email, name, tstamp);
 		break;
         case MU_CONFIG_FORMAT_CSV:
-		mu_util_print_encoded ("%s,%s\n", name ? name : "", email);
+		each_contact_csv (email, name);
 		break;
 	default:
 		print_plain (email, name, ecdata->color);
@@ -311,10 +344,12 @@ run_cmd_cfind (const char* pattern,
 	ecdata.format	= format;
 	ecdata.color	= color;
 
-	contacts = mu_contacts_new (mu_runtime_path(MU_RUNTIME_PATH_CONTACTS));
+	contacts = mu_contacts_new
+		(mu_runtime_path(MU_RUNTIME_PATH_CONTACTS));
 	if (!contacts) {
-		g_set_error (err, MU_ERROR_DOMAIN, MU_ERROR_CONTACTS_CANNOT_RETRIEVE,
-				     "could not retrieve contacts");
+		g_set_error (err, MU_ERROR_DOMAIN,
+			     MU_ERROR_CONTACTS_CANNOT_RETRIEVE,
+			     "could not retrieve contacts");
 		return MU_ERROR_CONTACTS_CANNOT_RETRIEVE;
 	}
 

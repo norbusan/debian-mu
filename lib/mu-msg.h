@@ -24,7 +24,6 @@
 #include <mu-flags.h>
 #include <mu-msg-fields.h>
 #include <mu-msg-prio.h>
-/* #include <mu-msg-part.h> */
 #include <mu-util.h> /* for MuError and XapianDocument */
 
 G_BEGIN_DECLS
@@ -261,9 +260,9 @@ const char*     mu_msg_get_subject         (MuMsg *msg);
  *
  * @param msg a valid MuMsg* instance
  *
- * @return the Message-Id of this message (without the enclosing <>)
- * or NULL in case of error or if there is none. the returned string
- * should *not* be modified or freed.
+ * @return the Message-Id of this message (without the enclosing <>),
+ * or a fake message-id for messages that don't have them, or NULL in
+ * case of error.
  */
 const char*     mu_msg_get_msgid           (MuMsg *msg);
 
@@ -475,6 +474,8 @@ char* mu_msg_to_sexp (MuMsg *msg, unsigned docid,
  * rootmaildir. e.g. "/archive"
  * @param flags to set for the target (influences the filename, path)
  * @param silently ignore the src=target case (return TRUE)
+ * @param new_name whether to create a new unique name, or keep the
+ * old one
  * @param err (may be NULL) may contain error information; note if the
  * function return FALSE, err is not set for all error condition
  * (ie. not for parameter error
@@ -483,6 +484,7 @@ char* mu_msg_to_sexp (MuMsg *msg, unsigned docid,
  */
 gboolean mu_msg_move_to_maildir (MuMsg *msg, const char *maildir,
 				 MuFlags flags, gboolean ignore_dups,
+				 gboolean new_name,
 				 GError **err);
 
 
@@ -511,28 +513,6 @@ struct _MuMsgContact {
 };
 typedef struct _MuMsgContact	 MuMsgContact;
 
-/**
- * create a new MuMsgContact object; note, in many case, this is not
- * needed, any a stack-allocated struct can be uses.
- *
- * @param name the name of the contact
- * @param address the e-mail address of the contact
- * @param type the type of contact: cc, bcc, from, to
- *
- * @return a newly allocated MuMsgConcact or NULL in case of
- * error. use mu_msg_contact_destroy to destroy it when it's no longer
- * needed.
- */
-MuMsgContact *mu_msg_contact_new (const char *name, const char *address,
-				  MuMsgContactType type)
-				  G_GNUC_MALLOC G_GNUC_WARN_UNUSED_RESULT;
-
-/**
- * destroy a MuMsgConcact object
- *
- * @param contact a contact object, or NULL
- */
-void mu_msg_contact_destroy (MuMsgContact *contact);
 
 /**
  * macro to get the name of a contact

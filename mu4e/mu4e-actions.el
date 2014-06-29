@@ -28,8 +28,8 @@
 ;;; Code:
 (eval-when-compile (byte-compile-disable-warning 'cl-functions))
 (require 'cl)
+(require 'ido)
 
-(require 'mu4e-utils)
 (require 'mu4e-message)
 (require 'mu4e-meta)
 
@@ -119,7 +119,6 @@ You can influence the browser to use with the variable
 (defun mu4e-action-capture-message (msg)
   "Remember MSG; we can create a an attachment based on this msg
 with `mu4e-compose-attach-captured-message'."
-  (interactive)
   (setq mu4e-captured-message msg)
   (message "Message has been captured"))
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -172,11 +171,28 @@ store your org-contacts."
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defun mu4e-action-git-apply-patch (msg)
   "Apply the git [patch] message."
-  (let ((path (read-directory-name "Target directory: " nil "~/" t) ))
+  (let ((path (ido-read-directory-name "Target directory: "
+                                       (car ido-work-directory-list)
+                                       "~/" t)))
+    (setf ido-work-directory-list
+          (cons path (delete path ido-work-directory-list)))
     (shell-command
       (format "cd %s; git apply %s"
 	path
 	(mu4e-message-field msg :path)))))
+
+(defun mu4e-action-git-apply-mbox (msg)
+  "Apply and commit the git [patch] message."
+  (let ((path (ido-read-directory-name "Target directory: "
+                                       (car ido-work-directory-list)
+                                       "~/" t)))
+    (setf ido-work-directory-list
+          (cons path (delete path ido-work-directory-list)))
+    (shell-command
+      (format "cd %s; git am %s"
+	path
+	(mu4e-message-field msg :path)))))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 

@@ -199,6 +199,33 @@ mu_str_size_parse_bkm (const char* str)
 }
 
 
+char*
+mu_str_replace (const char *str, const char *substr, const char *repl)
+{
+	GString		*gstr;
+	const char	*cur;
+
+	g_return_val_if_fail (str, NULL);
+	g_return_val_if_fail (substr, NULL);
+	g_return_val_if_fail (repl, NULL);
+
+	gstr = g_string_sized_new (2 * strlen (str));
+
+	for (cur = str; *cur; ++cur) {
+		if (g_str_has_prefix (cur, substr)) {
+			g_string_append (gstr, repl);
+			cur += strlen (substr) - 1;
+		} else
+			g_string_append_c (gstr, *cur);
+	}
+
+	return g_string_free (gstr, FALSE);
+}
+
+
+
+
+
 
 char*
 mu_str_from_list (const GSList *lst, char sepa)
@@ -257,76 +284,60 @@ mu_str_to_list (const char *str, char sepa, gboolean strip)
 	return lst;
 }
 
-
-static gchar*
-eat_esc_string (char **strlst, GError **err)
-{
-	char *str;
-	gboolean quoted;
-	GString *gstr;
-
-	str  = g_strchug (*strlst);
-	gstr = g_string_sized_new (strlen(str));
-
-	for (quoted = FALSE; *str; ++str) {
-
-		if (*str == '"') {
-			quoted = !quoted;
-			continue;
-		} else if (*str == '\\') {
-			if (str[1] != ' ' && str[1] != '"' && str[1] != '\\')
-				goto err; /* invalid escaping */
-			g_string_append_c (gstr, str[1]);
-			++str;
-			continue;
-		} else if (*str == ' ' && !quoted) {
-			++str;
-			goto leave;
-		} else
-			g_string_append_c (gstr, *str);
-	}
-leave:
-	*strlst = str;
-	return g_string_free (gstr, FALSE);
-err:
-	g_set_error (err, MU_ERROR_DOMAIN, MU_ERROR_IN_PARAMETERS,
-		     "error parsing string '%s'", g_strchug(*strlst));
-	*strlst = NULL;
-	return g_string_free (gstr, TRUE);
-}
-
-
 GSList*
-mu_str_esc_to_list (const char *strings, GError **err)
+mu_str_esc_to_list (const char *strings)
 {
 	GSList *lst;
-	char *mystrings, *freeme;
-	const char* cur;
+	GString *part;
+	unsigned u;
+	gboolean quoted, escaped;
 
 	g_return_val_if_fail (strings, NULL);
 
-	for (cur = strings; *cur && (*cur == ' ' || *cur == '\t'); ++cur);
-	freeme = mystrings = g_strdup (cur);
+	part = g_string_new (NULL);
 
-	lst = NULL;
-	do {
-		gchar *str;
-		str = eat_esc_string (&mystrings, err);
-		if (str)
-			lst = g_slist_prepend (lst, str);
-		else {
-			g_free (freeme);
-			mu_str_free_list (lst);
-			return NULL;
+	for (u = 0, lst = NULL, quoted = FALSE, escaped = FALSE;
+	     u != strlen (strings); ++u) {
+
+		char kar;
+		kar = strings[u];
+
+		if (kar == '\\') {
+			if (escaped)
+				g_string_append_c (part, '\\');
+			escaped = !escaped;
+			continue;
 		}
 
-	} while (mystrings && *mystrings);
+		if (quoted && kar != '"') {
+			g_string_append_c (part, kar);
+			continue;
+		}
 
-	g_free (freeme);
+		switch (kar) {
+		case '"':
+			if (!escaped)
+				quoted = !quoted;
+			else
+				g_string_append_c (part, kar);
+			continue;
+		case ' ':
+ 			if (part->len > 0) {
+				lst = g_slist_prepend
+					(lst, g_string_free (part, FALSE));
+				part = g_string_new (NULL);
+			}
+			continue;
+		default:
+			g_string_append_c (part, kar);
+		}
+	}
+
+	if (part->len)
+		lst = g_slist_prepend (lst, g_string_free (part, FALSE));
+
 	return g_slist_reverse (lst);
 }
-
-
 
 
 void
@@ -418,6 +429,54 @@ each_check_prefix (MuMsgFieldId mfid, CheckPrefix *cpfx)
 	}
 }
 
+/* check if it looks like either i:<msgid> or msgid:<msgid> */
+static gboolean
+is_msgid_field (const char *str)
+{
+	const char *name;
+
+	if (!str || strlen(str) < 3)
+		return FALSE;
+
+	if (str[0] == mu_msg_field_shortcut (MU_MSG_FIELD_ID_MSGID) &&
+	    str[1] == ':')
+		return TRUE;
+
+	name = mu_msg_field_name (MU_MSG_FIELD_ID_MSGID);
+	if (g_str_has_prefix (str, name) && str[strlen(name)] == ':')
+		return TRUE;
+
+	return FALSE;
+}
+
+/* message-ids need a bit more massaging -- we replace all
+ * non-alphanum with '_'. Note, this function assumes we're looking at
+ * a msg-id field, ie. i:<msgid> or msgid:<msgid> */
+char*
+mu_str_process_msgid (const char *str, gboolean query)
+{
+	char *s, *c;
+
+	g_return_val_if_fail (str, NULL);
+	g_return_val_if_fail (!query || strchr(str, ':'), NULL);
+
+	if (!str)
+		return NULL;
+
+	s = g_strdup (str);
+
+	if (query)
+		c = strchr (s, ':') + 1;
+	else
+		c = s;
+
+	for (; *c; ++c)
+		*c = isalnum (*c) ? tolower (*c) : '_';
+
+	return s;
+}
+
+
 
 static void
 check_for_field (const char *str, gboolean *is_field,
@@ -449,75 +508,123 @@ check_for_field (const char *str, gboolean *is_field,
 	*is_range_field = pfx.range_field;
 }
 
-/*
- * Xapian treats various characters such as '@', '-', ':' and '.'
- * specially; function below is an ugly hack to make it DWIM in most
- * cases...
- *
- * function expects search terms (not complete queries)
- * */
-char*
-mu_str_xapian_escape_in_place_try (char *term, gboolean esc_space, GStringChunk *strchunk)
+
+static gboolean
+handle_esc_maybe (GString *gstr, char **cur, gunichar uc,
+		  gboolean query_esc, gboolean range_field)
 {
-	unsigned char *cur;
-	const char escchar = '_';
-	gboolean is_field, is_range_field;
-	unsigned colon;
+	char kar;
 
-	g_return_val_if_fail (term, NULL);
+	kar = *cur[0];
 
-	check_for_field (term, &is_field, &is_range_field);
-
-	for (colon = 0, cur = (unsigned char*)term; *cur; ++cur) {
-
-		switch (*cur) {
-
-		case '.': /* escape '..' if it's not a range field*/
-			if (is_range_field && cur[1] == '.')
-				cur += 1;
-			else
-				*cur = escchar;
-			break;
+	if (query_esc) {
+		switch (kar) {
 		case ':':
-			/* if there's a registered xapian prefix
-			 * before the *first* ':', don't touch
-			 * it. Otherwise replace ':' with '_'... ugh
-			 * yuck ugly...
-			 */
-			if (colon != 0 || !is_field)
-				*cur = escchar;
-			++colon;
-			break;
 		case '(':
 		case ')':
-		case '\'':
-		case '*':   /* wildcard */
-			break;
-		default:
-			/* escape all other special stuff */
-			if (*cur < 0x80 && !isalnum (*cur))
-				*cur = escchar;
+		case '*':
+		case '&':
+		case '"':
+			g_string_append_c (gstr, kar);
+			return TRUE;
+		case '.':
+			if (!range_field)
+				break;
+
+			if ((*cur)[1] == '.' && (*cur)[2] != '.') {
+				g_string_append (gstr, "..");
+				*cur = g_utf8_next_char (*cur);
+				return TRUE;
+			}
+		default: break;
 		}
 	}
 
-	/* downcase try to remove accents etc. */
-	return mu_str_normalize_in_place (term, TRUE, strchunk);
+	if (g_unichar_ispunct(uc) || isblank(kar)) {
+		g_string_append_c (gstr, '_');
+		return TRUE;
+	}
+
+	return FALSE;
 }
+
+
+static char*
+process_str (const char *str, gboolean xapian_esc, gboolean query_esc)
+{
+	GString *gstr;
+	char *norm, *cur;
+	gboolean is_field, is_range_field;
+
+	norm = g_utf8_normalize (str, -1, G_NORMALIZE_ALL);
+	if (G_UNLIKELY(!norm)) {  /* not valid utf8? */
+		char *u8;
+		u8 = mu_str_utf8ify (str);
+		norm = g_utf8_normalize (u8, -1, G_NORMALIZE_ALL);
+		g_free (u8);
+	}
+
+ 	if (!norm)
+		return NULL;
+
+	/* msg-id needs some special care in queries */
+	if (query_esc && is_msgid_field (str))
+		return mu_str_process_msgid (str, TRUE);
+
+	check_for_field (str, &is_field, &is_range_field);
+	gstr = g_string_sized_new (strlen (norm));
+
+	for (cur = norm; cur && *cur; cur = g_utf8_next_char (cur)) {
+
+		gunichar uc;
+		uc = g_utf8_get_char (cur);
+		if (xapian_esc)
+			if (handle_esc_maybe (gstr, &cur, uc, query_esc,
+					      is_range_field))
+				continue;
+
+		if (g_unichar_ismark(uc))
+			continue;
+
+		uc = g_unichar_tolower (uc);
+		g_string_append_unichar (gstr, uc);
+	}
+
+	g_free (norm);
+	return g_string_free (gstr, FALSE);
+}
+
 
 char*
-mu_str_xapian_escape (const char *query, gboolean esc_space, GStringChunk *strchunk)
+mu_str_process_text (const char *str)
 {
-	char *mystr;
+	g_return_val_if_fail (str, NULL);
 
-	g_return_val_if_fail (query, NULL);
+	return process_str (str, FALSE, FALSE);
 
-	if (strchunk)
-		mystr = g_string_chunk_insert (strchunk, query);
-	else
-		mystr = g_strdup (query);
-
-	return mu_str_xapian_escape_in_place_try (mystr, esc_space, strchunk);
 }
+
+
+char*
+mu_str_process_term (const char *str)
+{
+	g_return_val_if_fail (str, NULL);
+
+	return process_str (str, TRUE, FALSE);
+
+}
+
+
+char*
+mu_str_process_query_term (const char *str)
+{
+	g_return_val_if_fail (str, NULL);
+
+	return process_str (str, TRUE, TRUE);
+
+}
+
+
 
 /*
  * Split simple search term into prefix, expression and suffix.
@@ -533,7 +640,7 @@ mu_str_xapian_escape (const char *query, gboolean esc_space, GStringChunk *strch
  */
 static gboolean
 split_term (const gchar *term,
-  const gchar **pfx, const gchar **cond, const gchar **sfx)
+	    const gchar **pfx, const gchar **cond, const gchar **sfx)
 {
 	size_t l;
 	const gchar *start, *tail;
@@ -731,9 +838,10 @@ mu_str_asciify_in_place (char *buf)
 
 	g_return_val_if_fail (buf, NULL);
 
-	for (c = buf; c && *c; ++c)
-		if (!isascii(*c))
-			c[0] = '.';
+	for (c = buf; c && *c; ++c) {
+		if ((!isprint(*c) && !isspace (*c)) || !isascii(*c))
+			*c = '.';
+	}
 
 	return buf;
 }
@@ -748,7 +856,7 @@ mu_str_utf8ify (const char *buf)
 	utf8 = g_strdup (buf);
 
 	if (!g_utf8_validate (buf, -1, NULL))
-	    mu_str_asciify_in_place (utf8);
+		mu_str_asciify_in_place (utf8);
 
 	return utf8;
 }
@@ -779,8 +887,9 @@ mu_str_convert_to_utf8 (const char* buffer, const char *charset)
 	if (!utf8) {
 		g_warning ("%s: conversion failed from %s: %s",
 			 __FUNCTION__, charset, err ? err->message : "");
-		g_clear_error (&err);
 	}
+
+	g_clear_error (&err);
 
 	return utf8;
 }
@@ -810,4 +919,157 @@ mu_str_quoted_from_strv (const gchar **params)
 	}
 
 	return g_string_free (str, FALSE);
+}
+
+
+static char*
+read_key (const char *str, const char **val, GError **err)
+{
+	const char *cur;
+	GString *gstr;
+
+	cur = str;
+
+	gstr = g_string_sized_new (strlen(cur));
+	while (*cur && *cur != ':') {
+		g_string_append_c (gstr, *cur);
+		++cur;
+	}
+
+	if (*cur != ':' || gstr->len == 0) {
+		g_set_error (err, MU_ERROR_DOMAIN, MU_ERROR,
+			     "expected: '<alphanum>+:' (%s)",
+			     str);
+		g_string_free (gstr, TRUE);
+		*val = NULL;
+		return NULL;
+	} else {
+		*val = cur + 1;
+		return g_string_free (gstr, FALSE);
+	}
+}
+
+
+static char*
+read_val (const char *str, const char **endval, GError **err)
+{
+	const char *cur;
+	gboolean quoted;
+	GString *gstr;
+
+	gstr = g_string_sized_new (strlen(str));
+
+	for (quoted = FALSE, cur = str; *cur; ++cur) {
+
+		if (*cur == '\\') {
+			if (cur[1] != '"' && cur[1] != '\\') {
+				g_set_error (err, MU_ERROR_DOMAIN, MU_ERROR,
+					     "invalid escaping");
+				goto errexit;
+			} else {
+				++cur;
+				g_string_append_c (gstr, *cur);
+				continue;
+			}
+		} else if (*cur == '"') {
+			quoted = !quoted;
+			continue;
+		} else if (isblank(*cur) && !quoted)
+			break;
+		else
+			g_string_append_c (gstr, *cur);
+	}
+
+	if (quoted) {
+		g_set_error (err, MU_ERROR_DOMAIN, MU_ERROR,
+			     "error in quoting");
+		goto errexit;
+	}
+
+	*endval = cur;
+	return g_string_free (gstr, FALSE);
+
+errexit:
+	g_string_free (gstr, TRUE);
+	return NULL;
+}
+
+
+GHashTable*
+mu_str_parse_arglist (const char *args, GError **err)
+{
+	GHashTable *hash;
+	const char *cur;
+
+	g_return_val_if_fail (args, NULL);
+
+	hash = g_hash_table_new_full (
+		g_str_hash,
+		g_str_equal,
+		(GDestroyNotify)g_free,
+		(GDestroyNotify)g_free);
+
+	cur = args;
+	while ((isblank(*cur)))
+		++cur;
+
+	do {
+		char *key, *val;
+		const char *valstart, *valend;
+
+		key = read_key (cur, &valstart, err);
+		if (!key)
+			goto errexit;
+
+		val = read_val (valstart, &valend, err);
+		if (!val)
+			goto errexit;
+
+		/* g_print ("%s->%s\n", key, val); */
+		g_hash_table_insert (hash, key, val);
+
+		cur = valend;
+		while ((isblank(*cur)))
+			++cur;
+	} while (*cur);
+
+	return hash;
+
+errexit:
+	g_hash_table_destroy (hash);
+	return NULL;
+}
+
+
+
+char *
+mu_str_remove_ctrl_in_place (char *str)
+{
+	char *cur;
+
+	g_return_val_if_fail (str, NULL);
+
+	for (cur = str; *cur; ++cur) {
+
+		GString *gstr;
+
+		if (!iscntrl(*cur))
+			continue;
+
+		if (isspace(*cur)) {
+			/* squash special white space into a simple space */
+			*cur = ' ';
+		} else {
+			/* remove other control characters */
+			gstr = g_string_sized_new (strlen (str));
+			for (cur = str; *cur; ++cur)
+				if (!iscntrl (*cur))
+					g_string_append_c (gstr, *cur);
+			memcpy (str, gstr->str, gstr->len); /* fits */
+			g_string_free (gstr, TRUE);
+			break;
+		}
+	}
+
+	return str;
 }

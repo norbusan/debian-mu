@@ -177,22 +177,21 @@ mu_cmd_script (MuConfig *opts, GError **err)
 	if (err && *err)
 		goto leave;
 
-	if (!opts->script) {
+	if (g_strcmp0 (opts->cmdstr, "script") == 0) {
 		print_scripts (scripts, !opts->nocolor, opts->verbose,
-			       opts->params[1], err);
+			       opts->script_params[0], err);
 		goto leave;
 	}
 
 	msi = mu_script_find_script_with_name (scripts, opts->script);
 	if (!msi) {
-		mu_util_g_set_error (err, MU_ERROR_IN_PARAMETERS,
-				     "script not found");
+		mu_util_g_set_error (err, MU_ERROR_SCRIPT_NOT_FOUND,
+				     "command or script not found");
 		goto leave;
 	}
 
 	/* do it! */
-	mu_script_guile_run (msi, opts->muhome,
-			     (const gchar**)&opts->params[1], err);
+	mu_script_guile_run (msi, opts->muhome, opts->script_params, err);
 leave:
 	/* this won't be reached, unless there is some error */
 	mu_script_info_list_destroy (scripts);

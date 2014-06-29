@@ -47,9 +47,10 @@
 
     ;;
     (define-key map "U" 'mu4e-update-mail-and-index)
+    (define-key map "S" 'mu4e-interrupt-update-mail)
     (define-key map  (kbd "C-S-u") 'mu4e-update-mail-and-index)
-    
-    
+
+
     (define-key map "$" 'mu4e-show-log)
     (define-key map "A" 'mu4e-about)
     (define-key map "H" 'mu4e-display-manual)
@@ -63,23 +64,23 @@
   "Major mode for the mu4e main screen.
 \\{mu4e-main-mode-map}."
   (use-local-map mu4e-main-mode-map)
-  (setq
-    truncate-lines t
-    overwrite-mode 'overwrite-mode-binary))
+  (setq truncate-lines t
+        overwrite-mode 'overwrite-mode-binary)
+  (set (make-local-variable 'revert-buffer-function) #'mu4e:main-revert-buffer))
 
 
 (defun mu4e~main-action-str (str &optional func-or-shortcut)
-  "Highlight the first occurence of [..] in STR.
+  "Highlight the first occurence of [.] in STR.
 If FUNC-OR-SHORTCUT is non-nil and if it is a function, call it
-when STR is clicked (using RET or mouse-2); if FUNC-OR-SHORTCUT
-is a string, execute the corresponding keyboard action when it is
+when STR is clicked (using RET or mouse-2); if FUNC-OR-SHORTCUT is
+a string, execute the corresponding keyboard action when it is
 clicked."
   (let ((newstr
 	  (replace-regexp-in-string
-	    "\\[\\(\\w+\\)\\]"
+	    "\\[\\(..?\\)\\]"
 	    (lambda(m)
 	      (format "[%s]"
-		(propertize (match-string 1 str) 'face 'mu4e-highlight-face)))
+		(propertize (match-string 1 m) 'face 'mu4e-highlight-face)))
 	    str))
 	 (map (make-sparse-keymap))
 	 (func (if (functionp func-or-shortcut)
@@ -91,12 +92,13 @@ clicked."
     (define-key map [mouse-2] func)
     (define-key map (kbd "RET") func)
     (put-text-property 0 (length newstr) 'keymap map newstr)
-    (put-text-property (string-match "\\w" newstr)
+    (put-text-property (string-match "\\[.+$" newstr)
       (- (length newstr) 1) 'mouse-face 'highlight newstr) newstr))
 
-
-(defun mu4e~main-view ()
-  "Show the mu4e main view."
+;; NEW
+;; This is the old `mu4e~main-view' function but without
+;; buffer switching at the end.
+(defun mu4e:main-revert-buffer (ignore-auto noconfirm)
   (let ((buf (get-buffer-create mu4e~main-buffer-name))
 	 (inhibit-read-only t))
     (with-current-buffer buf
@@ -104,7 +106,7 @@ clicked."
       (insert
 	"* "
 	(propertize "mu4e - mu for emacs version " 'face 'mu4e-title-face)
-	(propertize  mu4e-mu-version 'face 'mu4e-view-header-key-face)
+	(propertize  mu4e-mu-version 'face 'mu4e-header-key-face)
 
 	;; show some server properties; in this case; a big C when there's
 	;; crypto support, a big G when there's Guile support
@@ -133,7 +135,7 @@ clicked."
 	(propertize "  Misc\n\n" 'face 'mu4e-title-face)
 
 	(mu4e~main-action-str "\t* [U]pdate email & database\n"
-	  'mu4e-update-mail-show-window)
+	  'mu4e-update-mail-and-index)
 
 	;; show the queue functions if `smtpmail-queue-dir' is defined
 	(if (file-directory-p smtpmail-queue-dir)
@@ -141,7 +143,7 @@ clicked."
 	    (mu4e~main-action-str "\t* toggle [m]ail sending mode "
 	      'mu4e~main-toggle-mail-sending-mode)
 	    "(" (propertize (if smtpmail-queue-mail "queued" "direct")
-		  'face 'mu4e-view-header-key-face) ")\n"
+		  'face 'mu4e-header-key-face) ")\n"
 	    (mu4e~main-action-str "\t* [f]lush queued mail\n"
 	      'smtpmail-send-queued-mail))
 	  "")
@@ -150,19 +152,38 @@ clicked."
 	(mu4e~main-action-str "\t* [H]elp\n" 'mu4e-display-manual)
 	(mu4e~main-action-str "\t* [q]uit\n" 'mu4e-quit))
       (mu4e-main-mode)
-      (switch-to-buffer buf))))
+      )))
+
+;; NEW
+;; Revert mu main buffer then switch to it
+(defun mu4e~main-view ()
+  "Show the mu4e main view."
+  (mu4e:main-revert-buffer nil nil)
+  (switch-to-buffer  mu4e~main-buffer-name))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Interactive functions
+;; NEW
+;; Toggle mail sending mode without switching
 (defun mu4e~main-toggle-mail-sending-mode ()
   "Toggle sending mail mode, either queued or direct."
   (interactive)
-  (unless (file-directory-p smtpmail-queue-dir)
-    (mu4e-error "`smtpmail-queue-dir' does not exist"))
-  (setq smtpmail-queue-mail (not smtpmail-queue-mail))
-  (message
-    (concat "Outgoing mail will now be "
-      (if smtpmail-queue-mail "queued" "sent directly")))
-  (mu4e~main-view))
+  (let ((curpos (point)))
+    (unless (file-directory-p smtpmail-queue-dir)
+      (mu4e-error "`smtpmail-queue-dir' does not exist"))
+    (setq smtpmail-queue-mail (not smtpmail-queue-mail))
+    (message
+     (concat "Outgoing mail will now be "
+             (if smtpmail-queue-mail "queued" "sent directly")))
+    (mu4e:main-revert-buffer nil nil)
+    (goto-char curpos)))
+
+
+;; (progn
+;;   (define-key mu4e-compose-mode-map (kbd "C-c m") 'mu4e~main-toggle-mail-sending-mode)
+;;   (define-key mu4e-view-mode-map (kbd "C-c m")    'mu4e~main-toggle-mail-sending-mode)
+;;   (define-key mu4e-compose-mode-map (kbd "C-c m") 'mu4e~main-toggle-mail-sending-mode)
+;;   (define-key mu4e-headers-mode-map (kbd "C-c m") 'mu4e~main-toggle-mail-sending-mode)
+;; )
 
 (provide 'mu4e-main)

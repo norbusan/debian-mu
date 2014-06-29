@@ -36,7 +36,6 @@ static gboolean init_file_metadata (MuMsgFile *self, const char* path,
 				    const char *mdir, GError **err);
 static gboolean init_mime_msg (MuMsgFile *msg, const char *path, GError **err);
 
-
 MuMsgFile*
 mu_msg_file_new (const char* filepath, const char *mdir, GError **err)
 {
@@ -156,8 +155,7 @@ init_mime_msg (MuMsgFile *self, const char* path, GError **err)
 	g_object_unref (stream);
 	if (!parser) {
 		g_set_error (err, MU_ERROR_DOMAIN, MU_ERROR_GMIME,
-			     "%s: cannot create mime parser for %s",
-			     __FUNCTION__, path);
+			     "cannot create mime parser for %s", path);
 		return FALSE;
 	}
 
@@ -165,20 +163,18 @@ init_mime_msg (MuMsgFile *self, const char* path, GError **err)
 	g_object_unref (parser);
 	if (!self->_mime_msg) {
 		g_set_error (err, MU_ERROR_DOMAIN, MU_ERROR_GMIME,
-			     "%s: cannot construct mime message for %s",
-			     __FUNCTION__, path);
+			     "message seems invalid, ignoring (%s)", path);
 		return FALSE;
 	}
 
 	return TRUE;
 }
 
-
 static char*
 get_recipient (MuMsgFile *self, GMimeRecipientType rtype)
 {
-	char *recip;
-	InternetAddressList *recips;
+	char			*recip;
+	InternetAddressList	*recips;
 
 	recips = g_mime_message_get_recipients (self->_mime_msg, rtype);
 
@@ -195,6 +191,9 @@ get_recipient (MuMsgFile *self, GMimeRecipientType rtype)
 		return NULL;
 	}
 
+	if (recip)
+		mu_str_remove_ctrl_in_place (recip);
+
 	return recip;
 }
 
@@ -203,7 +202,7 @@ get_recipient (MuMsgFile *self, GMimeRecipientType rtype)
  * headers in the mail
  */
 static gchar*
-get_fake_mailing_list (MuMsgFile *self)
+get_fake_mailing_list_maybe (MuMsgFile *self)
 {
 	const char* hdr;
 
@@ -233,7 +232,7 @@ get_mailing_list (MuMsgFile *self)
 	hdr = g_mime_object_get_header (GMIME_OBJECT(self->_mime_msg),
 					"List-Id");
 	if (mu_str_is_empty (hdr))
-		return get_fake_mailing_list (self);
+		return get_fake_mailing_list_maybe (self);
 
 	e = NULL;
 	b = strchr (hdr, '<');
@@ -309,7 +308,8 @@ msg_cflags_cb (GMimeObject *parent, GMimeObject *part, MuFlags *flags)
 static MuFlags
 get_content_flags (MuMsgFile *self)
 {
-	MuFlags flags;
+	MuFlags	 flags;
+	char	*ml;
 
 	flags = MU_FLAG_NONE;
 
@@ -318,6 +318,14 @@ get_content_flags (MuMsgFile *self)
 					 FALSE, /* never decrypt for this */
 					 (GMimeObjectForeachFunc)msg_cflags_cb,
 					 &flags);
+
+	ml = get_mailing_list (self);
+	if (ml) {
+		flags |= MU_FLAG_LIST;
+		g_free (ml);
+	}
+
+
 	return flags;
 }
 
@@ -413,11 +421,10 @@ convert_to_utf8 (GMimePart *part, char *buffer)
 	charset = g_mime_content_type_get_parameter (ctype, "charset");
 	if (charset) {
 		char *utf8;
-		utf8 = mu_str_convert_to_utf8
-		         (buffer,  g_mime_charset_iconv_name (charset));
-		if (utf8) {
+		if ((utf8 = mu_str_convert_to_utf8
+		     (buffer, g_mime_charset_iconv_name (charset)))) {
 			g_free (buffer);
-			return utf8;
+			buffer = utf8;
 		}
 	} else if (!g_utf8_validate (buffer, -1, NULL)) {
 		/* if it's already utf8, nothing to do otherwise: no
@@ -492,7 +499,7 @@ mu_msg_mime_part_to_string (GMimePart *part, gboolean *err)
 
 	/* convert_to_utf8 will free the old 'buffer' if needed */
 	buffer = convert_to_utf8 (part, buffer);
-	*err = FALSE;
+	*err   = FALSE;
 
 cleanup:
 	if (G_IS_OBJECT(stream))
@@ -542,8 +549,8 @@ get_references  (MuMsgFile *self)
 			msgid = g_mime_references_get_message_id (cur);
 			/* don't include duplicates */
 			if (msgid && !contains (msgids, msgid))
-				/* explicitly ensure it's utf8-safe, as GMime
-				 * does not ensure that */
+				/* explicitly ensure it's utf8-safe,
+				 * as GMime does not ensure that */
 				msgids = g_slist_prepend (msgids,
 							  g_strdup((msgid)));
 		}
@@ -593,26 +600,30 @@ get_tags (MuMsgFile *self)
 }
 
 
-/* wrongly encoded messages may cause GMime to return invalid
- * UTF8... we double check, and ensure our output is always correct
- * utf8 */
-gchar *
-maybe_cleanup (const char* str, const char *path, gboolean *do_free)
+
+static char*
+cleanup_maybe (const char *str, gboolean *do_free)
 {
-	if (!str || G_LIKELY(g_utf8_validate(str, -1, NULL)))
-		return (char*)str;
+	char *s;
 
-	g_debug ("invalid utf8 in %s", path);
+	if (!str)
+		return NULL;
 
-	if (*do_free)
-		return mu_str_asciify_in_place ((char*)str);
-	else {
-		gchar *ascii;
-		ascii = mu_str_asciify_in_place(g_strdup (str));
-		*do_free = TRUE;
-		return ascii;
-	}
+	if (!g_utf8_validate(str, -1, NULL)) {
+		if (*do_free)
+			s = mu_str_asciify_in_place ((char*)str);
+		else {
+			*do_free = TRUE;
+			s = mu_str_asciify_in_place(g_strdup (str));
+		}
+	} else
+		s = (char*)str;
+
+	mu_str_remove_ctrl_in_place (s);
+
+	return s;
 }
+
 
 
 G_GNUC_CONST static GMimeRecipientType
@@ -623,6 +634,22 @@ recipient_type (MuMsgFieldId mfid)
 	case MU_MSG_FIELD_ID_CC : return GMIME_RECIPIENT_TYPE_CC;
 	case MU_MSG_FIELD_ID_TO : return GMIME_RECIPIENT_TYPE_TO;
 	default: g_return_val_if_reached (-1);
+	}
+}
+
+static gchar*
+get_msgid (MuMsgFile *self, gboolean *do_free)
+{
+	const char *msgid;
+
+	msgid = g_mime_message_get_message_id (self->_mime_msg);
+	if (msgid)
+		return (char*)msgid;
+	else { /* if there is none, fake it */
+		*do_free = TRUE;
+		return g_strdup_printf (
+			"%s@fake-msgid",
+			mu_util_get_hash (self->_path));
 	}
 }
 
@@ -644,9 +671,8 @@ mu_msg_file_get_str_field (MuMsgFile *self, MuMsgFieldId mfid,
 		return get_recipient (self, recipient_type(mfid));
 
 	case MU_MSG_FIELD_ID_FROM:
-		return (char*)maybe_cleanup
-			(g_mime_message_get_sender (self->_mime_msg),
-			 self->_path, do_free);
+		return (char*)cleanup_maybe
+			(g_mime_message_get_sender (self->_mime_msg), do_free);
 
 	case MU_MSG_FIELD_ID_PATH: return self->_path;
 
@@ -655,12 +681,11 @@ mu_msg_file_get_str_field (MuMsgFile *self, MuMsgFieldId mfid,
 		return (char*)get_mailing_list (self);
 
 	case MU_MSG_FIELD_ID_SUBJECT:
-		return (char*)maybe_cleanup
-			(g_mime_message_get_subject (self->_mime_msg),
-			 self->_path, do_free);
+		return (char*)cleanup_maybe
+			(g_mime_message_get_subject (self->_mime_msg), do_free);
 
 	case MU_MSG_FIELD_ID_MSGID:
-		return (char*)g_mime_message_get_message_id (self->_mime_msg);
+		return get_msgid (self, do_free);
 
 	case MU_MSG_FIELD_ID_MAILDIR: return self->_maildir;
 
@@ -750,7 +775,6 @@ foreach_cb (GMimeObject *parent, GMimeObject *part, ForeachData *fdata)
 	/* invoke the callback function */
 	fdata->user_func (parent, part, fdata->user_data);
 
-#ifdef BUILD_CRYPTO
 	/* maybe iterate over decrypted parts */
 	if (fdata->decrypt &&
 	    GMIME_IS_MULTIPART_ENCRYPTED (part)) {
@@ -771,8 +795,6 @@ foreach_cb (GMimeObject *parent, GMimeObject *part, ForeachData *fdata)
 
 		g_object_unref (dec);
 	}
-#endif /*BUILD_CRYPTO*/
-
 }
 
 
