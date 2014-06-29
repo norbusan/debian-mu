@@ -34,21 +34,38 @@
 (require 'html2text)
 
 
-(defcustom mu4e-html2text-command nil
-  "Shell command that converts from html to plain text.
-The command has to read html from stdin and output plain text on
-stdout. If this is not defined, the emacs `html2text' tool will
-be used when faced with html-only message. If you use htmltext,
-it's recommended you use \"html2text -utf8 -width 72\"."
-  :type 'string
-  :group 'mu4e-view
-  :safe 'stringp)
+(defcustom mu4e-html2text-command 'html2text
+  "Either a shell command or a function that converts from html to plain text.
+
+If it is a shell-command, the command has to read html from stdin
+and output plain text on stdout. If this is not defined, the emacs
+`html2text' tool will be used when faced with html-only
+messages. If you use htmltext, it's recommended you use \"html2text
+-utf8 -width 72\". Alternatives are the python-based html2markdown,
+w3m and on MacOS you may want to use textutil.
+
+It can also be a function, which takes the current buffer in html
+as input, and transforms it into html (like the `html2text'
+function).
+
+In both cases, the output is expected to be in utf-8 encoding.
+
+The default is emacs' built-in `html2text' function."
+  :type '(choice string function)
+  :group 'mu4e-view)
 
 (defcustom mu4e-view-prefer-html nil
   "Whether to base the body display on the html-version.
 If the e-mail message has no html-version the plain-text version
 is always used."
   :type 'boolean
+  :group 'mu4e-view)
+
+(defcustom mu4e-view-html-plaintext-ratio-heuristic 10
+  "Ratio between the length of the html and the plain text part
+below which mu4e will consider the plain text part to be 'This
+messages requires html' text bodies."
+  :type 'integer
   :group 'mu4e-view)
 
 
@@ -113,7 +130,7 @@ Thus, function will return nil for empty lists, non-existing body-txt or body-ht
 	val)
       ((member field '(:docid :size))
 	0)     ;; numeric type: nil -> 0
-      (t 
+      (t
 	val)))) ;; otherwise, just return nil
 
 (defsubst mu4e-message-has-field (msg field)
@@ -125,7 +142,7 @@ Thus, function will return nil for empty lists, non-existing body-txt or body-ht
 the headers buffer or the view buffer, or nil if there is no such
 message. If optional NOERROR is non-nil, do not raise an error when
 there is no message at point."
-  (let ((msg (or (get-text-property (point) 'msg) mu4e~view-msg))) 
+  (let ((msg (or (get-text-property (point) 'msg) mu4e~view-msg)))
     (if msg
       msg
       (unless noerror (mu4e-warn "No message at point")))))
@@ -138,20 +155,21 @@ This is equivalent to:
 
 (defun mu4e-message-body-text (msg)
   "Get the body in text form for this message.
-This is either :body-txt, or if not available, :body-html
-converted to text. By default, it uses the emacs built-in
-`html2text'. Alternatively, if `mu4e-html2text-command' is
-non-nil, it will use that. Normally, function prefers the text
-part, but this can be changed by setting
-`mu4e-view-prefer-html'."
+This is either :body-txt, or if not available, :body-html converted
+to text, using `mu4e-html2text-command' is non-nil, it will use
+that. Normally, thiss function prefers the text part, but this can
+be changed by setting `mu4e-view-prefer-html'."
   (let* ((txt (mu4e-message-field msg :body-txt))
 	  (html (mu4e-message-field msg :body-html))
 	  (body
 	    (cond
-	      ;; does it look like some text? ie., 10x the length of the text
-	      ;; should be longer than the html, an heuristic to guard against
-	      ;; 'This messages requires html' text bodies.
-	      ((and (> (* 10 (length txt)) (length html))
+	      ;; does it look like some text? ie., if the text part is more than
+          ;; mu4e-view-html-plaintext-ratio-heuristic times shorter than the
+          ;; html part, it should't be used
+          ;; This is an heuristic to guard against 'This messages requires
+          ;; html' text bodies.
+	      ((and (> (* mu4e-view-html-plaintext-ratio-heuristic
+                      (length txt)) (length html))
 		 ;; use html if it's prefered, unless there is no html
 		 (or (not mu4e-view-prefer-html) (not html)))
 		txt)
@@ -159,12 +177,13 @@ part, but this can be changed by setting
 	      (html
 		(with-temp-buffer
 		  (insert html)
-		  ;; if defined, use the external tool
-		  (if mu4e-html2text-command
-		    (shell-command-on-region (point-min) (point-max)
-		      mu4e-html2text-command nil t)
-		    ;; otherwise...
-		    (html2text))
+		  (cond
+		    ((stringp mu4e-html2text-command)
+		      (shell-command-on-region (point-min) (point-max)
+			mu4e-html2text-command nil t))
+		    ((functionp mu4e-html2text-command)
+		      (funcall mu4e-html2text-command))
+		    (t (mu4e-error "Invalid `mu4e-html2text-command'")))
 		  (buffer-string)))
 	      (t ;; otherwise, an empty body
 		""))))
@@ -203,15 +222,26 @@ match."
 	  (or
 	    (and name  (string-match rx name))
 	    (and email (string-match rx email)))))
-      (mu4e-message-field msg cfield)))) 
+      (mu4e-message-field msg cfield))))
 
+(defun mu4e-message-contact-field-matches-me (msg cfield)
+  "Checks whether any of the of the contacts in field
+CFIELD (either :to, :from, :cc or :bcc) of msg MSG matches *me*,
+that is, any of the e-mail address in
+`mu4e-user-mail-address-list'. Returns the contact cell that
+matched, or nil."
+  (find-if
+    (lambda (cc-cell)
+      (member-if
+	(lambda (addr)
+	  (string= (downcase addr) (downcase (cdr cc-cell))))
+	mu4e-user-mail-address-list))
+    (mu4e-message-field msg cfield)))
 
 (defsubst mu4e-message-part-field  (msgpart field)
   "Get some field in a message part; a part would look something like:
   (:index 2 :name \"photo.jpg\" :mime-type \"image/jpeg\" :size 147331)."
   (plist-get msgpart field))
-
-
 
 ;; backward compatibility ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defalias 'mu4e-msg-field 'mu4e-message-field)

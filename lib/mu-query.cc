@@ -64,10 +64,17 @@ private:
 		const char* str;
 		time_t t;
 
-		str = mu_date_interpret_s (s.c_str(), is_begin ? TRUE: FALSE);
-		str = mu_date_complete_s (str, is_begin ? TRUE: FALSE);
-		t   = mu_date_str_to_time_t (str, TRUE /*local*/);
-		str = mu_date_time_t_to_str_s (t, FALSE /*UTC*/);
+		// note: if s is empty and not is_begin, xapian seems
+		// to repeat it.
+		if (s.empty() || g_str_has_suffix (s.c_str(), "..")) {
+			str = mu_date_complete_s ("", is_begin);
+		} else {
+			str = mu_date_interpret_s (s.c_str(),
+						   is_begin ? TRUE: FALSE);
+			str = mu_date_complete_s (str, is_begin ? TRUE: FALSE);
+			t   = mu_date_str_to_time_t (str, TRUE /*local*/);
+			str = mu_date_time_t_to_str_s (t, FALSE /*UTC*/);
+		}
 
 		return s = std::string(str);
 	}
@@ -91,8 +98,6 @@ private:
 		} else
 			return false;
 	}
-
-
 };
 
 
@@ -229,8 +234,8 @@ get_query (MuQuery *mqx, const char* searchexpr, GError **err)
 			(preprocessed,
 			 Xapian::QueryParser::FLAG_BOOLEAN          |
 			 Xapian::QueryParser::FLAG_PURE_NOT         |
-			 Xapian::QueryParser::FLAG_WILDCARD	    |
 			 Xapian::QueryParser::FLAG_AUTO_SYNONYMS    |
+			 Xapian::QueryParser::FLAG_WILDCARD	    |
 			 Xapian::QueryParser::FLAG_BOOLEAN_ANY_CASE
 			 );
 		g_free (preprocessed);
@@ -269,8 +274,8 @@ add_prefix (MuMsgFieldId mfid, Xapian::QueryParser* qparser)
 		 	qparser->add_prefix (shortcut, pfx);
 		}
 
-		// all fiels are also matched implicitly, withouth
-		// an
+		// all fields are also matched implicitly, without
+		// any prefix
 		qparser->add_prefix ("", pfx);
 
 	} MU_XAPIAN_CATCH_BLOCK;
@@ -313,17 +318,14 @@ mu_query_preprocess (const char *query, GError **err)
 
 	/* convert the query to a list of query terms, and escape them
 	 * separately */
-	parts = mu_str_esc_to_list (query, err);
+	parts = mu_str_esc_to_list (query);
 	if (!parts)
 		return NULL;
 
 	for (cur = parts; cur; cur = g_slist_next(cur)) {
 		char *data;
 		data = (gchar*)cur->data;
-		/* remove accents and turn to lower-case */
-		/* escape '@', single '_' and ':' if it's not following a
-		 * xapian-pfx with '_' */
-		cur->data = mu_str_xapian_escape (data, TRUE, NULL);
+		cur->data = mu_str_process_query_term (data);
 		g_free (data);
 		/* run term fixups */
 		data = (gchar*)cur->data;
@@ -334,7 +336,7 @@ mu_query_preprocess (const char *query, GError **err)
 	myquery = mu_str_from_list (parts, ' ');
 	mu_str_free_list (parts);
 
-	return myquery;
+	return myquery ? myquery : g_strdup ("");
 }
 
 
@@ -384,15 +386,20 @@ get_enquire (MuQuery *self, const char *searchexpr, MuMsgFieldId sortfieldid,
 {
 	Xapian::Enquire enq (self->db());
 
-	/* empty or "" means "matchall" */
-	if (!mu_str_is_empty(searchexpr) &&
-	    g_strcmp0 (searchexpr, "\"\"") != 0) /* NULL or "" or """" */
-		enq.set_query(get_query (self, searchexpr, err));
-	else
-		enq.set_query(Xapian::Query::MatchAll);
+	try {
+		/* empty or "" means "matchall" */
+		if (!mu_str_is_empty(searchexpr) &&
+		    g_strcmp0 (searchexpr, "\"\"") != 0) /* NULL or "" or """" */
+			enq.set_query(get_query (self, searchexpr, err));
+		else
+			enq.set_query(Xapian::Query::MatchAll);
+	} catch (...) {
+		mu_util_g_set_error (err, MU_ERROR_XAPIAN_QUERY,
+				     "parse error in query");
+		throw;
+	}
 
 	enq.set_cutoff(0,0);
-
 	return enq;
 }
 
@@ -454,7 +461,8 @@ get_related_query (MuMsgIter *iter, GHashTable **orig_set)
 	// thread-ids, which we combine below. This is /much/ faster
 	// than creating the query as 'query = Query (OR, query)'...
 	for (cur = id_list; cur; cur = g_list_next(cur))
-		qvec.push_back (Xapian::Query((std::string (pfx + (char*)cur->data))));
+		qvec.push_back (Xapian::Query((std::string
+					       (pfx + (char*)cur->data))));
 
 	g_hash_table_destroy (hash);
 	g_list_free (id_list);
@@ -484,8 +492,10 @@ include_related (MuQuery *self, MuMsgIter **iter, int maxnum,
 
 	mu_msg_iter_destroy (*iter);
 
-	// set the preferred set for the iterator (ie., the set not
-	// consider to be duplicates) to be the original matches
+	// set the preferred set for the iterator (ie., the set of
+	// messages not considered to be duplicates) to be the
+	// original matches -- the matches without considering
+	// 'related'
 	mu_msg_iter_set_preferred (rel_iter, orig_set);
 	g_hash_table_destroy (orig_set);
 
@@ -499,14 +509,14 @@ mu_query_run (MuQuery *self, const char *searchexpr, MuMsgFieldId sortfieldid,
 {
 	g_return_val_if_fail (self, NULL);
 	g_return_val_if_fail (searchexpr, NULL);
-	g_return_val_if_fail (mu_msg_field_id_is_valid (sortfieldid) ||
-			      sortfieldid == MU_MSG_FIELD_ID_NONE,
+	g_return_val_if_fail (mu_msg_field_id_is_valid (sortfieldid)	||
+			      sortfieldid    == MU_MSG_FIELD_ID_NONE,
 			      NULL);
 	try {
-		MuMsgIter *iter;
-		MuQueryFlags first_flags;
-		bool	inc_related = flags & MU_QUERY_FLAG_INCLUDE_RELATED;
-		bool	descending  = flags & MU_QUERY_FLAG_DESCENDING;
+		MuMsgIter	*iter;
+		MuQueryFlags	 first_flags;
+		bool		 inc_related  = flags & MU_QUERY_FLAG_INCLUDE_RELATED;
+		bool		 descending   = flags & MU_QUERY_FLAG_DESCENDING;
 		Xapian::Enquire enq (get_enquire(self, searchexpr, sortfieldid,
 						 descending, err));
 
@@ -537,7 +547,8 @@ mu_query_run (MuQuery *self, const char *searchexpr, MuMsgFieldId sortfieldid,
 		 * based on the message ids / refs of the first one
 		 * */
 		if (inc_related)
-			include_related (self, &iter, maxnum, sortfieldid, flags);
+			include_related (self, &iter, maxnum, sortfieldid,
+					 flags);
 
 		if (err && *err && (*err)->code == MU_ERROR_XAPIAN_MODIFIED) {
 			g_clear_error (err);

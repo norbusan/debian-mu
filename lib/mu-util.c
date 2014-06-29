@@ -70,10 +70,14 @@ do_wordexp (const char *path)
 	/* strangely, below seems to lead to a crash on MacOS (BSD);
 	   so we have to allow for a tiny leak here on that
 	   platform... maybe instead of __APPLE__ it should be
-	   __BSD__?*/
-#ifndef __APPLE__
+	   __BSD__?
+
+	   Hmmm., cannot reproduce that crash anymore, so commenting
+	   it out for now...
+	   */
+/* #ifndef __APPLE__ */
 	wordfree (&wexp);
-#endif /*__APPLE__*/
+/* #endif /\*__APPLE__*\/ */
 	return dir;
 
 # else /*!HAVE_WORDEXP_H*/
@@ -146,9 +150,6 @@ mu_util_error_quark (void)
 
 	return error_domain;
 }
-
-
-
 
 
 const char*
@@ -328,12 +329,6 @@ mu_util_supports (MuFeature feature)
 		return FALSE;
 #endif /*BUILD_GUILE*/
 
-	/* check for crypto support */
-#ifndef BUILD_CRYPTO
-	if (feature & MU_FEATURE_CRYPTO)
-		return FALSE;
-#endif /*BUILD_CRYPTO*/
-
 	/* check for Gnuplot */
 	if (feature & MU_FEATURE_GNUPLOT)
 		if (!mu_util_program_in_path ("gnuplot"))
@@ -438,37 +433,36 @@ mu_util_locale_is_utf8 (void)
 gboolean
 mu_util_fputs_encoded (const char *str, FILE *stream)
 {
-	char *conv;
 	int rv;
+	unsigned	 bytes;
+	char		*conv;
 
 	g_return_val_if_fail (str, FALSE);
 	g_return_val_if_fail (stream, FALSE);
 
 	/* g_get_charset return TRUE when the locale is UTF8 */
 	if (mu_util_locale_is_utf8())
-		rv = fputs (str, stream);
-	else { /* charset is _not_ utf8, so we actually have to
-		* convert it..*/
-		GError *err;
-		unsigned bytes;
-		err = NULL;
-		conv = g_locale_from_utf8 (str, -1, (gsize*)&bytes, NULL, &err);
-		if (!conv || err) {
-			/* conversion failed; this happens because is
-			 * some cases GMime may gives us non-UTF-8
-			 * string from e.g. wrongly encoded
-			 * message-subjects; if so, we escape the
-			 * string */
-			g_warning ("%s: g_locale_from_utf8 failed: %s",
-				   __FUNCTION__,
-				   err ? err->message : "conversion failed");
-			g_clear_error (&err);
-			g_free (conv);
-			conv = g_strescape (str, NULL);
-		}
-		rv = fputs (conv, stream);
-		g_free (conv);
-	}
+		return fputs (str, stream) == EOF ? FALSE : TRUE;
+
+	 /* charset is _not_ utf8, so we actually have to convert
+	  * it
+	  */
+	conv = NULL;
+	if (g_utf8_validate (str, -1, NULL))
+		/* it _seems_ that on the bsds, the final err param
+		 * may receive garbage... so we don't use it */
+		conv = g_locale_from_utf8
+			(str, -1, (gsize*)&bytes, NULL, NULL);
+
+	/* conversion failed; this happens because is some cases GMime
+	 * may gives us non-UTF-8 strings from e.g. wrongly encoded
+	 * message-subjects; if so, we escape the string
+	 */
+	if (!conv)
+		conv = g_strescape (str, "\n\t");
+
+	rv  = conv ? fputs (conv, stream) : EOF;
+	g_free (conv);
 
 	return (rv == EOF) ? FALSE : TRUE;
 }

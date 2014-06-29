@@ -197,7 +197,6 @@ database_version_check_and_update (MuStore *store, MuConfig *opts,
 	/* when rebuilding, we empty the database before doing
 	 * anything */
 	if (opts->rebuild) {
-		opts->reindex = TRUE;
 		g_debug ("clearing database");
 		g_debug ("clearing contacts-cache");
 		return mu_store_clear (store, err);
@@ -208,7 +207,6 @@ database_version_check_and_update (MuStore *store, MuConfig *opts,
 
 	/* ok, database is not up to date */
 	if (opts->autoupgrade) {
-		opts->reindex = TRUE;
 		g_debug ("auto-upgrade: clearing old database and cache");
 		return mu_store_clear (store, err);
 	}
@@ -300,16 +298,16 @@ index_title (const char* maildir, const char* xapiandir, gboolean color)
 			   "]\n", maildir, xapiandir);
 	else
 		g_print ("indexing messages under %s [%s]\n",
-			   maildir, xapiandir);
+			 maildir, xapiandir);
 }
 
 
 static MuError
 cmd_index (MuIndex *midx, MuConfig *opts, MuIndexStats *stats, GError **err)
 {
-	IndexData idata;
-	MuError rv;
-	gboolean show_progress;
+	IndexData	idata;
+	MuError		rv;
+	gboolean	show_progress;
 
 	if (!opts->quiet)
 		index_title (opts->maildir,
@@ -317,9 +315,11 @@ cmd_index (MuIndex *midx, MuConfig *opts, MuIndexStats *stats, GError **err)
 			     !opts->nocolor);
 
 	show_progress = !opts->quiet && isatty(fileno(stdout));
-	idata.color = !opts->nocolor;
+	idata.color   = !opts->nocolor;
+
 	newline_before_on();
-	rv = mu_index_run (midx, opts->maildir, opts->reindex, stats,
+
+	rv = mu_index_run (midx, opts->maildir, opts->rebuild, stats,
 			   show_progress ?
 			   (MuIndexMsgCallback)index_msg_cb :
 			   (MuIndexMsgCallback)index_msg_silent_cb,

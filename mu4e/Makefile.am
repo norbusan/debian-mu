@@ -21,12 +21,11 @@ SUBDIRS=
 info_TEXINFOS=mu4e.texi
 mu4e_TEXINFOS=fdl.texi
 
-lispdir=${prefix}/share/emacs/site-lisp/mu4e/
-
 dist_lisp_LISP=			\
 	mu4e-about.el		\
 	mu4e-actions.el		\
 	mu4e-compose.el		\
+	mu4e-contrib.el		\
 	mu4e-draft.el		\
 	mu4e-headers.el		\
 	mu4e-lists.el		\

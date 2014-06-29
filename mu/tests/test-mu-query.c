@@ -169,6 +169,10 @@ test_mu_query_01 (void)
 		{ "question",           5 },
 		{ "thanks",             2 },
 		{ "html",               4 },
+		{ "subject:exception",  1 },
+		{ "exception",          1 },
+		{ "subject:A&B",        1 },
+		{ "A&B",                1 },
 		{ "subject:elisp",      1 },
 		{ "html AND contains",  1 },
 		{ "html and contains",  1 },
@@ -176,7 +180,9 @@ test_mu_query_01 (void)
 		{ "foo:pepernoot",      0 },
 		{ "funky",              1 },
 		{ "fünkÿ",              1 },
-		{ "",                   18 }
+		//	{ "",                   18 },
+		{ "msgid:abcd$efgh@example.com", 1},
+		{ "i:abcd$efgh@example.com", 1},
 	};
 
  	for (i = 0; i != G_N_ELEMENTS(queries); ++i)
@@ -202,6 +208,9 @@ test_mu_query_03 (void)
 		{ "ploughed", 1},
 		{ "i:3BE9E6535E3029448670913581E7A1A20D852173@"
 		  "emss35m06.us.lmco.com", 1},
+		{ "i:!&!AAAAAAAAAYAAAAAAAAAOH1+8mkk+lLn7Gg5fke7"
+		  "FbCgAAAEAAAAJ7eBDgcactKhXL6r8cEnJ8BAAAAAA==@"
+		  "example.com", 1},
 
 		/* subsets of the words in the subject should match */
 		{ "s:gcc include search order" , 1},
@@ -212,9 +221,9 @@ test_mu_query_03 (void)
 		{ "s:lisp", 1},
 		{ "s:LISP", 1},
 
-		{ "s:\"Re: Learning LISP; Scheme vs elisp.\"", 1},
-		{ "subject:Re: Learning LISP; Scheme vs elisp.", 0},
-		{ "subject:\"Re: Learning LISP; Scheme vs elisp.\"", 1},
+		/* { "s:\"Re: Learning LISP; Scheme vs elisp.\"", 1}, */
+		/* { "subject:Re: Learning LISP; Scheme vs elisp.", 1}, */
+		/* { "subject:\"Re: Learning LISP; Scheme vs elisp.\"", 1}, */
 		{ "to:help-gnu-emacs@gnu.org", 4},
 		{ "t:help-gnu-emacs", 4},
 		{ "flag:flagged", 1}
@@ -520,6 +529,31 @@ test_mu_query_attach (void)
 }
 
 
+
+
+
+static void
+test_mu_query_msgid (void)
+{
+	int i;
+	QResults queries[] = {
+		{ "i:CAHSaMxZ9rk5ASjqsbXizjTQuSk583=M6TORHz"
+		  "=bfogtmbGGs5A@mail.gmail.com", 1},
+		{ "msgid:CAHSaMxZ9rk5ASjqsbXizjTQuSk583=M6TORHz="
+		  "bfogtmbGGs5A@mail.gmail.com", 1},
+
+	};
+
+ 	for (i = 0; i != G_N_ELEMENTS(queries); ++i) {
+		if (g_test_verbose())
+			g_print ("query: %s\n", queries[i].query);
+		g_assert_cmpuint (run_and_count_matches (DB_PATH2,
+							 queries[i].query),
+				  ==, queries[i].count);
+	}
+}
+
+
 static void
 test_mu_query_tags (void)
 {
@@ -531,6 +565,8 @@ test_mu_query_tags (void)
 		{ "tag:lost tag:horizon", 0},
 		{ "tag:lost OR tag:horizon", 1},
 		{ "x:paradise,lost", 0},
+		{ "x:paradise AND x:lost", 1},
+		{ "x:\\\\backslash", 1},
 	};
 
  	for (i = 0; i != G_N_ELEMENTS(queries); ++i)
@@ -538,6 +574,25 @@ test_mu_query_tags (void)
 							 queries[i].query),
 				  ==, queries[i].count);
 }
+
+
+
+
+static void
+test_mu_query_wom_bat (void)
+{
+	int i;
+	QResults queries[] = {
+		{ "maildir:/wom_bat", 3},
+		{ "\"maildir:/wom bat\"", 3},
+	};
+
+ 	for (i = 0; i != G_N_ELEMENTS(queries); ++i)
+		g_assert_cmpuint (run_and_count_matches (DB_PATH2,
+							 queries[i].query),
+				  ==, queries[i].count);
+}
+
 
 
 static void
@@ -596,13 +651,12 @@ test_mu_query_preprocess (void)
 }
 
 
-
-
-
 int
 main (int argc, char *argv[])
 {
 	int rv;
+
+	setlocale (LC_ALL, "");
 
 	g_test_init (&argc, &argv, NULL);
 
@@ -631,6 +685,12 @@ main (int argc, char *argv[])
 			 test_mu_query_accented_chars_02);
 	g_test_add_func ("/mu-query/test-mu-query-accented-chars-fraiche",
 			 test_mu_query_accented_chars_fraiche);
+
+	g_test_add_func ("/mu-query/test-mu-query-msgid",
+			 test_mu_query_msgid);
+
+	g_test_add_func ("/mu-query/test-mu-query-wom-bat",
+			 test_mu_query_wom_bat);
 
 	g_test_add_func ("/mu-query/test-mu-query-wildcards",
 			 test_mu_query_wildcards);

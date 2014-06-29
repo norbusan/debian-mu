@@ -1,4 +1,4 @@
-## Copyright (C) 2008-2013 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+## Copyright (C) 2008-2014 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 ##
 ## This program is free software; you can redistribute it and/or modify
 ## it under the terms of the GNU General Public License as published by
@@ -14,7 +14,7 @@
 ## along with this program; if not, write to the Free Software Foundation,
 ## Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
 
-AC_INIT([mu],[0.9.9.5],[http://code.google.com/p/mu0/issues/list],[mu])
+AC_INIT([mu],[0.9.9.6],[http://code.google.com/p/mu0/issues/list],[mu])
 AC_CONFIG_HEADERS([config.h])
 AC_CONFIG_SRCDIR([mu/mu.cc])
 # libtoolize wants to put some stuff in here; if you have an old
@@ -60,7 +60,10 @@ AC_ARG_ENABLE([mu4e],
    AS_HELP_STRING([--disable-mu4e],[Disable building mu4e]))
 AS_IF([test "x$enable_mu4e" != "xno"], [
   AM_PATH_LISPDIR
-  AS_IF([test "x$lispdir" != "xno"], [emacs_version="`$EMACS --version | head -1`"])
+  AS_IF([test "x$lispdir" != "xno"], [
+    emacs_version="`$EMACS --version | head -1`"
+    lispdir="${lispdir}/mu4e/"
+  ])
   AS_CASE([$emacs_version],[*23*|*24*|*25*],[build_mu4e=yes],
           [AC_WARN([emacs is too old to build mu4e (need emacs >= 23.x)])])
 ])
@@ -93,6 +96,7 @@ AS_IF([test "x$ac_cv_member_struct_dirent_d_ino" != "xyes"],
 
 # we need these
 AC_CHECK_FUNCS([memset memcpy realpath setlocale strerror getpass])
+AC_CHECK_FUNC(timegm,[],[AC_MSG_ERROR([missing required function timegm])])
 
 # require pkg-config
 AC_PATH_PROG([PKG_CONFIG], [pkg-config], [no])
@@ -105,39 +109,17 @@ AS_IF([test "x$PKG_CONFIG" = "xno"],[
 
 # glib2?
 # we need 2.14 at least, because we use GRegex
-PKG_CHECK_MODULES(GLIB,glib-2.0 >= 2.24 gobject-2.0)
+PKG_CHECK_MODULES(GLIB,glib-2.0 >= 2.24 gobject-2.0 gio-2.0)
 AC_SUBST(GLIB_CFLAGS)
 AC_SUBST(GLIB_LIBS)
 glib_version="`$PKG_CONFIG --modversion glib-2.0`"
 
-PKG_CHECK_MODULES(GIO,gio-2.0,[have_gio=yes],[have_gio=no])
-AC_SUBST(GIO_CFLAGS)
-AC_SUBST(GIO_LIBS)
-gio_version="`$PKG_CONFIG --modversion gio-2.0`"
-
-# gmime 2.4 or 2.6?
-PKG_CHECK_MODULES(GMIME,gmime-2.6,[have_gmime_26=yes],[have_gmime_26=no])
-AS_IF([test "x$have_gmime_26" = "xno"],[
-   PKG_CHECK_MODULES(GMIME,gmime-2.4,[have_gmime_24=yes],[have_gmime_24=no])
-   AS_IF([test "x$have_gmime_24" = "xno"],[
-      AC_MSG_ERROR([
-      *** neither gmime-2.4 nor gmime-2.6 could be found; please install it
-      *** e.g., in debian/ubuntu the package would be 'libgmime-2.4-dev'
-      *** If you compiled it yourself, you should ensure that the pkgconfig
-      *** installation dir (e.g., /usr/local/lib/pkgconfig) is in your
-      *** PKG_CONFIG_PATH.
-      ])],[
-         gmime_version="`$PKG_CONFIG --modversion gmime-2.4`"
-    ])],[
-      gmime_version="`$PKG_CONFIG --modversion gmime-2.6`"
-   ])
+# gmime
+PKG_CHECK_MODULES(GMIME,gmime-2.6)
 AC_SUBST(GMIME_CFLAGS)
 AC_SUBST(GMIME_LIBS)
+gmime_version="`$PKG_CONFIG --modversion gmime-2.6`"
 
-# we need gmime 2.6 for the crypto stuff
-AM_CONDITIONAL(BUILD_CRYPTO,[test "x$have_gmime_26" = "xyes"])
-AS_IF([test "x$have_gmime_26" = "xyes"],
-   AC_DEFINE_UNQUOTED([BUILD_CRYPTO],1,[Whether to build crypto; reqs gmime 2.6]))
 
 # xapian checking - we need 1.2.x at least
 AC_CHECK_PROG(XAPIAN_CONFIG,xapian-config,xapian-config,no)
@@ -164,7 +146,7 @@ AC_SUBST(XAPIAN_LIBS)
 ###############################################################################
 # we set the set the version of the MuStore (Xapian database) layout
 # here; it will become part of the db name, so we can automatically
-# recreate the database when we incompatible have changes.
+# recreate the database when we have incompatible changes.
 #
 # note that MU_STORE_SCHEMA_VERSION does not necessarily follow MU
 # versioning, as we hopefully don't have updates for each version;
@@ -245,7 +227,7 @@ AM_CONDITIONAL(HAVE_MAKEINFO, [test "x$have_makeinfo" = "xyes"])
 
 ###############################################################################
 # check for pmccabe
-AC_PATH_PROG([PMCCABE],[pmccabe],[pmccabe],[no])
+AC_PATH_PROG([PMCCABE],[pmccabe],[no])
 AS_IF([test "x$PMCCABE" = "xno"],[
    have_pmccabe="no"
    AC_MSG_WARN([
@@ -300,6 +282,11 @@ echo "GTK+ version                         : $gtk_version"
 echo "Webkit version                       : $webkit_version"
 ])
 
+AM_COND_IF([BUILD_GUILE],[
+echo "Guile version                        : $guile_version"
+])
+
+
 if test "x$build_mu4e" = "xyes"; then
 echo "Emacs version                        : $emacs_version"
 fi
@@ -307,11 +294,12 @@ fi
 echo
 echo "Have wordexp                         : $ac_cv_header_wordexp_h"
 echo "Build mu4e emacs frontend            : $build_mu4e"
-echo "Build crypto support (gmime >= 2.6)  : $have_gmime_26"
+
 AM_COND_IF([BUILD_GUI],[
 echo "Build 'mug' toy-ui (gtk+/webkit)     : yes"],[
 echo "Build 'mug' toy-ui (gtk+/webkit)     : no"
 ])
+
 
 echo "McCabe's Cyclomatic Complexity tool  : $have_pmccabe"
 echo

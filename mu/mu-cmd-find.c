@@ -132,7 +132,7 @@ run_query (MuQuery *xapian, const gchar *query, MuConfig *opts,  GError **err)
 	if (opts->threads)
 		qflags |= MU_QUERY_FLAG_THREADS;
 
-	iter = mu_query_run (xapian, query, sortid, -1, qflags, err);
+	iter = mu_query_run (xapian, query, sortid, opts->maxnum, qflags, err);
 	return iter;
 }
 
@@ -144,7 +144,7 @@ exec_cmd (MuMsg *msg, MuMsgIter *iter, MuConfig *opts,  GError **err)
 	char *cmdline, *escpath;
 	gboolean rv;
 
-	escpath = g_strescape (mu_msg_get_path (msg), NULL);
+	escpath = g_shell_quote (mu_msg_get_path (msg));
 	cmdline = g_strdup_printf ("%s %s", opts->exec, escpath);
 
 	rv = g_spawn_command_line_sync (cmdline, NULL, NULL, &status, err);
@@ -325,6 +325,28 @@ ansi_reset_maybe (MuMsgFieldId mfid, gboolean color)
 
 }
 
+static const char*
+field_string_list (MuMsg *msg, MuMsgFieldId mfid)
+{
+	char *str;
+	const GSList *lst;
+	static char buf[80];
+
+	lst = mu_msg_get_field_string_list (msg, mfid);
+	if (!lst)
+		return NULL;
+
+	str = mu_str_from_list (lst, ',');
+	if (str) {
+		strncpy (buf, str, sizeof(buf));
+		g_free (str);
+		return buf;
+	}
+
+	return NULL;
+}
+
+
 
 static const char*
 display_field (MuMsg *msg, MuMsgFieldId mfid)
@@ -355,6 +377,11 @@ display_field (MuMsg *msg, MuMsgFieldId mfid)
 	case MU_MSG_FIELD_TYPE_BYTESIZE:
 		val = mu_msg_get_field_numeric (msg, mfid);
 		return mu_str_size_s ((unsigned)val);
+	case MU_MSG_FIELD_TYPE_STRING_LIST: {
+		const char *str;
+		str = field_string_list (msg, mfid);
+		return str ? str : "";
+	}
 	default:
 		g_return_val_if_reached (NULL);
 	}
@@ -428,9 +455,11 @@ static void
 output_plain_fields (MuMsg *msg, const char *fields,
 		     gboolean color, gboolean threads)
 {
-	const char* myfields;
-	int nonempty;
+	const char*	myfields;
+	int		nonempty;
 
+	g_return_if_fail (fields);
+	
 	for (myfields = fields, nonempty = 0; *myfields; ++myfields) {
 
 		MuMsgFieldId mfid;
@@ -558,9 +587,9 @@ output_finish (MuConfig *opts)
 static gboolean
 output_query_results (MuMsgIter *iter, MuConfig *opts, GError **err)
 {
-	unsigned count;
-	gboolean rv;
-	OutputFunc *output_func;
+	int		 count;
+	gboolean	 rv;
+	OutputFunc	*output_func;
 
 	output_func = output_prepare (opts, err);
 	if (!output_func)
@@ -571,6 +600,8 @@ output_query_results (MuMsgIter *iter, MuConfig *opts, GError **err)
 
 		MuMsg *msg;
 
+		if (count == opts->maxnum)
+			break;
 		msg = get_message (iter, opts->after);
 		if (!msg)
 			break;

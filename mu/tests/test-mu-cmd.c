@@ -24,6 +24,8 @@
 
 #include <glib.h>
 #include <glib/gstdio.h>
+#include <string.h>
+#include <errno.h>
 
 #include "../mu-query.h"
 
@@ -144,7 +146,7 @@ test_mu_find_01 (void)
 	search ("f:soc@example.com", 1);
 	search ("t:alki@example.com", 1);
 	search ("t:alcibiades", 1);
-	search ("http-emacs", 1);
+	search ("http emacs", 1);
 	search ("f:soc@example.com OR f:john", 2);
 	search ("f:soc@example.com OR f:john OR t:edmond", 3);
 	search ("t:julius", 1);
@@ -298,12 +300,11 @@ test_mu_find_links (void)
 static void
 test_mu_find_maildir_special (void)
 {
-	/* ensure that maldirs with spaces in their names work... */
-	search ("\"maildir:/wom bat\" subject:atoms", 1);
+	search ("\"maildir:/wom_bat\" subject:atoms", 1);
 	search ("\"maildir:/wOm_bàT\"", 3);
 	search ("\"maildir:/wOm*\"", 3);
-	search ("\"maildir:/wOm *\"", 3);
-	search ("\"maildir:wom bat\"", 0);
+	search ("\"maildir:/wOm_*\"", 3);
+	search ("\"maildir:wom_bat\"", 0);
 	search ("\"maildir:/wombat\"", 0);
 	search ("subject:atoms", 1);
 }
@@ -366,8 +367,10 @@ get_file_size (const char* path)
 	struct stat statbuf;
 
 	rv = stat (path, &statbuf);
-	if (rv != 0)
+	if (rv != 0) {
+		/* g_warning ("error: %s", strerror (errno)); */
 		return -1;
+	}
 
 	return (gint64)statbuf.st_size;
 }
@@ -885,10 +888,8 @@ main (int argc, char *argv[])
 	g_test_add_func ("/mu-cmd/test-mu-view-attach",  test_mu_view_attach);
 	g_test_add_func ("/mu-cmd/test-mu-mkdir-01",  test_mu_mkdir_01);
 
-#ifdef BUILD_CRYPTO
 	g_test_add_func ("/mu-cmd/test-mu-verify-good",  test_mu_verify_good);
 	g_test_add_func ("/mu-cmd/test-mu-verify-bad",  test_mu_verify_bad);
-#endif /*BUILD_CRYPTO*/
 
 	g_log_set_handler (NULL,
 			   G_LOG_LEVEL_MASK | G_LOG_LEVEL_WARNING|

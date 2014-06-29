@@ -23,13 +23,15 @@
 
 #include "mu-util.h"
 #include "mu-date.h"
+#include "mu-str.h"
 
 const char*
 mu_date_str_s (const char* frm, time_t t)
 {
-	struct tm *tmbuf;
-	static char buf[128];
-	static int is_utf8 = -1;
+	struct tm	*tmbuf;
+	static char	 buf[128];
+	static int	 is_utf8 = -1;
+	size_t		 len;
 
 	if (G_UNLIKELY(is_utf8 == -1))
 		is_utf8 = mu_util_locale_is_utf8 () ? 1 : 0;
@@ -37,7 +39,9 @@ mu_date_str_s (const char* frm, time_t t)
 	g_return_val_if_fail (frm, NULL);
 
 	tmbuf = localtime(&t);
-	strftime (buf, sizeof(buf), frm, tmbuf);
+	len = strftime (buf, sizeof(buf) - 1, frm, tmbuf);
+	if (len == 0)
+		return ""; /* not necessarily an error... */
 
 	if (!is_utf8) {
 		/* charset is _not_ utf8, so we need to convert it, so
@@ -174,9 +178,12 @@ const char*
 mu_date_interpret_s (const char *datespec, gboolean is_begin)
 {
 	static char fulldate[14 + 1];
-	time_t now;
+	time_t now, t;
 
 	g_return_val_if_fail (datespec, NULL);
+
+	if (mu_str_is_empty (datespec) && is_begin)
+		return "000000000000"; /* beginning of time*/
 
 	now = time(NULL);
 	if (strcmp (datespec, "today") == 0) {
@@ -186,20 +193,17 @@ mu_date_interpret_s (const char *datespec, gboolean is_begin)
 		return fulldate;
 	}
 
-	if (strcmp (datespec, "now") == 0) {
+	if (mu_str_is_empty (datespec) || strcmp (datespec, "now") == 0) {
 		strftime(fulldate, sizeof(fulldate), "%Y%m%d%H%M%S",
 			 localtime(&now));
 		return fulldate;
 	}
 
-	{
-		time_t t;
-		t = mu_date_parse_hdwmy (datespec);
-		if (t != (time_t)-1) {
-			strftime(fulldate, sizeof(fulldate), "%Y%m%d%H%M%S",
-				 localtime(&t));
-			return fulldate;
-		}
+	t = mu_date_parse_hdwmy (datespec);
+	if (t != (time_t)-1) {
+		strftime(fulldate, sizeof(fulldate), "%Y%m%d%H%M%S",
+			 localtime(&t));
+		return fulldate;
 	}
 
 	return datespec; /* nothing changed */
@@ -221,14 +225,13 @@ mu_date_interpret (const char *datespec, gboolean is_begin)
 time_t
 mu_date_str_to_time_t (const char* date, gboolean local)
 {
-	struct tm tm;
-	char mydate[14 + 1]; /* YYYYMMDDHHMMSS */
-	time_t t;
-	const char *tz;
+	struct tm	tm;
+	char		mydate[14 + 1]; /* YYYYMMDDHHMMSS */
+	time_t		t;
 
 	memset (&tm, 0, sizeof(struct tm));
 	strncpy (mydate, date, 15);
-	mydate[sizeof(mydate)-1]='\0';
+	mydate[sizeof(mydate)-1] = '\0';
 
 	g_return_val_if_fail (date, (time_t)-1);
 
@@ -238,23 +241,13 @@ mu_date_str_to_time_t (const char* date, gboolean local)
 	tm.tm_mday  = atoi (mydate +  6);     mydate[6]  = '\0';
 	tm.tm_mon   = atoi (mydate +  4) - 1; mydate[4]  = '\0';
 	tm.tm_year  = atoi (mydate) - 1900;
-	tm.tm_isdst = -1; /* figure out the dst */
+	tm.tm_isdst = -1;
+	/* let timegm/mktime figure out the dst */
 
-	if (!local) { /* temporarily switch to UTC */
-		tz = getenv ("TZ");
-		setenv ("TZ", "", 1);
-		tzset ();
-	}
-
-	t = mktime (&tm);
-
-	if (!local) { /* switch back */
-		if (tz)
-			setenv("TZ", tz, 1);
-		else
-			unsetenv("TZ");
-		tzset();
-	}
+	if (local)
+		t = mktime (&tm);
+	else
+		t = timegm (&tm); /* GNU/BSD specific */
 
 	return t;
 }
@@ -263,12 +256,16 @@ const char*
 mu_date_time_t_to_str_s (time_t t, gboolean local)
 {
 	/* static char datestr[14 + 1]; /\* YYYYMMDDHHMMSS *\/ */
-	static char datestr[14+1]; /* YYYYMMDDHHMMSS */
+	static char		 datestr[14+1];	/* YYYYMMDDHHMMSS */
+	static const char	*frm = "%Y%m%d%H%M%S";
+	size_t len;
 
-	static const char *frm = "%Y%m%d%H%M%S";
-
-	strftime (datestr, sizeof(datestr), frm,
-		  local ? localtime (&t) : gmtime(&t));
+	len = strftime (datestr, sizeof(datestr), frm,
+			local ? localtime (&t) : gmtime(&t));
+	if (len == 0) {
+		g_warning ("bug: error converting time");
+		return "00000000000000";
+	}
 
 	return datestr;
 }

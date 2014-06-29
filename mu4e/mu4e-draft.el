@@ -31,11 +31,41 @@
 
 (require 'mu4e-vars)
 (require 'mu4e-utils)
-
+(require 'mu4e-message)
+(require 'message) ;; mail-header-separator
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(defcustom mu4e-compose-dont-reply-to-self nil
+  "If non-nil, don't include self (that is, any member of
+`mu4e-user-mail-address-list') in replies."
+  :type 'boolean
+  :group 'mu4e-compose)
+
+(defcustom mu4e-compose-cite-function
+  (or message-cite-function 'message-cite-original-without-signature)
+  "The function to use to cite message in replies and forwarded
+messages. This is the mu4e-specific version of
+`message-cite-function'."
+  :type 'function
+  :group 'mu4e-compose)
+
+(defcustom mu4e-compose-signature
+  (or (and (stringp message-signature) message-signature)
+    "Sent with my mu4e")
+  "The message signature (i.e. the blob at the bottom of
+messages). This is the mu4e-specific version of
+`message-signature'."
+  :type 'sexp
+  :group 'mu4e-compose)
+
+(defcustom mu4e-compose-signature-auto-include t
+  "Whether to automatically include a message-signature in new
+messages (if it is set)."
+  :type 'boolean
+  :group 'mu4e-compose)
 
 (defun mu4e~draft-user-agent-construct ()
   "Return the User-Agent string for mu4e.
@@ -43,32 +73,39 @@ This is either the value of `mu4e-user-agent', or, if not set, a
 string based on the versions of mu4e and emacs."
   (format "mu4e %s; emacs %s" mu4e-mu-version emacs-version))
 
-
 (defun mu4e~draft-cite-original (msg)
   "Return a cited version of the original message MSG as a plist.
-This function use gnus' `message-cite-function', and as such all
-its settings apply."
+This function uses gnus' `mu4e-compose-cite-function', and as such
+all its settings apply."
   (with-temp-buffer
     (when (fboundp 'mu4e-view-message-text) ;; keep bytecompiler happy
-      (insert (mu4e-view-message-text msg))
-      ;; this seems to be needed, otherwise existing signatures
-      ;; won't be stripped
+      (let ((mu4e-view-date-format "%Y-%m-%dT%T%z"))
+	(insert (mu4e-view-message-text msg)))
       (message-yank-original)
       (goto-char (point-min))
       (push-mark (point-max))
-      (funcall message-cite-function)
+      ;; set the the signature separator to 'loose', since in the real world,
+      ;; many message don't follow the standard...
+      (let ((message-signature-separator "^-- *$")
+	     (message-signature-insert-empty-line t))
+	(funcall mu4e-compose-cite-function))
       (pop-mark)
+      (goto-char (point-min))
+      (mu4e~fontify-cited)
       (buffer-string))))
 
 (defun mu4e~draft-header (hdr val)
   "Return a header line of the form \"HDR: VAL\".
 If VAL is nil, return nil."
-  (when val (format "%s: %s\n" hdr val)))
+  ;; note: the propertize here is currently useless, since gnus sets its own
+  ;; later.
+  (when val (format "%s: %s\n"
+	      (propertize hdr 'face 'mu4e-header-key-face)
+	      (propertize val 'face 'mu4e-header-val-face))))
 
 (defun mu4e~draft-references-construct (msg)
   "Construct the value of the References: header based on MSG as a
-comma-separated string. Normally, this the concatenation of thedmesg
-q
+comma-separated string. Normally, this the concatenation of the
 existing References + In-Reply-To (which may be empty, an note
 that :references includes the old in-reply-to as well) and the
 message-id. If the message-id is empty, returns the old
@@ -96,7 +133,7 @@ e-mail addresses. If LST is nil, returns nil."
 	(let ((name (car addrcell))
 	       (email (cdr addrcell)))
 	  (if name
-	    (format "\"%s\" <%s>" name email)
+	    (format "%s <%s>" (mu4e~rfc822-quoteit name) email)
 	    (format "%s" email))))
       lst ", ")))
 
@@ -114,10 +151,21 @@ form (NAME . EMAIL)."
   "Create a list of address for the To: in a new message, based on
 the original message ORIGMSG. If the Reply-To address is set, use
 that, otherwise use the From address. Note, whatever was in the To:
-field before, goes to the Cc:-list (if we're doing a reply-to-all)."
+field before, goes to the Cc:-list (if we're doing a reply-to-all).
+Special case: if we were the sender of the original, we simple copy
+the list form the original."
   (let ((reply-to
-	   (or (plist-get origmsg :reply-to) (plist-get origmsg :from))))
-    (delete-duplicates reply-to :test #'mu4e~draft-address-cell-equal)))
+	  (or (plist-get origmsg :reply-to) (plist-get origmsg :from))))
+    (delete-duplicates reply-to :test #'mu4e~draft-address-cell-equal)
+    (if mu4e-compose-dont-reply-to-self
+      (delete-if
+	(lambda (to-cell)
+	  (member-if
+	    (lambda (addr)
+	      (string= (downcase addr) (downcase (cdr to-cell))))
+	    mu4e-user-mail-address-list))
+	reply-to)
+      reply-to)))
 
 
 (defun mu4e~draft-create-cc-lst (origmsg reply-all)
@@ -193,29 +241,36 @@ separator is never written to the message file. Also see
     (purecopy "--text follows this line--"))
   (put 'mail-header-separator 'permanent-local t)
   (save-excursion
+    ;; make sure there's not one already
+    (mu4e~draft-remove-mail-header-separator)
     (let ((sepa (propertize mail-header-separator
 		  'intangible t
-		  'read-only "Can't touch this"
+		  ;; don't make this read-only, message-mode
+		  ;; seems to require it being writable in some cases
+		  ;;'read-only "Can't touch this"
 		  'rear-nonsticky t
-		  'font-lock-face 'mu4e-system-face)))
-      (goto-char (point-min))
+		  'font-lock-face 'mu4e-compose-separator-face)))
+      (widen)
       ;; search for the first empty line
+      (goto-char (point-min))
       (if (search-forward-regexp "^$" nil t)
-	(replace-match (concat sepa))
-	(progn 	;; no empty line? then prepend one
-	  (goto-char (point-max))
-	  (insert "\n" sepa))))))
+	  (replace-match sepa)
+	  (progn ;; no empty line? then prepend one
+	    (goto-char (point-max))
+	    (insert "\n" sepa))))))
 
 (defun mu4e~draft-remove-mail-header-separator ()
   "Remove `mail-header-separator; we do this before saving a
 file (and restore it afterwards), to ensure that the separator
 never hits the disk. Also see `mu4e~draft-insert-mail-header-separator."
   (save-excursion
+    (widen)
     (goto-char (point-min))
     ;; remove the --text follows this line-- separator
-    (when (search-forward-regexp (concat "^" mail-header-separator))
+    (when (search-forward-regexp (concat "^" mail-header-separator) nil t)
       (let ((inhibit-read-only t))
 	(replace-match "")))))
+
 
 (defun mu4e~draft-user-wants-reply-all (origmsg)
   "Ask user whether she wants to reply to *all* recipients.
@@ -242,33 +297,56 @@ You can append flags."
 	     (save-match-data
 	       (substring system-name
 		 (string-match "^[^.]+" system-name) (match-end 0))))))
-    (format "%s-%x%x.%s:2,%s"
+    (format "%s-%02x%04x-%s:2,%s"
       (format-time-string "%Y%m%d" (current-time))
-      (emacs-pid) (random t) hostname (or flagstr ""))))
+      (random 255) (random 65535) hostname (or flagstr ""))))
 
+;; New
+;; Automatically add a date to new drafts, so one can
+;; sort drafts by date.
 (defun mu4e~draft-common-construct ()
   "Construct the common headers for each message."
-  (mu4e~draft-header "User-agent" (mu4e~draft-user-agent-construct)))
+  (mu4e~draft-header "User-agent" (mu4e~draft-user-agent-construct))
+  (mu4e~draft-header "Date" (message-make-date)))
+
 
 (defconst mu4e~draft-reply-prefix "Re: "
   "String to prefix replies with.")
 
 (defun mu4e~draft-reply-construct (origmsg)
-  "Create a draft message as a reply to original message ORIGMSG."
-  (let* ((recipnum
-	   (+ (length (mu4e~draft-create-to-lst origmsg))
-	     (length (mu4e~draft-create-cc-lst origmsg t))))
-	  (reply-all (mu4e~draft-user-wants-reply-all origmsg))
+  "Create a draft message as a reply to original message
+ORIGMSG. Replying-to-self is a special; in that case, the To and Cc
+fields will be the same as in the original."
+  (let* ((reply-to-self (mu4e-message-contact-field-matches-me origmsg :from))
+	  (recipnum
+	     (+ (length (mu4e~draft-create-to-lst origmsg))
+	       (length (mu4e~draft-create-cc-lst origmsg t))))
+	  ;; reply-to-self implies reply-all
+	  (reply-all (or reply-to-self (mu4e~draft-user-wants-reply-all origmsg)))
 	  (old-msgid (plist-get origmsg :message-id))
 	  (subject
 	    (concat mu4e~draft-reply-prefix
 	      (message-strip-subject-re (or (plist-get origmsg :subject) "")))))
-     (concat
+    (concat
       (mu4e~draft-header "From" (or (mu4e~draft-from-construct) ""))
       (mu4e~draft-header "Reply-To" mu4e-compose-reply-to-address)
-      (mu4e~draft-header "To" (mu4e~draft-recipients-construct :to origmsg))
-      (mu4e~draft-header "Cc" (mu4e~draft-recipients-construct :cc origmsg
-				  reply-all))
+
+      (if reply-to-self
+	;; When we're replying to ourselves, simply keep the same headers.
+	(concat
+	  (mu4e~draft-header "To" (mu4e~draft-recipients-list-to-string
+				    (mu4e-message-field origmsg :to)))
+	  (mu4e~draft-header "Cc" (mu4e~draft-recipients-list-to-string
+				    (mu4e-message-field origmsg :cc)))) 
+	
+	;; if there's no-one in To, copy the CC-list
+	(if (zerop (length (mu4e~draft-create-to-lst origmsg)))
+	  (mu4e~draft-header "To" (mu4e~draft-recipients-construct :cc origmsg reply-all))
+	  ;; otherwise...
+	  (concat
+	    (mu4e~draft-header "To" (mu4e~draft-recipients-construct :to origmsg))
+	    (mu4e~draft-header "Cc" (mu4e~draft-recipients-construct :cc origmsg
+				      reply-all)))))
       (mu4e~draft-header "Subject" subject)
       (mu4e~draft-header "References"
 	(mu4e~draft-references-construct origmsg))
@@ -313,7 +391,7 @@ You can append flags."
 
 (defvar mu4e~draft-drafts-folder nil
   "The drafts-folder for this compose buffer, based on
-mu4e-drafts-folder', which will be evaluated once.")
+`mu4e-drafts-folder', which is evaluated once.")
 
 (defun mu4e-draft-open (compose-type &optional msg)
   "Open a draft file for a new message (when COMPOSE-TYPE is reply, forward or new),
@@ -324,62 +402,44 @@ of `mu4e-maildir' and `mu4e-drafts-folder' (the latter will be
 evaluated). The message file name is a unique name determined by
 `mu4e-send-draft-file-name'. The initial contents will be created
 from either `mu4e~draft-reply-construct', or
-`mu4e~draft-forward-construct' or
-`mu4e~draft-newmsg-construct'."
-  ;; evaluate mu4e-drafts-folder once, here, and use that value throughout.
-  (set (make-local-variable 'mu4e~draft-drafts-folder)
-    (mu4e-get-drafts-folder msg))
-  (put 'mu4e~draft-drafts-folder 'permanent-local t)
+`mu4e~draft-forward-construct' or `mu4e~draft-newmsg-construct'."
   (unless mu4e-maildir (mu4e-error "mu4e-maildir not set"))
-  (if (eq compose-type 'edit)
-    ;; case-1: re-editing a draft messages. in this case, we do know the full
-    ;; path, but we cannot really now 'drafts folder'
-    (find-file (mu4e-message-field msg :path))
-    ;; case-2: creating a new message; in this case, we can determing
-    ;; mu4e-get-drafts-folder
-    (let* ((draftsfolder (mu4e-get-drafts-folder msg))
-	    (draftpath
-	      (format "%s/%s/cur/%s"
-		mu4e-maildir
-		draftsfolder
-		(mu4e~draft-message-filename-construct "DS"))))
-      (find-file draftpath)
-      (insert
-	(case compose-type
-	  (reply   (mu4e~draft-reply-construct msg))
-	  (forward (mu4e~draft-forward-construct msg))
-	  (new     (mu4e~draft-newmsg-construct))
-	  (t (mu4e-error "unsupported compose-type %S" compose-type))))
-      ;; save the drafts folder 'permanently' for this buffer
-      (set (make-local-variable 'mu4e~draft-drafts-folder) draftsfolder)
-      (put 'mu4e~draft-drafts-folder 'permanent-local t))))
+  (let ((draft-dir))
+    (if (eq compose-type 'edit)
+      ;; case-1: re-editing a draft messages. in this case, we do know the full
+      ;; path, but we cannot really know 'drafts folder'... we make a guess
+      (progn
+	(setq draft-dir (mu4e~guess-maildir (mu4e-message-field msg :path)))
+	(find-file (mu4e-message-field msg :path)))
+      ;; case-2: creating a new message; in this case, we can determing
+      ;; mu4e-get-drafts-folder
+      (progn
+	(setq draft-dir (mu4e-get-drafts-folder msg))
+	(let ((draft-path
+		(format "%s/%s/cur/%s"
+		  mu4e-maildir
+		  draft-dir
+		  (mu4e~draft-message-filename-construct "DS"))))
+	  (find-file draft-path))
+	(insert
+	  (case compose-type
+	    (reply   (mu4e~draft-reply-construct msg))
+	    (forward (mu4e~draft-forward-construct msg))
+	    (new     (mu4e~draft-newmsg-construct))
+	    (t (mu4e-error "unsupported compose-type %S" compose-type))))
+	;; include the message signature (if it's set)
+	(if mu4e-compose-signature-auto-include
+	  (let ((message-signature (or mu4e-compose-signature "\n"))
+		 (message-signature-insert-empty-line t))
+	    (message-insert-signature)
+	    (mu4e~fontify-signature))
+	  (insert "\n"))))
+	  ;; evaluate mu4e~drafts-drafts-folder once, here, and use that value
+	  ;; throughout.
+    (set (make-local-variable 'mu4e~draft-drafts-folder) draft-dir)
+    (put 'mu4e~draft-drafts-folder 'permanent-local t)
+    (unless mu4e~draft-drafts-folder
+      (mu4e-error "failed to determine drafts folder"))))
 
-
-;; (defun mu4e-draft-setup-fcc ()
-;;   "Setup Fcc, based on `mu4e-sent-messages-behavior'. If needed,
-;; set the Fcc header, and register the handler function."
-;;   (let* ((mdir
-;; 	   (case mu4e-sent-messages-behavior
-;; 	     (delete nil)
-;; 	     (trash (mu4e-get-trash-folder mu4e-compose-parent-message))
-;; 	     (sent  (mu4e-get-sent-folder mu4e-compose-parent-message))
-;; 	     (otherwise
-;; 	       (mu4e-error "unsupported value '%S' `mu4e-sent-messages-behavior'."
-;; 		 mu4e-sent-messages-behavior))))
-;; 	  (fccfile (and mdir
-;; 		     (concat mu4e-maildir mdir "/cur/"
-;; 		       (mu4e~compose-message-filename-construct "S")))))
-;;     ;; if there's an fcc header, add it to the file
-;;      (when fccfile
-;;        (message-add-header (concat "Fcc: " fccfile "\n"))
-;;        ;; sadly, we cannot define as 'buffer-local'...  this will screw up gnus
-;;        ;; etc. if you run it after mu4e so, (hack hack) we reset it to the old
-;;        ;; handler after we've done our thing.
-;;       (setq message-fcc-handler-function
-;; 	(lexical-let ((maildir mdir) (old-handler message-fcc-handler-function))
-;; 	  (lambda (file)
-;; 	    (setq message-fcc-handler-function old-handler) ;; reset the fcc handler
-;; 	    (write-file file)		       ;; writing maildirs files is easy
-;; 	    (mu4e~proc-add file maildir))))))) ;; update the database
-
+ 
 (provide 'mu4e-draft)

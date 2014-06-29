@@ -128,9 +128,9 @@ insert_or_update_maybe (const char *fullpath, const char *mdir,
 			time_t filestamp, MuIndexCallbackData *data,
 			gboolean *updated)
 {
-	MuMsg *msg;
-	GError *err;
-	gboolean rv;
+	MuMsg		*msg;
+	GError		*err;
+	gboolean	 rv;
 
 	*updated = FALSE;
 	if (!needs_index (data, fullpath, filestamp))
@@ -139,8 +139,13 @@ insert_or_update_maybe (const char *fullpath, const char *mdir,
 	err = NULL;
 	msg = mu_msg_new_from_file (fullpath, mdir, &err);
 	if (!msg) {
-		g_warning ("error creating message object: %s",
-			   err ? err->message : "cause unknown");
+		if (!err)
+			g_warning ("error creating message object: %s",
+				   fullpath);
+		else {
+			g_warning ("%s", err->message);
+			g_clear_error (&err);
+		}
 		/* warn, then simply continue */
 		return MU_OK;
 	}
@@ -315,8 +320,8 @@ mu_index_run (MuIndex *index, const char *path,
 	      MuIndexMsgCallback msg_cb, MuIndexDirCallback dir_cb,
 	      void *user_data)
 {
-	MuIndexCallbackData cb_data;
-	MuError rv;
+	MuIndexCallbackData	cb_data;
+	MuError			rv;
 
 	g_return_val_if_fail (index && index->_store, MU_ERROR);
 	g_return_val_if_fail (msg_cb, MU_ERROR);
