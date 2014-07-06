@@ -2,8 +2,9 @@ maildir-utils (0.9.9.6-2) UNRELEASED; urgency=medium
 
   * switch to emacs24 as emacs (Closes: #754034)
   * clean up mu4e packaging according to emacs addon policy
+  * add pmccabe to build-deps for tests
 
- -- Norbert Preining <preining@debian.org>  Mon, 07 Jul 2014 08:20:24 +0900
+ -- Norbert Preining <preining@debian.org>  Mon, 07 Jul 2014 08:26:10 +0900
 
 maildir-utils (0.9.9.6-1) unstable; urgency=medium
 
