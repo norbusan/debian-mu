@@ -1,3 +1,9 @@
+maildir-utils (0.9.9.6-3) UNRELEASED; urgency=medium
+
+  * fix VCS fields
+
+ -- Norbert Preining <preining@debian.org>  Thu, 31 Jul 2014 19:23:00 +0900
+
 maildir-utils (0.9.9.6-2) unstable; urgency=medium
 
   * switch to emacs24 as emacs (Closes: #754034)
