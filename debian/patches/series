@@ -1,3 +1,4 @@
 fix-mug-build
 fix-manpages
 #disable-emacs-compile
+fix-mu4e-msg2pdf-path

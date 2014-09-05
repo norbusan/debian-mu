@@ -1,8 +1,9 @@
-maildir-utils (0.9.9.6-3) UNRELEASED; urgency=medium
+maildir-utils (0.9.9.6-3) unstable; urgency=medium
 
   * fix VCS fields
+  * fix mu4e's expectation where msg2pdf is (Closes: #760598)
 
- -- Norbert Preining <preining@debian.org>  Thu, 31 Jul 2014 19:23:00 +0900
+ -- Norbert Preining <preining@debian.org>  Sat, 06 Sep 2014 06:28:08 +0900
 
 maildir-utils (0.9.9.6-2) unstable; urgency=medium
 
