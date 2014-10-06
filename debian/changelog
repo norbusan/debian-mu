@@ -1,8 +1,9 @@
 maildir-utils (0.9.9.6-4) unstable; urgency=low
 
   * bump build-dep version for guile-2.0-dev (Closes: #763420)
+  * bump standards version, no changes necessary
 
- -- Norbert Preining <preining@debian.org>  Mon, 06 Oct 2014 15:38:34 +0900
+ -- Norbert Preining <preining@debian.org>  Mon, 06 Oct 2014 15:42:03 +0900
 
 maildir-utils (0.9.9.6-3) unstable; urgency=medium
 
