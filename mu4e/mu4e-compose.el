@@ -110,7 +110,7 @@ for example:
                    'delete 'sent)))
 
 The various `message-' functions from `message-mode' are available
-for quering the message information."
+for querying the message information."
     :type '(choice (const :tag "move message to mu4e-sent-folder" sent)
 		 (const :tag "move message to mu4e-trash-folder" trash)
 		 (const :tag "delete message" delete))
@@ -267,8 +267,9 @@ appear on disk."
 \\{message-mode-map}."
   (progn
     (use-local-map mu4e-compose-mode-map)
-    (set (make-local-variable 'message-signature)
-      mu4e-compose-signature)
+    (set (make-local-variable 'message-signature) mu4e-compose-signature)
+    ;; set this to allow mu4e to work when gnus-agent is unplugged in gnus
+    (set (make-local-variable 'message-send-mail-real-function) nil)
     (make-local-variable 'message-default-charset)
     ;; if the default charset is not set, use UTF-8
     (unless message-default-charset
@@ -380,7 +381,7 @@ tempfile)."
   (mu4e~compose-hide-headers)
   ;; switch on the mode
   (mu4e-compose-mode))
- 
+
 (defun mu4e-sent-handler (docid path)
   "Handler function, called with DOCID and PATH for the just-sent
 message. For Forwarded ('Passed') and Replied messages, try to set
@@ -465,7 +466,13 @@ for draft messages."
     (if (eq compose-type 'new)
       (mu4e~compose-handler 'new)
       ;; otherwise, we need the doc-id
-      (let ((docid (mu4e-message-field msg :docid)))
+      (let* ((docid (mu4e-message-field msg :docid))
+	;; decrypt (or not), based on `mu4e-decryption-policy'.
+	(decrypt
+	  (and (member 'encrypted (mu4e-message-field msg :flags))
+	    (if (eq mu4e-decryption-policy 'ask)
+	      (yes-or-no-p (mu4e-format "Decrypt message?"))
+	      mu4e-decryption-policy))))
 	;; if there's a visible view window, select that before starting composing
 	;; a new message, so that one will be replaced by the compose window. The
 	;; 10-or-so line headers buffer is not a good place to write it...
@@ -473,7 +480,7 @@ for draft messages."
 	  (when (window-live-p viewwin)
 	    (select-window viewwin)))
 	;; talk to the backend
-	(mu4e~proc-compose compose-type docid)))))
+	(mu4e~proc-compose compose-type decrypt docid)))))
 
 (defun mu4e-compose-reply ()
   "Compose a reply for the message at point in the headers buffer."

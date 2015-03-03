@@ -154,16 +154,24 @@ find_or_create_referred (GHashTable *id_table, const char *msgid,
 static MuContainer*
 find_or_create (GHashTable *id_table, MuMsg *msg, guint docid)
 {
-	MuContainer *c;
-	const char* msgid;
-
+	MuContainer	*c;
+	const char*	 msgid;
+	char		 fake[32];
+	
 	g_return_val_if_fail (msg, NULL);
 	g_return_val_if_fail (docid != 0, NULL);
 
 	msgid = mu_msg_get_msgid (msg);
 	if (!msgid)
 		msgid = mu_msg_get_path (msg); /* fake it */
-
+	if (!msgid) { /* no path either? seems to happen... */
+		g_warning ("message without path");
+		snprintf (fake, sizeof(fake), "fake:%p", (gpointer)msg);
+		msgid = fake;
+	}
+	
+	/* XXX the '<none>' works around a crash; find a better
+	 * solution */
 	c = g_hash_table_lookup (id_table, msgid);
 
 	/* If id_table contains an empty MuContainer for this ID: * *
@@ -385,10 +393,12 @@ prune_maybe (MuContainer *c)
 	MuContainer *cur;
 
 	for (cur = c->child; cur; cur = cur->next) {
-		if (cur->flags & MU_CONTAINER_FLAG_DELETE)
+		if (cur->flags & MU_CONTAINER_FLAG_DELETE) {
 			c = mu_container_remove_child (c, cur);
-		else if (cur->flags & MU_CONTAINER_FLAG_SPLICE)
-			c = mu_container_splice_children (c, cur);
+		} else if (cur->flags & MU_CONTAINER_FLAG_SPLICE) {
+			c = mu_container_splice_grandchildren (c, cur);
+			c = mu_container_remove_child (c, cur);
+		}
 	}
 
 	g_return_val_if_fail (c, FALSE);
@@ -433,16 +443,11 @@ prune_empty_containers (MuContainer *root_set)
 
 	/* and prune the root_set itself... */
 	for (cur = root_set; cur; cur = cur->next) {
-
-		if (cur->flags & MU_CONTAINER_FLAG_DELETE)
+		if (cur->flags & MU_CONTAINER_FLAG_DELETE) {
 			root_set = mu_container_remove_sibling (root_set, cur);
-
-		else if (cur->flags & MU_CONTAINER_FLAG_SPLICE) {
-			MuContainer *newchild;
-			newchild = cur->child;
-			cur->child = NULL;
-			root_set = mu_container_append_siblings (root_set,
-								 newchild);
+		} else if (cur->flags & MU_CONTAINER_FLAG_SPLICE) {
+			root_set = mu_container_splice_children (root_set, cur);
+			root_set = mu_container_remove_sibling (root_set, cur);
 		}
 	}
 

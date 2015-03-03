@@ -14,7 +14,7 @@
 ## along with this program; if not, write to the Free Software Foundation,
 ## Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
 
-AC_INIT([mu],[0.9.9.6],[http://code.google.com/p/mu0/issues/list],[mu])
+AC_INIT([mu],[0.9.11],[http://code.google.com/p/mu0/issues/list],[mu])
 AC_CONFIG_HEADERS([config.h])
 AC_CONFIG_SRCDIR([mu/mu.cc])
 # libtoolize wants to put some stuff in here; if you have an old
@@ -115,7 +115,7 @@ AC_SUBST(GLIB_LIBS)
 glib_version="`$PKG_CONFIG --modversion glib-2.0`"
 
 # gmime
-PKG_CHECK_MODULES(GMIME,gmime-2.6)
+PKG_CHECK_MODULES(GMIME,gmime-2.6 >= 2.6.7)
 AC_SUBST(GMIME_CFLAGS)
 AC_SUBST(GMIME_LIBS)
 gmime_version="`$PKG_CONFIG --modversion gmime-2.6`"

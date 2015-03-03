@@ -49,7 +49,8 @@ path."
   :safe 'stringp)
 
 (defcustom mu4e-maildir (expand-file-name "~/Maildir")
-  "The file system path to your Maildir."
+  "The file system path to your Maildir. Must not be a symbolic
+link."
   :type 'directory
   :safe 'stringp
   :group 'mu4e)
@@ -434,7 +435,7 @@ I.e. a message with the draft flag set."
   '((t :inherit font-lock-preprocessor-face))
   "Face for the mark in the headers list."
   :group 'mu4e-faces)
- 
+
 (defface mu4e-header-key-face
   '((t :inherit message-header-name-face :bold t))
   "Face for a header key (such as \"Foo\" in \"Subject:\ Foo\")."
@@ -468,6 +469,11 @@ I.e. a message with the draft flag set."
 (defface mu4e-title-face
   '((t :inherit font-lock-type-face :bold t))
   "Face for a header title in the headers view."
+  :group 'mu4e-faces)
+
+(defface mu4e-modeline-face
+  '((t :inherit font-lock-string-face :bold t))
+  "Face for the query view in the mode-line."
   :group 'mu4e-faces)
 
 (defface mu4e-footer-face
@@ -618,6 +624,11 @@ mu4e-compose-mode."
        ( :name "Signature"
 	 :shortname "Sgn"
 	 :help "Check for the cryptographic signature"
+	 :sortable nil))
+     (:decryption .
+       ( :name "Decryption"
+	 :shortname "Dec"
+	 :help "Check the cryptographic decryption status"
 	 :sortable nil))
      (:size .
        ( :name "Size"
