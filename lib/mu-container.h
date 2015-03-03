@@ -45,6 +45,11 @@ struct _MuContainer {
 	 * */
 	struct _MuContainer *last;
 
+	/* Node in the subtree rooted at this node which comes first
+	 * in the descending sort order, e.g. the latest message if
+	 * sorting by date. We compare the leaders when ordering
+	 * subtrees. */
+	struct _MuContainer *leader;
 
 	MuMsg               *msg;
 	const char          *msgid;
@@ -122,17 +127,28 @@ MuContainer* mu_container_remove_child (MuContainer *c, MuContainer *child);
  */
 MuContainer* mu_container_remove_sibling (MuContainer *c, MuContainer *sibling);
 
+/**
+ * promote sibling's children to be this container's siblings
+ *
+ * @param c a container instance
+ * @param sibling a sibling of this container
+ *
+ * @return the container with the sibling's children promoted
+ */
+
+MuContainer* mu_container_splice_children (MuContainer *c,
+                                           MuContainer *sibling);
 
 /**
- * promote child's children to be parent's children and remove child
+ * promote child's children to be parent's children
  *
  * @param parent a container instance
  * @param child a child of this container
  *
  * @return the new container with it's children's children promoted
  */
-MuContainer* mu_container_splice_children (MuContainer *parent,
-					   MuContainer *child);
+MuContainer* mu_container_splice_grandchildren (MuContainer *parent,
+                                                MuContainer *child);
 
 typedef gboolean (*MuContainerForeachFunc) (MuContainer*, gpointer);
 

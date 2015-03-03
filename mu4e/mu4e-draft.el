@@ -67,6 +67,12 @@ messages (if it is set)."
   :type 'boolean
   :group 'mu4e-compose)
 
+(defcustom mu4e-compose-auto-include-date nil
+  "Whether to include a date header when starting to draft a
+message; if nil, only do so when sending the message."
+  :type 'boolean
+  :group 'mu4e-compose)
+
 (defun mu4e~draft-user-agent-construct ()
   "Return the User-Agent string for mu4e.
 This is either the value of `mu4e-user-agent', or, if not set, a
@@ -300,14 +306,12 @@ You can append flags."
     (format "%s-%02x%04x-%s:2,%s"
       (format-time-string "%Y%m%d" (current-time))
       (random 255) (random 65535) hostname (or flagstr ""))))
-
-;; New
-;; Automatically add a date to new drafts, so one can
-;; sort drafts by date.
+ 
 (defun mu4e~draft-common-construct ()
   "Construct the common headers for each message."
   (mu4e~draft-header "User-agent" (mu4e~draft-user-agent-construct))
-  (mu4e~draft-header "Date" (message-make-date)))
+  (when mu4e-compose-auto-include-date
+    (mu4e~draft-header "Date" (message-make-date))))
 
 
 (defconst mu4e~draft-reply-prefix "Re: "
@@ -431,8 +435,9 @@ from either `mu4e~draft-reply-construct', or
 	(if mu4e-compose-signature-auto-include
 	  (let ((message-signature (or mu4e-compose-signature "\n"))
 		 (message-signature-insert-empty-line t))
-	    (message-insert-signature)
-	    (mu4e~fontify-signature))
+	    (save-excursion
+	      (message-insert-signature)
+	      (mu4e~fontify-signature)))
 	  (insert "\n"))))
 	  ;; evaluate mu4e~drafts-drafts-folder once, here, and use that value
 	  ;; throughout.
