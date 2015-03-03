@@ -1,3 +1,9 @@
+maildir-utils (0.9.11-1) experimental; urgency=medium
+
+  * Imported Upstream version 0.9.11
+
+ -- Norbert Preining <preining@debian.org>  Tue, 03 Mar 2015 11:54:26 +0900
+
 maildir-utils (0.9.9.6-5) unstable; urgency=medium
 
   * bump build-dep version for guile-2.0-dev another time, arm build
