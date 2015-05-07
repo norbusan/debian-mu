@@ -177,13 +177,17 @@ be changed by setting `mu4e-view-prefer-html'."
 		(with-temp-buffer
 		  (insert html)
 		  (cond
-		    ((stringp mu4e-html2text-command)
-		      (shell-command-on-region (point-min) (point-max)
-			mu4e-html2text-command nil t))
+                   ((stringp mu4e-html2text-command)
+                    (let* ((tmp-file (make-temp-file "mu4e-html")))
+                     (write-region (point-min) (point-max) tmp-file)
+                     (erase-buffer)
+                     (call-process-shell-command mu4e-html2text-command tmp-file t t)
+                     (delete-file tmp-file)))
 		    ((functionp mu4e-html2text-command)
 		      (funcall mu4e-html2text-command))
 		    (t (mu4e-error "Invalid `mu4e-html2text-command'")))
-		  (buffer-string)))
+		  (buffer-string))
+                )
 	      (t ;; otherwise, an empty body
 		""))))
     ;; and finally, remove some crap from the remaining string; it seems
