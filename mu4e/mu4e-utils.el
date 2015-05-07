@@ -90,7 +90,6 @@ User's addresses are set in `mu4e-user-mail-address-list')."
 
 
 
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; the standard folders can be functions too
 (defun mu4e~get-folder (foldervar msg)
@@ -376,14 +375,19 @@ and offer to create it if it does not exist yet."
 (defun mu4e-get-bookmark-query (kar)
   "Get the corresponding bookmarked query for shortcut character
 KAR, or raise an error if none is found."
- (let ((chosen-bm
-	 (find-if
-	   (lambda (bm)
-	     (= kar (nth 2 bm)))
-	   mu4e-bookmarks)))
-   (if chosen-bm
-     (nth 0 chosen-bm)
-     (mu4e-warn "Unknown shortcut '%c'" kar))))
+  (let* ((chosen-bm
+	   (or (find-if
+		 (lambda (bm)
+		   (= kar (nth 2 bm)))
+		mu4e-bookmarks)
+	    (mu4e-warn "Unknown shortcut '%c'" kar)))
+	 (expr (nth 0 chosen-bm))
+	 (query (eval expr)))
+    (if (stringp query)
+      query
+      (mu4e-warn "Expression must evaluate to query string ('%S')" expr))))
+
+
 
 
 ;;; converting flags->string and vice-versa ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -834,11 +838,15 @@ frame to display buffer BUF."
  	  (maybe-error (or (not (eq status 'exit)) (/= code 0)))
 	  (buf (and (buffer-live-p mu4e~update-buffer) mu4e~update-buffer))
 	  (win (and buf (get-buffer-window buf))))
-    ;; there may be an error, give the user up to 5 seconds to check
     (message nil)
     (if maybe-error
-      (sit-for 5)
-      (mu4e-update-index))
+      (progn 
+	(when mu4e-index-update-error-warning
+	  (mu4e-message "Update process returned with non-zero exit code")
+	  (sit-for 5))
+	(when mu4e-index-update-error-continue 
+	  (mu4e-update-index))) 
+      (mu4e-update-index))  
     (if (window-live-p win)
       (with-selected-window win (kill-buffer-and-window))
       (when (buffer-live-p buf) (kill-buffer buf)))))
@@ -858,9 +866,10 @@ in the background; otherwise, pop up a window."
   (run-hooks 'mu4e-update-pre-hook)
   (unless mu4e-get-mail-command
     (mu4e-error "`mu4e-get-mail-command' is not defined"))
+
   (let* ((process-connection-type t)
 	  (proc (start-process-shell-command
-		  "mu4e-update" "mu4e-update"
+		  "mu4e-update" " *mu4e-update*"
 		  mu4e-get-mail-command))
 	  (buf (process-buffer proc))
 	  (win (or run-in-background

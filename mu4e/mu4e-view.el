@@ -1,6 +1,6 @@
 ;;; mu4e-view.el -- part of mu4e, the mu mail user agent
 ;;
-;; Copyright (C) 2011-2012 Dirk-Jan C. Binnema
+;; Copyright (C) 2011-2015 Dirk-Jan C. Binnema
 
 ;; Author: Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 ;; Maintainer: Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
@@ -39,6 +39,7 @@
 (require 'button)
 (require 'epa)
 (require 'epg)
+(require 'thingatpt)
 
 (eval-when-compile (byte-compile-disable-warning 'cl-functions))
 (require 'cl)
@@ -90,6 +91,12 @@ support, and `mu4e-view-show-images' is non-nil."
 `mu4e-view-scroll-up-or-next' (typically bound to SPC) when at the
 end of a message. Otherwise, don't move to the next message.")
 
+(defcustom mu4e-save-multiple-attachments-without-asking nil
+  "If non-nil, saving multiple attachments asks once for a
+directory and saves all attachments in the chosen directory."
+  :type 'boolean
+  :group 'mu4e-view)
+
 (defvar mu4e-view-actions
   '( ("capture message" . mu4e-action-capture-message)
      ("view as pdf"     . mu4e-action-view-as-pdf))
@@ -105,6 +112,7 @@ The first letter of NAME is used as a shortcut character.")
 (defvar mu4e-view-attachment-actions
   '( ("wopen-with" . mu4e-view-open-attachment-with)
      ("ein-emacs"  . mu4e-view-open-attachment-emacs)
+     ("dimport-in-diary"  . mu4e-view-import-attachment-diary)
      ("|pipe"      . mu4e-view-pipe-attachment))
   "List of actions to perform on message attachments.
 The actions are cons-cells of the form:
@@ -153,11 +161,6 @@ The first letter of NAME is used as a shortcut character.")
   "A map of msg paths --> parent-docids.
 This is to determine what is the parent docid for embedded
 message extracted at some path.")
-
-(defvar mu4e-view-url-regexp
-  "\\(\\(https?\\://\\|mailto:\\)[-+\[:alnum:\].?_$%/+&#@!*~,:;=/()]+\\)"
-  "Regexp that matches http:/https:/mailto: URLs; match-string 1
-will contain the matched URL, if any.")
 
 (defvar mu4e~view-attach-map nil
   "A mapping of user-visible attachment number to the actual part index.")
@@ -236,7 +239,7 @@ found."
     "\n"
     (mu4e-message-body-text msg)))
 
- (defun mu4e~view-embedded-winbuf ()
+(defun mu4e~view-embedded-winbuf ()
   "Get a buffer (shown in a window) for the embedded message."
   (let* ((buf (get-buffer-create mu4e~view-embedded-buffer-name))
 	  (win (or (get-buffer-window buf) (split-window-vertically))))
@@ -333,7 +336,7 @@ add text-properties to VAL."
   (interactive)
   (unless (get-text-property (or point (point)) 'email)
     (mu4e-error "No address at point"))
-  (mu4e~compose-mail (get-text-property (or point (point)) 'email)))
+  (mu4e~compose-mail (get-text-property (or point (point)) 'long)))
 
 (defun mu4e~view-copy-contact (&optional full)
   "Compose a message for the address at (point)."
@@ -554,6 +557,7 @@ FUNC should be a function taking two arguments:
       (define-key map "j" 'mu4e~headers-jump-to-maildir)
 
       (define-key map "g" 'mu4e-view-go-to-url)
+      (define-key map "k" 'mu4e-view-save-url)
 
       (define-key map "F" 'mu4e-compose-forward)
       (define-key map "R" 'mu4e-compose-reply)
@@ -590,6 +594,10 @@ FUNC should be a function taking two arguments:
       (define-key map (kbd "<M-down>") 'mu4e-view-headers-next)
       (define-key map (kbd "<M-up>") 'mu4e-view-headers-prev)
 
+      (define-key map (kbd "]") 'mu4e-view-headers-next-unread)
+      (define-key map (kbd "[")
+	(lambda() (interactive) (mu4e-view-headers-next-unread t)))
+      
       ;; switching to view mode (if it's visible)
       (define-key map "y" 'mu4e-select-other-view)
 
@@ -606,12 +614,14 @@ FUNC should be a function taking two arguments:
       (define-key map (kbd "m") 'mu4e-view-mark-for-move)
       (define-key map (kbd "r") 'mu4e-view-mark-for-refile)
 
-      (define-key map (kbd "&") 'mu4e-view-mark-custom)
+      (define-key map (kbd "?") 'mu4e-view-mark-for-unread)
+      (define-key map (kbd "!") 'mu4e-view-mark-for-read)
 
       (define-key map (kbd "+") 'mu4e-view-mark-for-flag)
       (define-key map (kbd "-") 'mu4e-view-mark-for-unflag)
       (define-key map (kbd "=") 'mu4e-view-mark-for-untrash)
-
+      (define-key map (kbd "&") 'mu4e-view-mark-custom)
+      
       (define-key map (kbd "*")             'mu4e-view-mark-for-something)
       (define-key map (kbd "<kp-multiply>") 'mu4e-view-mark-for-something)
       (define-key map (kbd "<insert>")     'mu4e-view-mark-for-something)
@@ -674,7 +684,6 @@ FUNC should be a function taking two arguments:
 	(define-key menumap [forward]  '("Forward" . mu4e-compose-forward))
 	(define-key menumap [reply]  '("Reply" . mu4e-compose-reply))
 	(define-key menumap [sepa3] '("--"))
-
 
 	(define-key menumap [query-next]
 	  '("Next query" . mu4e-headers-query-next))
@@ -783,6 +792,12 @@ If the url is mailto link, start writing an email to that address."
 		  mu4e-view-image-max-width
 		  mu4e-view-image-max-height)))))))))
 
+
+(defvar mu4e~view-beginning-of-url-regexp
+  "https?\\://\\|mailto:"
+  "Regexp that matches the beginning of http:/https:/mailto: URLs; match-string 1
+will contain the matched URL, if any.")
+
 ;; this is fairly simplistic...
 (defun mu4e~view-make-urls-clickable ()
   "Turn things that look like URLs into clickable things.
@@ -792,23 +807,24 @@ Also number them so they can be opened using `mu4e-view-go-to-url'."
       (setq mu4e~view-link-map ;; buffer local
 	(make-hash-table :size 32 :weakness nil))
       (goto-char (point-min))
-      (while (re-search-forward mu4e-view-url-regexp nil t)
-	(let* ((url (match-string 0))
-	       (ov (make-overlay (match-beginning 0) (match-end 0))))
-	  (puthash (incf num) url mu4e~view-link-map)
-	  (add-text-properties
-	   (match-beginning 0)
-	   (match-end 0)
-	    `(face mu4e-link-face
-	       mouse-face highlight
-	       mu4e-url ,url
-	       keymap ,mu4e-view-clickable-urls-keymap
-	       help-echo
-	       "[mouse-1] or [M-RET] to open the link"))
-	  (overlay-put ov 'after-string
-		       (propertize (format "[%d]" num)
-				   'face 'mu4e-url-number-face))
-	  )))))
+      (while (re-search-forward mu4e~view-beginning-of-url-regexp nil t)
+	(let ((bounds (thing-at-point-bounds-of-url-at-point)))
+	  (when bounds
+	    (let* ((url (thing-at-point-url-at-point))
+		    (ov (make-overlay (car bounds) (cdr bounds))))
+	      (puthash (incf num) url mu4e~view-link-map)
+	      (add-text-properties
+		(car bounds)
+		(cdr bounds)
+		`(face mu4e-link-face
+		   mouse-face highlight
+		   mu4e-url ,url
+		   keymap ,mu4e-view-clickable-urls-keymap
+		   help-echo
+		   "[mouse-1] or [M-RET] to open the link"))
+	      (overlay-put ov 'after-string
+		(propertize (format "[%d]" num)
+		  'face 'mu4e-url-number-face)))))))))
 
 
 (defun mu4e~view-hide-cited ()
@@ -819,7 +835,6 @@ Also number them so they can be opened using `mu4e-view-go-to-url'."
       (flush-lines mu4e-cited-regexp)
       (setq mu4e~view-cited-hidden t))))
 
-
 (defmacro mu4e~view-in-headers-context (&rest body)
   "Evaluate BODY in the context of the headers buffer connected to
 this view."
@@ -827,15 +842,17 @@ this view."
      (unless (buffer-live-p mu4e~view-headers-buffer)
        (mu4e-error "no headers-buffer connected"))
      (let* ((msg (mu4e-message-at-point))
-	     (docid (mu4e-message-field msg :docid)))
+	     (docid (mu4e-message-field msg :docid))
+	     (curwin (selected-window)))
        (unless docid
 	 (mu4e-error "message without docid: action is not possible."))
        (with-current-buffer mu4e~view-headers-buffer
+	 (select-window (get-buffer-window))
 	 (if (mu4e~headers-goto-docid docid)
 	   ,@body
 	   (mu4e-error "cannot find message in headers buffer."))))))
 
-(defun mu4e-view-headers-next(&optional n)
+(defun mu4e-view-headers-next (&optional n)
   "Move point to the next message header in the headers buffer
 connected with this message view. If this succeeds, return the new
 docid. Otherwise, return nil. Optionally, takes an integer
@@ -844,7 +861,7 @@ N (prefix argument), to the Nth next header."
   (mu4e~view-in-headers-context
     (mu4e~headers-move (or n 1))))
 
-(defun mu4e-view-headers-prev(&optional n)
+(defun mu4e-view-headers-prev (&optional n)
   "Move point to the previous message header in the headers buffer
 connected with this message view. If this succeeds, return the new
 docid. Otherwise, return nil. Optionally, takes an integer
@@ -852,6 +869,18 @@ N (prefix argument), to the Nth previous header."
   (interactive "P")
   (mu4e~view-in-headers-context
     (mu4e~headers-move (- (or n 1)))))
+
+(defun mu4e-view-headers-next-unread (&optional backwards)
+  "Move point to the next or previous (when BACKWARDS is non-`nil')
+unread message header in the headers buffer connected with this
+message view. If this succeeds, return the new docid. Otherwise,
+return nil."
+  (interactive "P")
+  (mu4e~view-in-headers-context 
+    (mu4e-headers-next-unread backwards))
+  (mu4e-select-other-view)
+  (mu4e-headers-view-message))
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -999,6 +1028,15 @@ number ATTNUM."
       (expand-file-name fname fpath)
       fpath)))
 
+(defun mu4e~view-request-attachments-dir (path)
+  "Ask the user where to save multiple attachments (default is PATH)."
+  (let ((fpath (expand-file-name
+                (read-directory-name
+                 (mu4e-format "Save in directory ")
+                 path nil nil nil) path)))
+    (if (file-directory-p fpath)
+        fpath)))
+
 (defun mu4e-view-save-attachment-single (&optional msg attnum)
   "Save attachment number ATTNUM from MSG.
 If MSG is nil use the message returned by `message-at-point'.
@@ -1034,12 +1072,27 @@ Furthermore, there is a shortcut \"a\" which so means all
 attachments, but as this is the default, you may not need it."
   (interactive)
   (let* ((msg (or msg (mu4e-message-at-point)))
-	 (attachstr (mu4e~view-get-attach-num
-		      "Attachment number range (or 'a' for 'all')" msg t))
-	  (count (hash-table-count mu4e~view-attach-map))
-	  (attachnums (mu4e-split-ranges-to-numbers attachstr count)))
-    (dolist (num attachnums)
-      (mu4e-view-save-attachment-single msg num))))
+         (attachstr (mu4e~view-get-attach-num
+                     "Attachment number range (or 'a' for 'all')" msg t))
+         (count (hash-table-count mu4e~view-attach-map))
+         (attachnums (mu4e-split-ranges-to-numbers attachstr count)))
+    (if mu4e-save-multiple-attachments-without-asking
+        (let* ((path (concat (mu4e~get-attachment-dir) "/"))
+               (attachdir (mu4e~view-request-attachments-dir path)))
+          (dolist (num attachnums)
+            (let* ((att (mu4e~view-get-attach msg num))
+                   (fname  (plist-get att :name))
+                   (index (plist-get att :index))
+                   (retry t))
+              (while retry
+                (setq fpath (expand-file-name (concat attachdir fname) path))
+                (setq retry
+                      (and (file-exists-p fpath)
+                           (not (y-or-n-p (mu4e-format "Overwrite '%s'?" fpath))))))
+              (mu4e~proc-extract
+               'save (mu4e-message-field msg :docid) index mu4e-decryption-policy fpath))))
+      (dolist (num attachnums)
+        (mu4e-view-save-attachment-single msg num)))))
 
 (defun mu4e-view-save-attachment (&optional multi)
   "Offer to save attachment(s).
@@ -1118,6 +1171,12 @@ If PIPECMD is nil, ask user for it."
 	  (index (plist-get att :index)))
     (mu4e~view-temp-action (mu4e-message-field msg :docid) index "emacs")))
 
+(defun mu4e-view-import-attachment-diary (msg attachnum)
+  "Open MSG's attachment ATTACHNUM in the current emacs instance."
+  (interactive)
+  (let* ((att (mu4e~view-get-attach msg attachnum))
+	  (index (plist-get att :index)))
+    (mu4e~view-temp-action (mu4e-message-field msg :docid) index "diary")))
 
 (defun mu4e-view-attachment-action (&optional msg)
   "Ask user what to do with attachments in MSG
@@ -1156,6 +1215,8 @@ attachments) in response to a (mu4e~proc-extract 'temp ... )."
       ;; make the buffer read-only since it usually does not make
       ;; sense to edit the temp buffer; use C-x C-q if you insist...
       (setq buffer-read-only t))
+    ((string= what "diary")
+     (icalendar-import-file path diary-file))
     (t (mu4e-error "Unsupported action %S" what))))
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -1227,6 +1288,8 @@ list."
 (mu4e~view-defun-mark-for unflag)
 (mu4e~view-defun-mark-for unmark)
 (mu4e~view-defun-mark-for something)
+(mu4e~view-defun-mark-for read)
+(mu4e~view-defun-mark-for unread)
 
 (defun mu4e-view-marked-execute ()
   "Execute the marks."
@@ -1256,39 +1319,62 @@ string."
 	  nil nil def)))))
 
 (defun mu4e-view-go-to-url (&optional multi)
-  "Offer to go to URL(s).
-If MULTI (prefix-argument) is nil, go to a single one, otherwise,
-offer to go to a range of URLs."
+  "Offer to go to url(s). If MULTI (prefix-argument) is nil, go to
+a single one, otherwise, offer to go to a range of urls."
+  (interactive "P")
+  (mu4e~view-handle-urls "URL to visit"
+    multi (lambda (url) (mu4e~view-browse-url-from-binding url))))
+
+(defun mu4e-view-save-url (&optional multi)
+  "Offer to save urls(s) to the kill-ring. If
+MULTI (prefix-argument) is nil, save a single one, otherwise, offer
+to save a range of URLs."
+  (interactive "P")
+  (mu4e~view-handle-urls "URL to save" multi
+    (lambda (url)
+      (kill-new url)
+      (mu4e-message "Saved %s to the kill-ring" url))))
+
+(defun mu4e~view-handle-urls (prompt multi urlfunc)
+  "If MULTI is nil, apply URLFUNC to a single uri, otherwise, apply
+it to a range of uris. PROMPT is the query to present to the user."
   (interactive "P")
   (if multi
-    (mu4e-view-go-to-urls-multi)
-    (mu4e-view-go-to-urls-single)))
+    (mu4e~view-handle-multi-urls prompt urlfunc)
+    (mu4e~view-handle-single-url prompt urlfunc)))
 
-(defun mu4e-view-go-to-urls-single (&optional num)
-  "Go to a numbered url."
+(defun mu4e~view-handle-single-url (prompt urlfunc &optional num)
+  "Apply URLFUNC to url NUM in the current message, prompting the
+user with PROMPT."
   (interactive)
-  (let* ((num (or num
-		    (mu4e~view-get-urls-num "URL to visit")))
+  (let* ((num (or num (mu4e~view-get-urls-num prompt)))
          (url (gethash num mu4e~view-link-map)))
     (unless url (mu4e-warn "Invalid number for URL"))
-    (mu4e~view-browse-url-from-binding url)))
+    (funcall urlfunc url)))
 
-(defun mu4e-view-go-to-urls-multi ()
-  "Offer to visit multiple URLs from the current message.
-Default is to visit all URLs, [1..n], where n is the number of
-URLS.  You can type multiple values separated by space, e.g.
-  1 3-6 8
-will visit URLs 1,3,4,5,6 and 8.
+(defun mu4e~view-handle-multi-urls (prompt urlfunc)
+  "Apply URLFUNC to a a range of urls in the current message,
+prompting the user with PROMPT.
 
-Furthermore, there is a shortcut \"a\" which means all URLS, but
-as this is the default, you may not need it."
+Default is to aplly it to all URLs, [1..n], where n is the number
+of urls. You can type multiple values separated by space, e.g.  1
+3-6 8 will visit urls 1,3,4,5,6 and 8.
+
+Furthermore, there is a shortcut \"a\" which means all urls, but as
+this is the default, you may not need it."
   (interactive)
   (let* ((linkstr (mu4e~view-get-urls-num
 		      "URL number range (or 'a' for 'all')" t))
 	  (count (hash-table-count mu4e~view-link-map))
 	  (linknums (mu4e-split-ranges-to-numbers linkstr count)))
     (dolist (num linknums)
-      (mu4e-view-go-to-urls-single num))))
+      (mu4e~view-handle-single-url prompt urlfunc num))))
+
+(defun mu4e-view-for-each-uri (func)
+  "Execute FUNC (which receives a uri) for each uri in the current
+  message."
+  (maphash (lambda (num uri) (funcall func uri)) mu4e~view-link-map))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defconst mu4e~view-raw-buffer-name " *mu4e-raw-view*"

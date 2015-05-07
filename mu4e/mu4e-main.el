@@ -47,6 +47,10 @@
 
     ;;
     (define-key map "U" 'mu4e-update-mail-and-index)
+    (define-key map  (kbd "C-S-u")   'mu4e-update-mail-and-index)
+    ;; for terminal users
+    (define-key map  (kbd "C-c C-u") 'mu4e-update-mail-and-index)
+
     (define-key map "S" 'mu4e-interrupt-update-mail)
     (define-key map  (kbd "C-S-u") 'mu4e-update-mail-and-index)
 
@@ -76,83 +80,105 @@ when STR is clicked (using RET or mouse-2); if FUNC-OR-SHORTCUT is
 a string, execute the corresponding keyboard action when it is
 clicked."
   (let ((newstr
-	  (replace-regexp-in-string
-	    "\\[\\(..?\\)\\]"
-	    (lambda(m)
-	      (format "[%s]"
-		(propertize (match-string 1 m) 'face 'mu4e-highlight-face)))
-	    str))
-	 (map (make-sparse-keymap))
-	 (func (if (functionp func-or-shortcut)
-		 func-or-shortcut
-		 (if (stringp func-or-shortcut)
-		   (lexical-let ((macro func-or-shortcut))
-		     (lambda()(interactive)
-		       (execute-kbd-macro macro)))))))
+         (replace-regexp-in-string
+          "\\[\\(..?\\)\\]"
+          (lambda(m)
+            (format "[%s]"
+                    (propertize (match-string 1 m) 'face 'mu4e-highlight-face)))
+          str))
+        (map (make-sparse-keymap))
+        (func (if (functionp func-or-shortcut)
+                  func-or-shortcut
+                (if (stringp func-or-shortcut)
+                    (lexical-let ((macro func-or-shortcut))
+                      (lambda()(interactive)
+                        (execute-kbd-macro macro)))))))
     (define-key map [mouse-2] func)
     (define-key map (kbd "RET") func)
     (put-text-property 0 (length newstr) 'keymap map newstr)
     (put-text-property (string-match "\\[.+$" newstr)
-      (- (length newstr) 1) 'mouse-face 'highlight newstr) newstr))
+                       (- (length newstr) 1) 'mouse-face 'highlight newstr) newstr))
 
 ;; NEW
 ;; This is the old `mu4e~main-view' function but without
 ;; buffer switching at the end.
 (defun mu4e~main-view-real (ignore-auto noconfirm)
   (let ((buf (get-buffer-create mu4e~main-buffer-name))
-	 (inhibit-read-only t))
+        (inhibit-read-only t))
     (with-current-buffer buf
       (erase-buffer)
       (insert
-	"* "
-	(propertize "mu4e - mu for emacs version " 'face 'mu4e-title-face)
-	(propertize  mu4e-mu-version 'face 'mu4e-header-key-face)
+       "* "
+       (propertize "mu4e - mu for emacs version " 'face 'mu4e-title-face)
+       (propertize  mu4e-mu-version 'face 'mu4e-header-key-face)
 
-	;; show some server properties; in this case; a big C when there's
-	;; crypto support, a big G when there's Guile support
-	" "
-	(propertize
-	  (concat
-	    (when (plist-get mu4e~server-props :crypto) "C")
-	    (when (plist-get mu4e~server-props :guile)  "G"))
-	  'face 'mu4e-title-face)
-	"\n\n"
-	(propertize "  Basics\n\n" 'face 'mu4e-title-face)
-	(mu4e~main-action-str "\t* [j]ump to some maildir\n" 'mu4e-jump-to-maildir)
-	(mu4e~main-action-str "\t* enter a [s]earch query\n" 'mu4e-search)
-	(mu4e~main-action-str "\t* [C]ompose a new message\n" 'mu4e-compose-new)
-	"\n"
-	(propertize "  Bookmarks\n\n" 'face 'mu4e-title-face)
-	;; TODO: it's a bit uncool to hard-code the "b" shortcut...
-	(mapconcat
-	  (lambda (bm)
-	    (let* ((query (nth 0 bm)) (title (nth 1 bm)) (key (nth 2 bm)))
-	      (mu4e~main-action-str
-		(concat "\t* [b" (make-string 1 key) "] " title)
-		(concat "b" (make-string 1 key)))))
-	  mu4e-bookmarks "\n")
-	"\n\n"
-	(propertize "  Misc\n\n" 'face 'mu4e-title-face)
+       ;; show some server properties; in this case; a big C when there's
+       ;; crypto support, a big G when there's Guile support
+       " "
+       (propertize
+        (concat
+         (when (plist-get mu4e~server-props :crypto) "C")
+         (when (plist-get mu4e~server-props :guile)  "G"))
+        'face 'mu4e-title-face)
+       "\n\n"
+       (propertize "  Basics\n\n" 'face 'mu4e-title-face)
+       (mu4e~main-action-str "\t* [j]ump to some maildir\n" 'mu4e-jump-to-maildir)
+       (mu4e~main-action-str "\t* enter a [s]earch query\n" 'mu4e-search)
+       (mu4e~main-action-str "\t* [C]ompose a new message\n" 'mu4e-compose-new)
+       "\n"
+       (propertize "  Bookmarks\n\n" 'face 'mu4e-title-face)
+       ;; TODO: it's a bit uncool to hard-code the "b" shortcut...
+       (mapconcat
+        (lambda (bm)
+          (let* ((query (nth 0 bm)) (title (nth 1 bm)) (key (nth 2 bm)))
+            (mu4e~main-action-str
+             (concat "\t* [b" (make-string 1 key) "] " title)
+             (concat "b" (make-string 1 key)))))
+        mu4e-bookmarks "\n")
+       "\n\n"
+       (propertize "  Misc\n\n" 'face 'mu4e-title-face)
 
-	(mu4e~main-action-str "\t* [U]pdate email & database\n"
-	  'mu4e-update-mail-and-index)
+       (mu4e~main-action-str "\t* [U]pdate email & database\n"
+                             'mu4e-update-mail-and-index)
 
 	;; show the queue functions if `smtpmail-queue-dir' is defined
-	(if (file-directory-p smtpmail-queue-dir)
-	  (concat
-	    (mu4e~main-action-str "\t* toggle [m]ail sending mode "
-	      'mu4e~main-toggle-mail-sending-mode)
-	    "(" (propertize (if smtpmail-queue-mail "queued" "direct")
-		  'face 'mu4e-header-key-face) ")\n"
-	    (mu4e~main-action-str "\t* [f]lush queued mail\n"
-	      'smtpmail-send-queued-mail))
-	  "")
+       (if (file-directory-p smtpmail-queue-dir)
+           (mu4e~main-view-queue)
+         "")
 	"\n"
 	(mu4e~main-action-str "\t* [A]bout mu4e\n" 'mu4e-about)
 	(mu4e~main-action-str "\t* [H]elp\n" 'mu4e-display-manual)
 	(mu4e~main-action-str "\t* [q]uit\n" 'mu4e-quit))
       (mu4e-main-mode)
       )))
+
+(defun mu4e~main-view-queue ()
+  "Display queue-related actions in the main view."
+  (concat
+   (mu4e~main-action-str "\t* toggle [m]ail sending mode "
+                         'mu4e~main-toggle-mail-sending-mode)
+   "(currently "
+   (propertize (if smtpmail-queue-mail "queued" "direct")
+               'face 'mu4e-header-key-face)
+   ")\n"
+   (let ((queue-size (mu4e~main-queue-size)))
+     (if (zerop queue-size)
+         ""
+       (mu4e~main-action-str
+        (format "\t* [f]lush %s queued %s\n"
+                (propertize (int-to-string queue-size)
+                            'face 'mu4e-header-key-face)
+                (if (> queue-size 1) "mails" "mail"))
+        'smtpmail-send-queued-mail)))))
+
+(defun mu4e~main-queue-size ()
+  "Return, as an int, the number of emails in the queue."
+  (condition-case nil
+      (with-temp-buffer
+        (insert-file-contents (expand-file-name smtpmail-queue-index-file
+                                                smtpmail-queue-dir))
+        (count-lines (point-min) (point-max)))
+    (error 0)))
 
 (defun mu4e~main-view ()
   "Create the mu4e main-view, and switch to it."
