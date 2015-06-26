@@ -1,3 +1,9 @@
+maildir-utils (0.9.12-2) unstable; urgency=medium
+
+  * new upload to trigger rebuild on powerpc
+
+ -- Norbert Preining <preining@debian.org>  Fri, 26 Jun 2015 14:18:25 +0900
+
 maildir-utils (0.9.12-1) unstable; urgency=medium
 
   * Imported Upstream version 0.9.12
