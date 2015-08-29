@@ -1,11 +1,13 @@
 ---
- configure.ac     |   17 +++--------------
+ configure.ac     |   19 ++++++-------------
  mu4e/Makefile.am |    2 +-
- 2 files changed, 4 insertions(+), 15 deletions(-)
+ 2 files changed, 7 insertions(+), 14 deletions(-)
 
---- maildir-utils.git.orig/mu4e/Makefile.am
-+++ maildir-utils.git/mu4e/Makefile.am
-@@ -21,7 +21,7 @@
+Index: maildir-utils-0.9.12/mu4e/Makefile.am
+===================================================================
+--- maildir-utils-0.9.12.orig/mu4e/Makefile.am
++++ maildir-utils-0.9.12/mu4e/Makefile.am
+@@ -21,7 +21,7 @@ SUBDIRS=
  info_TEXINFOS=mu4e.texi
  mu4e_TEXINFOS=fdl.texi
  
@@ -14,9 +16,11 @@
  	mu4e-about.el		\
  	mu4e-actions.el		\
  	mu4e-compose.el		\
---- maildir-utils.git.orig/configure.ac
-+++ maildir-utils.git/configure.ac
-@@ -53,20 +53,9 @@
+Index: maildir-utils-0.9.12/configure.ac
+===================================================================
+--- maildir-utils-0.9.12.orig/configure.ac
++++ maildir-utils-0.9.12/configure.ac
+@@ -53,19 +53,12 @@ AC_SYS_LARGEFILE
  AC_CHECK_PROG(have_makeinfo,makeinfo,yes,no)
  AM_CONDITIONAL(HAVE_MAKEINFO,test "x$have_makeinfo" = "xyes")
  
@@ -33,10 +37,12 @@
 -  ])
 -  AS_CASE([$emacs_version],[*23*|*24*|*25*],[build_mu4e=yes],
 -          [AC_WARN([emacs is too old to build mu4e (need emacs >= 23.x)])])
--])
 +# no need for emacs during build time
 +# compilation is done during install
 +build_mu4e=yes
++AM_PATH_LISPDIR
++AS_IF([test "x$lispdir" != "xno"], [
++  lispdir="${lispdir}/mu4e/"
+ ])
  AM_CONDITIONAL(BUILD_MU4E, test "x$build_mu4e" = "xyes")
  
- # we need some special tricks for filesystems that don't have d_type;
