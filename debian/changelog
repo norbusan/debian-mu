@@ -2,8 +2,9 @@ maildir-utils (0.9.12-3) UNRELEASED; urgency=medium
 
   * do not byte compile el files, that is done in postinst for installed
     flavors (Closes: #797075)
+  * drop build-dep on emacs, and remove configure.ac test for it
 
- -- Norbert Preining <preining@debian.org>  Sat, 29 Aug 2015 17:39:13 +0900
+ -- Norbert Preining <preining@debian.org>  Sat, 29 Aug 2015 17:48:01 +0900
 
 maildir-utils (0.9.12-2) unstable; urgency=medium
 
