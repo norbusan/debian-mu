@@ -55,12 +55,12 @@ do_wordexp (const char *path)
 	char *dir;
 
 	if (!path) {
-		/* g_debug ("%s: path is empty", __FUNCTION__); */
+		/* g_debug ("%s: path is empty", __func__); */
 		return NULL;
 	}
 
 	if (wordexp (path, &wexp, 0) != 0) {
-		/* g_debug ("%s: expansion failed for %s", __FUNCTION__, path); */
+		/* g_debug ("%s: expansion failed for %s", __func__, path); */
 		return NULL;
 	}
 
@@ -108,7 +108,7 @@ mu_util_dir_expand (const char *path)
 	/* now resolve any symlinks, .. etc. */
 	if (realpath (dir, resolved) == NULL) {
 		/* g_debug ("%s: could not get realpath for '%s': %s", */
-		/* 	 __FUNCTION__, dir, strerror(errno)); */
+		/* 	 __func__, dir, strerror(errno)); */
 		g_free (dir);
 		return NULL;
 	} else
@@ -559,25 +559,3 @@ mu_util_read_password (const char *prompt)
 }
 
 
-const char*
-mu_util_get_hash (const char* str)
-{
-	unsigned	djbhash, bkdrhash, bkdrseed;
-	unsigned	u;
-	static char	hex[18];
-
-	g_return_val_if_fail (str, NULL);
-
-	djbhash  = 5381;
-	bkdrhash = 0;
-	bkdrseed = 1313;
-
-	for(u = 0; str[u]; ++u) {
-		djbhash  = ((djbhash << 5) + djbhash) + str[u];
-		bkdrhash = bkdrhash * bkdrseed + str[u];
-	}
-
-	snprintf (hex, sizeof(hex), "%08x%08x", djbhash, bkdrhash);
-
-	return hex;
-}

@@ -74,7 +74,7 @@ xapian_get_metadata (const gchar *xpath, const gchar *key)
 	g_return_val_if_fail (xpath, NULL);
 	g_return_val_if_fail (key, NULL);
 
-	if (!access(xpath, F_OK) == 0) {
+	if (access(xpath, F_OK) != 0) {
 		g_warning ("cannot access %s: %s", xpath, strerror(errno));
 		return NULL;
 	}
@@ -108,7 +108,7 @@ mu_store_database_is_locked (const gchar *xpath)
 	} catch (const Xapian::DatabaseLockError& xer) {
 		return TRUE;
 	} catch (const Xapian::Error &xer) {
-		g_warning ("%s: error: %s", __FUNCTION__,
+		g_warning ("%s: error: %s", __func__,
 			   xer.get_msg().c_str());
 	}
 

@@ -1,6 +1,7 @@
+;; -*-mode: emacs-lisp; tab-width: 8; indent-tabs-mode: t -*-
 ;; mu4e-compose.el -- part of mu4e, the mu mail user agent for emacs
 ;;
-;; Copyright (C) 2011-2012 Dirk-Jan C. Binnema
+;; Copyright (C) 2011-2016 Dirk-Jan C. Binnema
 
 ;; Author: Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 ;; Maintainer: Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
@@ -111,11 +112,36 @@ for example:
 
 The various `message-' functions from `message-mode' are available
 for querying the message information."
-    :type '(choice (const :tag "move message to mu4e-sent-folder" sent)
-		 (const :tag "move message to mu4e-trash-folder" trash)
-		 (const :tag "delete message" delete))
+  :type '(choice (const :tag "move message to mu4e-sent-folder" sent)
+	   (const :tag "move message to mu4e-trash-folder" trash)
+	   (const :tag "delete message" delete))
   :safe 'symbolp
   :group 'mu4e-compose)
+
+
+(defcustom mu4e-compose-context-policy 'ask
+  "Policy for determining the context when composing a new message.
+
+If the value is `always-ask', ask the user unconditionally.
+
+In all other cases, if any context matches (using its match
+function), this context is used. Otherwise, if none of the
+contexts match, we have the following choices:
+
+- `pick-first': pick the first of the contexts available (ie. the default)
+- `ask': ask the user
+- `ask-if-none': ask if there is no context yet, otherwise leave it as it is
+-  nil: return nil; leaves the current context as is.
+
+Also see `mu4e-context-policy'."
+  :type '(choice
+	   (const :tag "Always ask what context to use" 'always-ask)
+	   (const :tag "Ask if none of the contexts match" 'ask)
+	   (const :tag "Ask when there's no context yet" 'ask-if-none)
+	   (const :tag "Pick the first context if none match" 'pick-first)
+	   (const :tag "Don't change the context when none match" nil)
+  :safe 'symbolp
+  :group 'mu4e-compose))
 
 (defcustom mu4e-compose-pre-hook nil
   "Hook run just *before* message composition starts.
@@ -227,12 +253,22 @@ appear on disk."
       (mu4e-message "Saved (%d lines)" (count-lines (point-min) (point-max)))
       ;; update the file on disk -- ie., without the separator
       (mu4e~proc-add (buffer-file-name) mu4e~draft-drafts-folder)) nil t))
-
-
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; address completion; inspired by org-contacts.el and
 ;; https://github.com/nordlow/elisp/blob/master/mine/completion-styles-cycle.el
+(defun mu4e~compose-complete-handler (str pred action)
+  (cond
+    ((eq action nil)
+      (try-completion str mu4e~contacts pred))
+    ((eq action t)
+      (all-completions str mu4e~contacts pred))
+    ((eq action 'metadata)
+      ;; our contacts are already sorted - just need to tell the
+      ;; completion machinery not to try to undo that...
+      '(metadata
+	 (display-sort-function . mu4e~sort-contacts-for-completion) 
+	 (cycle-sort-function   . mu4e~sort-contacts-for-completion)))))
 
 (defun mu4e~compose-complete-contact (&optional start)
   "Complete the text at START with a contact.
@@ -253,15 +289,22 @@ Ie. either 'name <email>' or 'email')."
 		    (re-search-backward "\\(\\`\\|[\n:,]\\)[ \t]*")
 		    (goto-char (match-end 0))
 		    (point)))))
-	(list start end mu4e~contacts-for-completion))))) 
- 
+	(list start end 'mu4e~compose-complete-handler)))))
+
 (defun mu4e~compose-setup-completion ()
   "Set up auto-completion of addresses."
   (set (make-local-variable 'completion-ignore-case) t)
   (set (make-local-variable 'completion-cycle-threshold) 7)
-  (add-to-list (make-local-variable 'completion-styles) 'substring t)
+  (add-to-list (make-local-variable 'completion-styles) 'substring)
   (add-hook 'completion-at-point-functions
     'mu4e~compose-complete-contact nil t))
+
+(defun mu4e~remove-refs-maybe ()
+  "Remove the References: header if the In-Reply-To header is
+missing. This allows the user to effectively start a new
+message-thread by removing the In-Reply-To header."
+  (unless (message-fetch-field "in-reply-to")
+    (message-remove-header "References")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defvar mu4e-compose-mode-map nil
@@ -279,6 +322,9 @@ Ie. either 'name <email>' or 'email')."
 \\{message-mode-map}."
   (progn
     (use-local-map mu4e-compose-mode-map)
+
+    (set (make-local-variable 'global-mode-string) '(:eval (mu4e-context-label)))
+
     (set (make-local-variable 'message-signature) mu4e-compose-signature)
     ;; set this to allow mu4e to work when gnus-agent is unplugged in gnus
     (set (make-local-variable 'message-send-mail-real-function) nil)
@@ -302,6 +348,8 @@ Ie. either 'name <email>' or 'email')."
     ;; setup the fcc-stuff, if needed
     (add-hook 'message-send-hook
       (lambda () ;; mu4e~compose-save-before-sending
+	;; when in-reply-to was removed, remove references as well.
+	(mu4e~remove-refs-maybe)
 	;; for safety, always save the draft before sending
 	(set-buffer-modified-p t)
 	(save-buffer)
@@ -356,6 +404,10 @@ tempfile)."
   ;; message being forwarded or replied to, otherwise it is nil.
   (set (make-local-variable 'mu4e-compose-parent-message) original-msg)
   (put 'mu4e-compose-parent-message 'permanent-local t)
+  ;; maybe switch the context
+  (message "Autoswitch")
+  (mu4e~context-autoswitch mu4e-compose-parent-message
+			   mu4e-compose-context-policy)
   (run-hooks 'mu4e-compose-pre-hook)
 
   ;; this opens (or re-opens) a messages with all the basic headers set.
@@ -399,9 +451,17 @@ the appropriate flag at the message forwarded or replied-to."
   ;; this seems a bit hamfisted...
   (dolist (buf (buffer-list))
     (when (and (buffer-file-name buf)
-               (string= (buffer-file-name buf) path)
-               message-kill-buffer-on-exit)
-      (kill-buffer buf)))
+               (string= (buffer-file-name buf) path))
+      (if (and mu4e-compose-in-new-frame (window-system))
+	  (progn
+	    (switch-to-buffer buf)
+	    (when (and (get-buffer-window buf)
+		       (window-frame (get-buffer-window buf)))
+	      (delete-frame (window-frame (get-buffer-window buf)))))
+	)
+      (if message-kill-buffer-on-exit
+	  (kill-buffer buf))
+      ))
   ;; now, try to go back to some previous buffer, in the order
   ;; view->headers->main
   (if (buffer-live-p mu4e~view-buffer)

@@ -1,4 +1,4 @@
-## Copyright (C) 2008-2013 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+## Copyright (C) 2008-2016 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 ##
 ## This program is free software; you can redistribute it and/or modify
 ## it under the terms of the GNU General Public License as published by
@@ -22,16 +22,16 @@ info_TEXINFOS=mu4e.texi
 mu4e_TEXINFOS=fdl.texi
 
 dist_lisp_LISP=			\
-	mu4e-about.el		\
 	mu4e-actions.el		\
 	mu4e-compose.el		\
+	mu4e-context.el		\
 	mu4e-contrib.el		\
 	mu4e-draft.el		\
 	mu4e-headers.el		\
 	mu4e-lists.el		\
 	mu4e-main.el		\
 	mu4e-mark.el		\
-	mu4e-message.el         \
+	mu4e-message.el		\
 	mu4e-meta.el		\
 	mu4e-proc.el		\
 	mu4e-speedbar.el	\
@@ -42,13 +42,9 @@ dist_lisp_LISP=			\
 	org-mu4e.el		\
 	org-old-mu4e.el
 
-mu4e-about.el: mu4e-about.org
-	@echo ";; auto-generated"           >   mu4e-about.el
-	@echo "(defconst mu4e-about \""     >>  mu4e-about.el
-	@sed 's/"/\\"/g' < mu4e-about.org   >>  mu4e-about.el
-	@echo "\" \"About mu4e.\")"         >>  mu4e-about.el
-	@echo "(provide 'mu4e-about)"       >>  mu4e-about.el
-
 EXTRA_DIST=$(elisp_DATA) mu4e-about.org
 
 CLEANFILES=*.elc ${BUILT_SOURCES}
+
+doc_DATA =			\
+	mu4e-about.org

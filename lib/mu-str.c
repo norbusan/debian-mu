@@ -492,7 +492,7 @@ check_for_field (const char *str, gboolean *is_field,
 	while (pfx.str && *pfx.str && !isalnum(*pfx.str))
 		++pfx.str;
 
-	pfx.match =  pfx.range_field = FALSE;
+	pfx.match = pfx.range_field = FALSE;
 
 	mu_msg_field_foreach ((MuMsgFieldForeachFunc)each_check_prefix,
 			      &pfx);
@@ -888,7 +888,7 @@ mu_str_convert_to_utf8 (const char* buffer, const char *charset)
 
 	if (!utf8) {
 		g_warning ("%s: conversion failed from %s: %s",
-			 __FUNCTION__, charset, err ? err->message : "");
+			 __func__, charset, err ? err->message : "");
 	}
 
 	g_clear_error (&err);
