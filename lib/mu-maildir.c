@@ -1,7 +1,7 @@
 /* -*-mode: c; tab-width: 8; indent-tabs-mode: t; c-basic-offset: 8 -*-*/
 
 /*
-** Copyright (C) 2008-2013 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+** Copyright (C) 2008-2015 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 **
 ** This program is free software; you can redistribute it and/or modify it
 ** under the terms of the GNU General Public License as published by the
@@ -117,7 +117,7 @@ mu_maildir_mkdir (const char* path, mode_t mode, gboolean noindex, GError **err)
 {
 	g_return_val_if_fail (path, FALSE);
 
-	MU_WRITE_LOG ("%s (%s, %o, %s)", __FUNCTION__,
+	MU_WRITE_LOG ("%s (%s, %o, %s)", __func__,
 		      path, mode, noindex ? "TRUE" : "FALSE");
 
 	if (!create_maildir (path, mode, err))
@@ -238,7 +238,7 @@ process_file (const char* fullpath, const gchar* mdir,
 		g_debug ("callback said 'MU_STOP' for %s", fullpath);
 	else if (result == MU_ERROR)
 		g_warning ("%s: error in callback (%s)",
-			   __FUNCTION__, fullpath);
+			   __func__, fullpath);
 
 	return result;
 }
@@ -735,7 +735,7 @@ mu_maildir_get_maildir_from_path (const char* path)
 	if (!g_str_has_suffix (mdir, "cur") &&
 	    !g_str_has_suffix (mdir, "new")) {
 		g_warning ("%s: not a valid maildir path: %s",
-			   __FUNCTION__, path);
+			   __func__, path);
 		g_free (mdir);
 		return NULL;
 	}
@@ -750,19 +750,18 @@ mu_maildir_get_maildir_from_path (const char* path)
 static char*
 get_new_basename (void)
 {
-	char		date[9];	/* YYYYMMDD */
-	char		hostname[32];	/* should be enough...*/
-	long int	rnd;
-	time_t		now;
+	char	hostname[64];
+		
+	if (gethostname (hostname, sizeof(hostname)) == -1)
+		memcpy (hostname, "localhost", sizeof(hostname));
+	else
+		hostname[sizeof(hostname)-1] = '\0';
 
-	now = time(NULL);
-	strftime (date, sizeof(date), "%Y%m%d", localtime(&now));
-	if (gethostname (hostname, sizeof(hostname)) != 0)
-		memcpy (hostname, "hostname", strlen("hostname"));
-	rnd = random ();
-
-	return g_strdup_printf ("%s-%08x-%s", date,
-				(unsigned)rnd, hostname);
+	return g_strdup_printf ("%u.%08x%08x.%s",
+				(guint)time(NULL),
+				g_random_int(),
+				(gint32)g_get_monotonic_time (),
+				hostname);
 }
 
 
@@ -808,9 +807,30 @@ mu_maildir_get_new_path (const char *oldpath, const char *new_mdir,
 	return newpath;
 }
 
+
+static gint64
+get_file_size (const char* path)
+{
+	int		rv;
+	struct stat	statbuf;
+
+	rv = stat (path, &statbuf);
+	if (rv != 0) {
+		/* g_warning ("error: %s", strerror (errno)); */
+		return -1;
+	}
+
+	return (gint64)statbuf.st_size;
+}
+
+
+
+
 static gboolean
 msg_move_check_pre (const gchar *src, const gchar *dst, GError **err)
 {
+	gint size1, size2;
+	
 	if (!g_path_is_absolute(src))
 		return mu_util_g_set_error
 			(err, MU_ERROR_FILE,
@@ -825,7 +845,16 @@ msg_move_check_pre (const gchar *src, const gchar *dst, GError **err)
 		return mu_util_g_set_error (err, MU_ERROR_FILE,
 					    "cannot read %s",  src);
 
-	if (access (dst, F_OK) == 0)
+	if (access (dst, F_OK) != 0)
+		return TRUE;
+
+	/* target exist; we simply overwrite it, unless target has a different
+	 * size. ignore the exceedingly rare case where have duplicate message
+	 * file names with different content yet the same length. (md5 etc. is a
+	 * bit slow) */
+	size1 = get_file_size (src);
+	size2 = get_file_size (dst);
+	if (size1 != size2)
 		return mu_util_g_set_error (err, MU_ERROR_FILE,
 					    "%s already exists", dst);
 

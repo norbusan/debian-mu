@@ -98,12 +98,17 @@ install_sig_handler (void)
 static void G_GNUC_PRINTF(1, 2)
 print_expr (const char* frm, ...)
 {
-	char *expr;
+	char *expr, *expr_orig;
 	va_list ap;
 	ssize_t rv;
 	size_t exprlen, lenlen;
 	char cookie[16];
 	static int outfd = 0;
+
+#if defined(__CYGWIN__ )&& !defined (_WIN32)
+	const size_t writestep = 4096 * 16;
+	size_t bytestowrite = 0;
+#endif
 
 	if (outfd == 0)
 		outfd = fileno (stdout);
@@ -127,14 +132,25 @@ print_expr (const char* frm, ...)
 	 */
 	rv = write (outfd, cookie, lenlen + 2);
 	if (rv != -1) {
+		expr_orig = expr;
+#if defined (__CYGWIN__) && !defined(_WIN32)
+		/* CYGWIN doesn't like big packets */
+		while (exprlen > 0) {
+			bytestowrite = exprlen > writestep ? writestep : exprlen;
+			rv = write(outfd, expr, bytestowrite);
+			expr += bytestowrite;
+			exprlen -= bytestowrite;
+		}
+#else
 		rv = write (outfd, expr, exprlen);
-		g_free (expr);
+#endif
+		g_free (expr_orig);
 	}
 	if (rv != -1)
 		rv = write (outfd, "\n", 1);
 	if (rv == -1) {
 		g_critical ("%s: write() failed: %s",
-			   __FUNCTION__, strerror(errno));
+			   __func__, strerror(errno));
 		/* terminate ourselves */
 		raise (SIGTERM);
 	}
@@ -578,7 +594,7 @@ static void
 each_contact_sexp (const char *email, const char *name, gboolean personal,
 		   time_t tstamp, unsigned freq, SexpData *sdata)
 {
-	char *escmail;
+	char *escmail, *escname;
 
 	/* (maybe) only include 'personal' contacts */
 	if (sdata->personal && !personal)
@@ -594,19 +610,18 @@ each_contact_sexp (const char *email, const char *name, gboolean personal,
 		return;
 
 	escmail = mu_str_escape_c_literal (email, TRUE);
+	escname = name ? mu_str_escape_c_literal (name, TRUE) : NULL;
 
-	if (name) {
-		char *escname;
-		escname = mu_str_escape_c_literal (name, TRUE);
-		g_string_append_printf (sdata->gstr,
-					"(:name %s :mail %s :tstamp %u :freq %u)\n",
-					escname, escmail, (unsigned)tstamp, freq);
-		g_free (escname);
-	} else
-		g_string_append_printf (sdata->gstr,
-					"(:mail %s :tstamp %u :freq %u)\n",
-					escmail, (unsigned)tstamp, freq);
+	g_string_append_printf (
+		sdata->gstr,
+		"(:mail %s :name %s :tstamp %u :freq %u :personal %s)\n",
+		escmail,
+		escname ? escname : "nil",
+		(unsigned)tstamp,
+		freq,
+		sdata->personal ? "t" : "nil");
 
+	g_free (escname);
 	g_free (escmail);
 }
 
@@ -903,8 +918,6 @@ get_find_params (GHashTable *args, MuMsgFieldId *sortfield,
 		*qflags |= MU_QUERY_FLAG_SKIP_DUPS;
 	if (get_bool_from_args (args, "include-related", TRUE, NULL))
 		*qflags |= MU_QUERY_FLAG_INCLUDE_RELATED;
-	if (get_bool_from_args (args, "include-related", TRUE, NULL))
-		*qflags |= MU_QUERY_FLAG_INCLUDE_RELATED;
 	if (get_bool_from_args (args, "threads", TRUE, NULL))
 		*qflags |= MU_QUERY_FLAG_THREADS;
 
@@ -976,14 +989,12 @@ cmd_find (ServerContext *ctx, GHashTable *args, GError **err)
 static MuError
 cmd_guile (ServerContext *ctx, GHashTable *args, GError **err)
 {
-	const char *script, *file;
+	const char *eval;
 
-	script = get_string_from_args (args, "script", TRUE, NULL);
-	file   = get_string_from_args (args, "file", TRUE, NULL);
+	eval = get_string_from_args (args, "eval", TRUE, NULL);
 
-	if (!script == !file) {
-		print_error (MU_ERROR_IN_PARAMETERS,
-			     "guile: must provide one of 'script', 'file'");
+	if (!eval) {
+		print_error (MU_ERROR_IN_PARAMETERS, "guile: expected: 'eval'");
 		return MU_OK;
 	}
 
@@ -1364,7 +1375,7 @@ cmd_ping (ServerContext *ctx, GHashTable *args, GError **err)
 static MuError
 cmd_quit (ServerContext *ctx, GHashTable *args , GError **err)
 {
-	print_expr (";; quiting");
+	print_expr (";; quitting");
 
 	return MU_STOP;
 }

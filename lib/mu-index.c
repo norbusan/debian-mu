@@ -245,7 +245,7 @@ on_run_maildir_dir (const char* fullpath, gboolean enter,
 					  data->_user_data);
 
 	if (err) {
-		MU_WRITE_LOG ("%s: %s", __FUNCTION__, err->message);
+		MU_WRITE_LOG ("%s: %s", __func__, err->message);
 		g_clear_error(&err);
 	}
 
@@ -259,13 +259,13 @@ check_path (const char *path)
 
 	if (!g_path_is_absolute (path)) {
 		g_warning ("%s: not an absolute path: %s",
-			   __FUNCTION__, path);
+			   __func__, path);
 		return FALSE;
 	}
 
 	if (access (path, R_OK) != 0) {
 		g_warning ("%s: cannot open '%s': %s",
-			   __FUNCTION__, path, strerror (errno));
+			   __func__, path, strerror (errno));
 		return FALSE;
 	}
 
@@ -300,7 +300,7 @@ mu_index_set_max_msg_size (MuIndex *index, guint max_size)
 	g_return_if_fail (index);
 
 	if (max_size == 0)
-		index->_max_filesize = 	MU_INDEX_MAX_FILE_SIZE;
+		index->_max_filesize = MU_INDEX_MAX_FILE_SIZE;
 	else
 		index->_max_filesize = max_size;
 }
@@ -388,8 +388,8 @@ mu_index_stats (MuIndex *index, const char *path,
 	if (stats)
 		memset (stats, 0, sizeof(MuIndexStats));
 
-	cb_data._idx_msg_cb        = cb_msg;
-	cb_data._idx_dir_cb        = cb_dir;
+	cb_data._idx_msg_cb = cb_msg;
+	cb_data._idx_dir_cb = cb_dir;
 
 	cb_data._stats     = stats;
 	cb_data._user_data = user_data;

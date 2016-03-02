@@ -1,6 +1,6 @@
 ;;; mu4e-message.el -- part of mu4e, the mu mail user agent
 ;;
-;; Copyright (C) 2012 Dirk-Jan C. Binnema
+;; Copyright (C) 2012-2016 Dirk-Jan C. Binnema
 
 ;; Author: Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 ;; Maintainer: Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
@@ -60,7 +60,7 @@ is always used."
   :type 'boolean
   :group 'mu4e-view)
 
-(defcustom mu4e-view-html-plaintext-ratio-heuristic 10
+(defcustom mu4e-view-html-plaintext-ratio-heuristic 5
   "Ratio between the length of the html and the plain text part
 below which mu4e will consider the plain text part to be 'This
 messages requires html' text bodies."
@@ -206,26 +206,28 @@ be changed by setting `mu4e-view-prefer-html'."
 
 (defun mu4e-message-contact-field-matches (msg cfield rx)
   "Checks whether any of the of the contacts in field
-CFIELD (either :to, :from, :cc or :bcc) of msg MSG matches (with
-their name or e-mail address) regular expressions RX. If there is a
-match, return non-nil; otherwise return nil. RX can also be a list
-of regular expressions, in which case any of those are tried for a
-match."
-  (unless (member cfield '(:to :from :bcc :cc))
-    (mu4e-error "Not a contacts field (%S)" cfield))
-  (if (listp rx)
-    ;; if rx is a list, try each one of them for a match
-    (find-if
-      (lambda (a-rx) (mu4e-message-contact-field-matches msg cfield a-rx))
-      rx)
-    ;; not a list, check the rx
-    (find-if
-      (lambda (ct)
-	(let ((name (car ct)) (email (cdr ct)))
-	  (or
-	    (and name  (string-match rx name))
-	    (and email (string-match rx email)))))
-      (mu4e-message-field msg cfield))))
+CFIELD (either :to, :from, :cc or :bcc, or a list of those) of
+msg MSG matches (with their name or e-mail address) regular
+expressions RX. If there is a match, return non-nil; otherwise
+return nil. RX can also be a list of regular expressions, in
+which case any of those are tried for a match."
+  (if (and cfield (listp cfield))
+    (or (mu4e-message-contact-field-matches msg (car cfield) rx)
+      (mu4e-message-contact-field-matches msg (cdr cfield) rx))
+    (when cfield
+      (if (listp rx)
+	;; if rx is a list, try each one of them for a match
+	(find-if
+	  (lambda (a-rx) (mu4e-message-contact-field-matches msg cfield a-rx))
+	  rx)
+	;; not a list, check the rx
+	(find-if
+	  (lambda (ct)
+	    (let ((name (car ct)) (email (cdr ct)))
+	      (or
+		(and name  (string-match rx name))
+		(and email (string-match rx email)))))
+	  (mu4e-message-field msg cfield))))))
 
 (defun mu4e-message-contact-field-matches-me (msg cfield)
   "Checks whether any of the of the contacts in field

@@ -1,6 +1,6 @@
 ;; mu4e-draft.el -- part of mu4e, the mu mail user agent for emacs
 ;;
-;; Copyright (C) 2011-2012 Dirk-Jan C. Binnema
+;; Copyright (C) 2011-2016 Dirk-Jan C. Binnema
 
 ;; Author: Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 ;; Maintainer: Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
@@ -53,12 +53,10 @@ messages. This is the mu4e-specific version of
   :group 'mu4e-compose)
 
 (defcustom mu4e-compose-signature
-  (or (and (stringp message-signature) message-signature)
-    "Sent with my mu4e")
+  (or message-signature "Sent with my mu4e")
   "The message signature (i.e. the blob at the bottom of
 messages). This is the mu4e-specific version of
 `message-signature'."
-  :type 'sexp
   :group 'mu4e-compose)
 
 (defcustom mu4e-compose-signature-auto-include t
@@ -73,16 +71,20 @@ message; if nil, only do so when sending the message."
   :type 'boolean
   :group 'mu4e-compose)
 
-(defun mu4e~draft-user-agent-construct ()
-  "Return the User-Agent string for mu4e.
-This is either the value of `mu4e-user-agent', or, if not set, a
-string based on the versions of mu4e and emacs."
-  (format "mu4e %s; emacs %s" mu4e-mu-version emacs-version))
+(defcustom mu4e-compose-in-new-frame nil
+  "Whether to compose messages in a new frame instead of the
+current window."
+  :type 'boolean
+  :group 'mu4e-compose)
+
+(defvar mu4e-user-agent-string
+  (format "mu4e %s; emacs %s" mu4e-mu-version emacs-version)
+  "The User-Agent string for mu4e.")
 
 (defun mu4e~draft-cite-original (msg)
   "Return a cited version of the original message MSG as a plist.
-This function uses gnus' `mu4e-compose-cite-function', and as such
-all its settings apply."
+This function uses `mu4e-compose-cite-function', and as such all
+its settings apply."
   (with-temp-buffer
     (when (fboundp 'mu4e-view-message-text) ;; keep bytecompiler happy
       (let ((mu4e-view-date-format "%Y-%m-%dT%T%z"))
@@ -243,8 +245,7 @@ separator is never written to the message file. Also see
 `mu4e-remove-mail-header-separator'."
   ;; we set this here explicitly, since (as it has happened) a wrong
   ;; value for this (such as "") breaks address completion and other things
-  (set (make-local-variable 'mail-header-separator)
-    (purecopy "--text follows this line--"))
+  (set (make-local-variable 'mail-header-separator) "--text follows this line--")
   (put 'mail-header-separator 'permanent-local t)
   (save-excursion
     ;; make sure there's not one already
@@ -278,7 +279,7 @@ never hits the disk. Also see `mu4e~draft-insert-mail-header-separator."
 	(replace-match "")))))
 
 
-(defun mu4e~draft-user-wants-reply-all (origmsg)
+(defun mu4e~draft-reply-all-p (origmsg)
   "Ask user whether she wants to reply to *all* recipients.
 If there is just one recipient of ORIGMSG do nothing."
   (let* ((recipnum
@@ -298,21 +299,25 @@ If there is just one recipient of ORIGMSG do nothing."
 It looks something like
   <time>-<random>.<hostname>:2,
 You can append flags."
-  (let* ((hostname
-	   (downcase
-	     (save-match-data
-	       (substring system-name
-		 (string-match "^[^.]+" system-name) (match-end 0))))))
-    (format "%s-%02x%04x-%s:2,%s"
-      (format-time-string "%Y%m%d" (current-time))
-      (random 255) (random 65535) hostname (or flagstr ""))))
+  (let* ((sysname (if (fboundp 'system-name)
+		      (system-name)
+		    (with-no-warnings system-name)))
+	 (hostname (downcase
+		    (save-match-data
+		      (substring sysname
+				 (string-match "^[^.]+" sysname)
+				 (match-end 0))))))
+    (format "%s.%04x%04x%04x%04x.%s:2,%s"
+      (format-time-string "%s" (current-time))
+      (random 65535) (random 65535) (random 65535) (random 65535)
+      hostname (or flagstr ""))))
  
 (defun mu4e~draft-common-construct ()
   "Construct the common headers for each message."
-  (mu4e~draft-header "User-agent" (mu4e~draft-user-agent-construct))
-  (when mu4e-compose-auto-include-date
-    (mu4e~draft-header "Date" (message-make-date))))
-
+  (concat
+    (mu4e~draft-header "User-agent" mu4e-user-agent-string)
+   (when mu4e-compose-auto-include-date
+     (mu4e~draft-header "Date" (message-make-date)))))
 
 (defconst mu4e~draft-reply-prefix "Re: "
   "String to prefix replies with.")
@@ -326,7 +331,7 @@ fields will be the same as in the original."
 	     (+ (length (mu4e~draft-create-to-lst origmsg))
 	       (length (mu4e~draft-create-cc-lst origmsg t))))
 	  ;; reply-to-self implies reply-all
-	  (reply-all (or reply-to-self (mu4e~draft-user-wants-reply-all origmsg)))
+	  (reply-all (or reply-to-self (mu4e~draft-reply-all-p origmsg)))
 	  (old-msgid (plist-get origmsg :message-id))
 	  (subject
 	    (concat mu4e~draft-reply-prefix
@@ -414,7 +419,9 @@ from either `mu4e~draft-reply-construct', or
       ;; path, but we cannot really know 'drafts folder'... we make a guess
       (progn
 	(setq draft-dir (mu4e~guess-maildir (mu4e-message-field msg :path)))
-	(find-file (mu4e-message-field msg :path)))
+        (if (and mu4e-compose-in-new-frame (window-system))
+            (find-file-other-frame (mu4e-message-field msg :path))
+          (find-file (mu4e-message-field msg :path))))
       ;; case-2: creating a new message; in this case, we can determing
       ;; mu4e-get-drafts-folder
       (progn
@@ -424,21 +431,22 @@ from either `mu4e~draft-reply-construct', or
 		  mu4e-maildir
 		  draft-dir
 		  (mu4e~draft-message-filename-construct "DS"))))
-	  (find-file draft-path))
+          (if (and mu4e-compose-in-new-frame (window-system))
+              (find-file-other-frame draft-path)
+            (find-file draft-path)))
 	(insert
 	  (case compose-type
 	    (reply   (mu4e~draft-reply-construct msg))
 	    (forward (mu4e~draft-forward-construct msg))
 	    (new     (mu4e~draft-newmsg-construct))
 	    (t (mu4e-error "unsupported compose-type %S" compose-type))))
+	(newline)
 	;; include the message signature (if it's set)
-	(if mu4e-compose-signature-auto-include
-	  (let ((message-signature (or mu4e-compose-signature "\n"))
-		 (message-signature-insert-empty-line t))
+	(if (and mu4e-compose-signature-auto-include mu4e-compose-signature)
+	  (let ((message-signature mu4e-compose-signature))
 	    (save-excursion
 	      (message-insert-signature)
-	      (mu4e~fontify-signature)))
-	  (insert "\n"))))
+	      (mu4e~fontify-signature))))))
 	  ;; evaluate mu4e~drafts-drafts-folder once, here, and use that value
 	  ;; throughout.
     (set (make-local-variable 'mu4e~draft-drafts-folder) draft-dir)

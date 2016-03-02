@@ -2,7 +2,7 @@
 ;;; org-mode, and for writing message in org-mode, sending them as
 ;;; rich-text
 ;;
-;; Copyright (C) 2012 Dirk-Jan C. Binnema
+;; Copyright (C) 2012-2016 Dirk-Jan C. Binnema
 
 ;; Author: Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 ;; Maintainer: Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
@@ -45,7 +45,7 @@
   :group 'mu4e
   :group 'org)
 
-(defvar org-mu4e-link-query-in-headers-mode t
+(defvar org-mu4e-link-query-in-headers-mode nil
   "If non-nil, `org-store-link' in `mu4e-headers-mode' links to the
 the current query; otherwise, it links to the message at point.")
 
@@ -123,7 +123,6 @@ Example usage:
 (defun org-mu4e-open (path)
   "Open the mu4e message (for paths starting with 'msgid:') or run
 the query (for paths starting with 'query:')."
-  (require 'mu4e)
   (cond
     ((string-match "^msgid:\\(.+\\)" path)
       (mu4e-view-message-with-msgid (match-string 1 path)))
@@ -131,6 +130,13 @@ the query (for paths starting with 'query:')."
       (mu4e-headers-search (match-string 1 path) current-prefix-arg))
     (t (mu4e-error "mu4e: unrecognized link type '%s'" path))))
 
+(defun org-mu4e-store-and-capture ()
+  "Store a link to the current message or query (depending on
+`org-mu4e-link-query-in-headers-mode', and capture it with
+org-mode)."
+  (interactive)
+  (org-mu4e-store-link)
+  (org-capture))
 
 
 

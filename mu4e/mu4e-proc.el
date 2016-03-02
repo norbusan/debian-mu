@@ -1,6 +1,6 @@
 ;; mu4e-proc.el -- part of mu4e, the mu mail user agent
 ;;
-;; Copyright (C) 2011-2012 Dirk-Jan C. Binnema
+;; Copyright (C) 2011-2016 Dirk-Jan C. Binnema
 
 ;; Author: Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 ;; Maintainer: Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
@@ -48,7 +48,7 @@ a length cookie:
 a length cookie:
   <`mu4e~cookie-pre'><length-in-hex><`mu4e~cookie-post'>.")
 (defconst mu4e~cookie-matcher-rx
-  (purecopy (concat mu4e~cookie-pre "\\([[:xdigit:]]+\\)" mu4e~cookie-post))
+  (concat mu4e~cookie-pre "\\([[:xdigit:]]+\\)" mu4e~cookie-post)
   "Regular expression matching the length cookie.
 Match 1 will be the length (in hex).")
 
@@ -500,7 +500,7 @@ only contacts seen AFTER (the time_t value)."
 Optionally, if IMAGES is non-nil, backend will any images
 attached to the message, and return them as temp files.
 The result will be delivered to the function registered as
-`mu4e-message-func'."
+`mu4e-view-func'."
   (mu4e~proc-send-command
     "cmd:view %s extract-images:%s extract-encrypted:%s use-agent:true"
     (mu4e~docid-msgid-param docid-or-msgid)
@@ -512,7 +512,7 @@ The result will be delivered to the function registered as
 Optionally, if IMAGES is non-nil, backend will any images
 attached to the message, and return them as temp files. The
 result will be delivered to the function registered as
-`mu4e-message-func'."
+`mu4e-view-func'."
   (mu4e~proc-send-command
     "cmd:view path:%s extract-images:%s extract-encrypted:%s use-agent:true"
     (mu4e~proc-escape path)

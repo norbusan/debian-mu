@@ -1,6 +1,6 @@
 ;;; mu4e-vars.el -- part of mu4e, the mu mail user agent
 ;;
-;; Copyright (C) 2011-2013 Dirk-Jan C. Binnema
+;; Copyright (C) 2011-2016 Dirk-Jan C. Binnema
 
 ;; Author: Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 ;; Maintainer: Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
@@ -57,11 +57,13 @@ link."
 
 (defcustom mu4e-get-mail-command "true"
   "Shell command to run to retrieve new mail.
-Common values are \"offlineimap\", \"fetchmail\" and \"mbsync\",
-but you use arbitrary shell-commands. If you set it to
-\"true\" (the default), the command won't don't anything, which is
-useful if you get your mail without the need to explicitly run any
-scripts, for example when running your own mail-server."
+Common values are \"offlineimap\", \"fetchmail\" or \"mbsync\", but
+arbitrary shell-commands can be used.
+
+When set to \"true\" (the default), the command simply finishes
+succesfully (running the 'true' command) without retrieving any
+mail. This can be useful when mail is already retrieved in another
+way."
   :type 'string
   :group 'mu4e
   :safe 'stringp)
@@ -103,7 +105,7 @@ mu4e."
 
 (defcustom mu4e-change-filenames-when-moving nil
   "When moving messages to different folders, normally mu/mu4e keep
-the the base filename the same (the flags-part of the filename may
+the base filename the same (the flags-part of the filename may
 change still). With this option set to non-nil, mu4e instead
 changes the filename. This latter behavior works better with some
 IMAP-synchronization programs such as mbsync; the default works
@@ -112,13 +114,11 @@ better with e.g. offlineimap."
   :group 'mu4e
   :safe 'booleanp)
 
-
 (defcustom mu4e-attachment-dir (expand-file-name "~/")
   "Default directory for saving attachments.
 This can be either a string (a file system path), or a function
 that takes a filename and the mime-type as arguments, and returns
-the attachment dir. See Info node `(mu4e) Opening and saving
-attachments' for details."
+the attachment dir. See Info node `(mu4e) Attachments' for details."
   :type 'directory
   :group 'mu4e
   :safe 'stringp)
@@ -126,7 +126,8 @@ attachments' for details."
 (defcustom mu4e-user-mail-address-list `(,user-mail-address)
   "List of e-mail addresses to consider 'my email addresses'.
 I.e. addresses whose presence in an email imply that it is a
-personal message. This is used when indexing messages."
+personal message. Note that e-mail addresses are case-sensitive,
+as per RFC531."
   :type '(repeat (string :tag "Address"))
   :group 'mu4e)
 
@@ -138,7 +139,10 @@ personal message. This is used when indexing messages."
   'mu4e-user-mail-address-list "0.9.9.x")
 
 (defcustom mu4e-use-fancy-chars nil
-  "Whether to use fancy (non-ascii) characters."
+  "Whether to use fancy (Unicode) characters for marks and
+threads. You can customize the exact fancy characters used with
+`mu4e-marks' and various `mu4e-headers-..-mark' and
+`mu4e-headers..-prefix' variables."
   :type 'boolean
   :group 'mu4e)
 
@@ -212,6 +216,32 @@ Suggested possible values are:
   :options '(completing-read ido-completing-read)
   :group 'mu4e)
 
+(defcustom mu4e-context-policy 'ask-if-none
+  "The policy to determine the context when entering the mu4e main view.
+
+If the value is `always-ask', ask the user unconditionally.
+
+In all other cases, if any context matches (using its match
+function), this context is used. Otherwise, if none of the
+contexts match, we have the following choices:
+
+- `pick-first': pick the first of the contexts available (ie. the default)
+- `ask': ask the user
+- `ask-if-none': ask if there is no context yet, otherwise leave it as it is
+-  nil: return nil; leaves the current context as is.
+
+Also see `mu4e-compose-context-policy'."
+  :type '(choice
+	   (const :tag "Always ask what context to use, even if one matches"
+	     'always-ask)
+	   (const :tag "Ask if none of the contexts match" 'ask)
+	   (const :tag "Ask when there's no context yet" 'ask-if-none)
+	   (const :tag "Pick the first context if none match" 'pick-first)
+	   (const :tag "Don't change the context when none match" nil)
+  :safe 'symbolp
+  :group 'mu4e))
+
+
 ;; crypto
 (defgroup mu4e-crypto nil
   "Crypto-related settings."
@@ -277,10 +307,21 @@ their canonical counterpart; useful as an example."
       (list :name name :mail mail)))
 
 (defcustom mu4e-contact-rewrite-function nil
-  "Function to be used for when processing contacts and rewrite
-them, for example you may use this for correcting typo's, changed
-names and adapting addresses or names to company policies. As an
-example of this, see `mu4e-contact-identity'."
+  "Either nil or a function to be used for when processing
+contacts and rewrite them or remove them altogether.
+
+If the function receives the contact as a list of the form
+     (:name NAME :mail EMAIL ... other properties ... )
+(other properties may be there as well)
+
+The function should return either:
+ - nil: remove this contact, or
+- the rewritten cell, or
+- the existing cell as-is
+
+For rewriting, it is recommended to use `plist-put' to set the
+changed parameters, so the other properties stay in place. Those
+are needed for sorting the contacts."
   :type 'function
   :group 'mu4e-compose)
 
@@ -450,7 +491,7 @@ I.e. a message with the draft flag set."
   :group 'mu4e-faces)
 
 (defface mu4e-header-key-face
-  '((t :inherit message-header-name-face :bold t))
+  '((t :inherit message-header-name :bold t))
   "Face for a header key (such as \"Foo\" in \"Subject:\ Foo\")."
   :group 'mu4e-faces)
 
@@ -475,7 +516,7 @@ I.e. a message with the draft flag set."
   :group 'mu4e-faces)
 
 (defface mu4e-highlight-face
-  '((t :inherit font-lock-pseudo-keyword-face :bold t))
+  '((t :inherit highlight))
   "Face for highlighting things."
   :group 'mu4e-faces)
 
@@ -486,7 +527,12 @@ I.e. a message with the draft flag set."
 
 (defface mu4e-modeline-face
   '((t :inherit font-lock-string-face :bold t))
-  "Face for the query view in the mode-line."
+  "Face for the query in the mode-line."
+  :group 'mu4e-faces)
+
+(defface mu4e-view-body-face
+  '((t :inherit default))
+  "Face for the body in the message-view."
   :group 'mu4e-faces)
 
 (defface mu4e-footer-face
@@ -495,7 +541,7 @@ I.e. a message with the draft flag set."
   :group 'mu4e-faces)
 
 (defface mu4e-url-number-face
-  '((t :inherit font-lock-reference-face :bold t))
+  '((t :inherit font-lock-constant-face :bold t))
   "Face for the number tags for URLs."
   :group 'mu4e-faces)
 
@@ -726,14 +772,11 @@ for an example.")
 (defvar mu4e~view-headers-buffer nil
   "The headers buffer connected to this view.")
 
-(defvar mu4e~contacts-for-completion nil
-  "List of contacts (ie. 'name <e-mail>').
-This is used by the completion functions in mu4e-compose, filled
-when mu4e starts.")
-
-(defvar mu4e~contact-list nil
-  "List of contacts, where each contact is a plist
-  (:name NAME :mail EMAIL :tstamp TIMESTAMP :freq FREQUENCY).")
+(defvar mu4e~contacts nil
+  "Hash of that maps contacts (ie. 'name <e-mail>') to an integer
+with their sort order. We need to keep this information around to
+quickly re-sort subsets of the contacts in the completions function in
+mu4e-compose.")
 
 (defvar mu4e~server-props nil
   "Properties we receive from the mu4e server process.
@@ -741,7 +784,6 @@ when mu4e starts.")
 
 (defvar mu4e~headers-last-query nil
   "The present (most recent) query.")
-
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

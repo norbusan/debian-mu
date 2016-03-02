@@ -1,4 +1,4 @@
-## Copyright (C) 2008-2014 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+## Copyright (C) 2008-2015 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 ##
 ## This program is free software; you can redistribute it and/or modify
 ## it under the terms of the GNU General Public License as published by
@@ -14,7 +14,7 @@
 ## along with this program; if not, write to the Free Software Foundation,
 ## Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
 
-AC_INIT([mu],[0.9.11],[https://github.com/djcb/mu/issues],[mu])
+AC_INIT([mu],[0.9.16],[https://github.com/djcb/mu/issues],[mu])
 AC_CONFIG_HEADERS([config.h])
 AC_CONFIG_SRCDIR([mu/mu.cc])
 # libtoolize wants to put some stuff in here; if you have an old
@@ -33,6 +33,7 @@ AC_SUBST(prefix)
 AC_PROG_CXX
 AC_PROG_CC
 AC_PROG_CC_STDC
+AC_PROG_CC_C99
 AC_PROG_INSTALL
 AC_HEADER_STDC
 
@@ -226,6 +227,13 @@ AM_CONDITIONAL(HAVE_MAKEINFO, [test "x$have_makeinfo" = "xyes"])
 
 
 ###############################################################################
+# docdir, so we can use it in mu4e-meta.el.in
+AC_SUBST(MU_DOC_DIR, "${prefix}/share/doc/mu")
+###############################################################################
+
+
+
+###############################################################################
 # check for pmccabe
 AC_PATH_PROG([PMCCABE],[pmccabe],[no])
 AS_IF([test "x$PMCCABE" = "xno"],[
@@ -317,7 +325,7 @@ echo
 if test "x$have_makeinfo" != "xyes"; then
     echo "* You do not seem to have the makeinfo program; if you are building from git"
     echo "  you need that to create documentation for guile and emacs. It is in the"
-    echo "  texinfo package in debian/ubuntu (ie., apt-get install texinfo)"
+    echo "  texinfo package in debian/ubuntu/fedora/... "
     echo
 fi
 

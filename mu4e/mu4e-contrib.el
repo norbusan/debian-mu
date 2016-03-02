@@ -1,6 +1,6 @@
 ;;; mu4e-contrib.el -- part of mu4e, the mu mail user agent
 ;;
-;; Copyright (C) 2013 Dirk-Jan C. Binnema
+;; Copyright (C) 2013-2016 Dirk-Jan C. Binnema
 
 ;; This file is not part of GNU Emacs.
 ;;
@@ -38,6 +38,16 @@
   (interactive)
   (mu4e-headers-mark-all-unread-read)
   (mu4e-mark-execute-all t))
+
+;;;
+
+(defun mu4e-headers-mark-all ()
+  "Mark all messages within current query results and ask user to execute which action."
+  (interactive)
+  (mu4e-headers-mark-for-each-if
+   (cons 'something nil)
+   (lambda (msg param) t))
+  (mu4e-mark-execute-all))
 
 ;;;
 
@@ -107,7 +117,50 @@ BOOKMARK is a bookmark name or a bookmark record."
       (run-with-timer 0.1 nil
                       (lambda (bmk)
                         (bookmark-default-handler
-                         `("" (buffer . ,(current-buffer)) . ,(bookmark-get-bookmark-record bmk))))
+			  `("" (buffer . ,(current-buffer)) .
+			     ,(bookmark-get-bookmark-record bmk))))
                       bookmark))))
+
+
+
+;;; handling spam with Bogofilter with possibility to define it for SpamAssassin
+;;; contributed by Gour
+
+;;  to add the actions to the menu, you can use something like:
+
+;; (add-to-list 'mu4e-headers-actions
+;;              '("sMark as spam" . mu4e-register-msg-as-spam) t)
+;; (add-to-list 'mu4e-headers-actions
+;;              '("hMark as ham" . mu4e-register-msg-as-ham) t)
+;; (add-to-list 'mu4e-headers-actions
+;;              '("aMark unsure as spam" . mu4e-mark-unsure-as-spam) t)
+;; (add-to-list 'mu4e-headers-actions
+;;              '("bMark unsure as ham" . mu4e-mark-unsure-as-ham) t)
+
+(defvar mu4e-register-as-spam-cmd nil
+  "Command for invoking spam processor to register message as spam,
+for example for bogofilter, use \"/usr/bin/bogofilter -Ns < %s\" ")
+
+(defvar mu4e-register-as-ham-cmd nil
+  "Command for invoking spam processor to register message as ham.
+For example for bogofile, use \"/usr/bin/bogofilter -Sn < %s\"")
+
+(defun mu4e-register-msg-as-spam (msg)
+  "Mark message as spam."
+  (interactive)
+  (let* ((path (shell-quote-argument (mu4e-message-field msg :path)))
+         (command (format mu4e-register-as-spam-cmd path))) ;; re-register msg as spam 
+    (shell-command command))
+(mu4e-mark-at-point 'delete nil))
+
+(defun mu4e-register-msg-as-ham (msg)
+  "Mark message as ham."
+  (interactive)
+  (let* ((path (shell-quote-argument(mu4e-message-field msg :path)))
+         (command (format mu4e-register-as-ham-cmd path))) ;; re-register msg as ham
+    (shell-command command))
+(mu4e-mark-at-point 'something nil))
+ 
+;;; end of spam-filtering functions 
 
 (provide 'mu4e-contrib)

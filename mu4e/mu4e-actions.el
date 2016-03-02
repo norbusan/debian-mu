@@ -1,6 +1,6 @@
 ;;; mu4e-actions.el -- part of mu4e, the mu mail user agent
 ;;
-;; Copyright (C) 2011-2012 Dirk-Jan C. Binnema
+;; Copyright (C) 2011-2016 Dirk-Jan C. Binnema
 
 ;; Author: Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 ;; Maintainer: Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
@@ -148,9 +148,9 @@ store your org-contacts."
 	  (blurb
 	    (format
 	      (concat
-		"* %s%%?\n"
+		"* %%?%s\n"
 		":PROPERTIES:\n"
-		":EMAIL:%s\n"
+		":EMAIL: %s\n"
 		":NICK:\n"
 		":BIRTHDAY:\n"
 		":END:\n\n")
@@ -234,7 +234,7 @@ store your org-contacts."
 	  (maildir (mu4e-message-field msg :maildir))
 	  (oldtags (mu4e-message-field msg :tags))
 	  (header  mu4e-action-tags-header)
-	  (sep     (cond ((string= header "Keywords") " ")
+	  (sep     (cond ((string= header "Keywords") ", ")
 		     ((string= header "X-Label") " ")
 		     ((string= header "X-Keywords") ", ")
 		     (t ", ")))
@@ -268,6 +268,16 @@ store your org-contacts."
 
     (mu4e-message (concat "tagging: " (mapconcat 'identity taglist ", ")))
     (mu4e-refresh-message path maildir)))
+
+(defun mu4e-action-show-thread (msg)
+  "Show all messages that are in the same thread as the message
+at point."
+  (let ((msgid (mu4e-message-field msg :message-id)))
+    (when msgid
+      (let ((mu4e-headers-show-threads t)
+	     (mu4e-headers-include-related t))
+        (mu4e-headers-search
+         (format "msgid:%s" msgid))))))
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 
