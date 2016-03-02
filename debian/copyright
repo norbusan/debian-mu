@@ -2,14 +2,14 @@ This package was debianized by Norbert Preining <preining@debian.org> on
 Thu Sep 25 22:38:46 CEST 2008.
 
 The original source was downloaded from
-  http://code.google.com/p/mu0/downloads/list
+  https://github.com/djcb/mu/releases
 
 The contents of the debian/ directory is released under the GNU
 General Public Licence version 2 or (at your option) any later
 version, unless otherwise explicitly stated in the file in question.
 The files under debian/ are under Copyright by:
 
-        Norbert Preining <preining@debian.org> (2008)
+        Norbert Preining <preining@debian.org> (2008-2016)
 	
 ** Copyright (C) 2008 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 **

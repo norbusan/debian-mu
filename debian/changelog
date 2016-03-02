@@ -5,8 +5,9 @@ maildir-utils (0.9.16-1) unstable; urgency=medium
   * update patches to new release
   * bump standards version, no changes necessary
   * update vcs-browser field
+  * update development url in debian/copyright and debian/watch
 
- -- Norbert Preining <preining@debian.org>  Wed, 02 Mar 2016 16:51:36 +0900
+ -- Norbert Preining <preining@debian.org>  Wed, 02 Mar 2016 16:57:50 +0900
 
 maildir-utils (0.9.12-3) unstable; urgency=medium
 
