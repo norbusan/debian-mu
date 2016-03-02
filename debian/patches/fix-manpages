@@ -69,8 +69,8 @@
 --- maildir-utils.git.orig/man/mu-find.1
 +++ maildir-utils.git/man/mu-find.1
 @@ -1,8 +1,8 @@
--.TH MU FIND 1 "September 2013" "User Manuals"
-+.TH MU-FIND 1 "September 2013" "User Manuals"
+-.TH MU FIND 1 "19 April 2015" "User Manuals"
++.TH MU-FIND 1 "19 April 2015" "User Manuals"
  
  .SH NAME
  
@@ -170,8 +170,8 @@
 --- maildir-utils.git.orig/man/mu-verify.1
 +++ maildir-utils.git/man/mu-verify.1
 @@ -1,8 +1,8 @@
--.TH MU VERIFY 1 "September 2012" "User Manuals"
-+.TH MU-VERIFY 1 "September 2012" "User Manuals"
+-.TH MU VERIFY 1 "June 2015" "User Manuals"
++.TH MU-VERIFY 1 "June 2015" "User Manuals"
  
  .SH NAME
  

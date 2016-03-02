@@ -27,4 +27,4 @@ See bug #760598
 +(defconst mu4e-builddir "IGNORED"
    "Top-level build directory.")
  
- (provide 'mu4e-meta)
+ (defconst mu4e-doc-dir "@MU_DOC_DIR@"

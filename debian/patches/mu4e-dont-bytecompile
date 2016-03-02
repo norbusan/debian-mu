@@ -3,24 +3,20 @@
  mu4e/Makefile.am |    2 +-
  2 files changed, 7 insertions(+), 14 deletions(-)
 
-Index: maildir-utils-0.9.12/mu4e/Makefile.am
-===================================================================
---- maildir-utils-0.9.12.orig/mu4e/Makefile.am
-+++ maildir-utils-0.9.12/mu4e/Makefile.am
-@@ -21,7 +21,7 @@ SUBDIRS=
+--- maildir-utils.git.orig/mu4e/Makefile.am
++++ maildir-utils.git/mu4e/Makefile.am
+@@ -21,7 +21,7 @@
  info_TEXINFOS=mu4e.texi
  mu4e_TEXINFOS=fdl.texi
  
 -dist_lisp_LISP=			\
 +dist_lisp_DATA=			\
- 	mu4e-about.el		\
  	mu4e-actions.el		\
  	mu4e-compose.el		\
-Index: maildir-utils-0.9.12/configure.ac
-===================================================================
---- maildir-utils-0.9.12.orig/configure.ac
-+++ maildir-utils-0.9.12/configure.ac
-@@ -53,19 +53,12 @@ AC_SYS_LARGEFILE
+ 	mu4e-context.el		\
+--- maildir-utils.git.orig/configure.ac
++++ maildir-utils.git/configure.ac
+@@ -54,19 +54,12 @@
  AC_CHECK_PROG(have_makeinfo,makeinfo,yes,no)
  AM_CONDITIONAL(HAVE_MAKEINFO,test "x$have_makeinfo" = "xyes")
  

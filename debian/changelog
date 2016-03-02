@@ -1,3 +1,11 @@
+maildir-utils (0.9.16-1) UNRELEASED; urgency=medium
+
+  * Imported Upstream version 0.9.16
+  * update installed documentation files
+  * update patches to new release
+
+ -- Norbert Preining <preining@debian.org>  Wed, 02 Mar 2016 16:50:12 +0900
+
 maildir-utils (0.9.12-3) unstable; urgency=medium
 
   * do not byte compile el files, that is done in postinst for installed
