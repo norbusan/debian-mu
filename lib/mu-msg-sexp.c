@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2011-2013 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+** Copyright (C) 2011-2016 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 **
 ** This program is free software; you can redistribute it and/or modify it
 ** under the terms of the GNU General Public License as published by the
@@ -353,28 +353,35 @@ get_part_type_string (MuMsgPartType ptype)
 static void
 each_part (MuMsg *msg, MuMsgPart *part, PartInfo *pinfo)
 {
-	char *name, *tmp, *parttype;
-	char *tmpfile;
+	char	*name, *tmp, *parttype;
+	char	*tmpfile, *cid;
 
 	name     = mu_msg_part_get_filename (part, TRUE);
 	tmpfile  = get_temp_file_maybe (msg, part, pinfo->opts);
 	parttype = get_part_type_string (part->part_type);
+	cid      = mu_str_escape_c_literal(mu_msg_part_get_content_id(part), TRUE);
 
 	tmp = g_strdup_printf
 		("%s(:index %d :name \"%s\" :mime-type \"%s/%s\"%s%s "
 		 ":type %s "
-		 ":attachment %s :size %i %s %s)",
+		 ":attachment %s %s%s :size %i %s %s)",
 		 pinfo->parts ? pinfo->parts: "",
 		 part->index,
-		 name ? name : "noname",
+		 name ? mu_str_escape_c_literal(name, FALSE) : "noname",
 		 part->type ? part->type : "application",
 		 part->subtype ? part->subtype : "octet-stream",
 		 tmpfile ? " :temp" : "", tmpfile ? tmpfile : "",
 		 parttype,
 		 mu_msg_part_maybe_attachment (part) ? "t" : "nil",
+		 cid ? " :cid" : "", cid ? cid : "",
 		 (int)part->size,
 		 sig_verdict (part),
 		 dec_verdict (part));
+
+	g_free (name);
+	g_free (tmpfile);
+	g_free (parttype);
+	g_free (cid);
 
 	g_free (pinfo->parts);
 	pinfo->parts = tmp;
@@ -415,11 +422,12 @@ append_sexp_thread_info (GString *gstr, const MuMsgIterThreadInfo *ti)
 		 " :has-child t" : "");
 }
 
-
 static void
 append_message_file_parts (GString *gstr, MuMsg *msg, MuMsgOptions opts)
 {
-	GError *err;
+	const char	*str;
+	GError		*err;
+
 	err = NULL;
 
 	if (!mu_msg_load_msg_file (msg, &err)) {
@@ -431,7 +439,12 @@ append_message_file_parts (GString *gstr, MuMsg *msg, MuMsgOptions opts)
 
 	append_sexp_parts (gstr, msg, opts);
 	append_sexp_contacts (gstr, msg);
-	
+
+	/* add the user-agent / x-mailer */
+	str = mu_msg_get_header (msg, "User-Agent");
+	if (str || (str = mu_msg_get_header (msg, "X-Mailer")))
+		append_sexp_attr (gstr, "user-agent", str);
+
 	append_sexp_body_attr (gstr, "body-txt",
 			  mu_msg_get_body_text(msg, opts));
 	append_sexp_body_attr (gstr, "body-html",

@@ -63,24 +63,24 @@ static gboolean MU_TERMINATE;
 static void
 sig_handler (int sig)
 {
-        MU_TERMINATE = TRUE;
+	MU_TERMINATE = TRUE;
 }
 
 static void
 install_sig_handler (void)
 {
-        struct sigaction action;
-        int i, sigs[] = { SIGINT, SIGHUP, SIGTERM, SIGPIPE };
+	struct sigaction action;
+	int i, sigs[] = { SIGINT, SIGHUP, SIGTERM, SIGPIPE };
 
-        MU_TERMINATE = FALSE;
+	MU_TERMINATE = FALSE;
 
-        action.sa_handler = sig_handler;
-        sigemptyset(&action.sa_mask);
-        action.sa_flags = SA_RESETHAND;
+	action.sa_handler = sig_handler;
+	sigemptyset(&action.sa_mask);
+	action.sa_flags = SA_RESETHAND;
 
-        for (i = 0; i != G_N_ELEMENTS(sigs); ++i)
-                if (sigaction (sigs[i], &action, NULL) != 0)
-                        g_critical ("set sigaction for %d failed: %s",
+	for (i = 0; i != G_N_ELEMENTS(sigs); ++i)
+		if (sigaction (sigs[i], &action, NULL) != 0)
+			g_critical ("set sigaction for %d failed: %s",
 				    sigs[i], strerror (errno));;
 }
 /************************************************************************/
@@ -188,9 +188,9 @@ print_and_clear_g_error (GError **err)
 static GHashTable*
 read_command_line (GError **err)
 {
-	char *line;
-	GHashTable *hash;
-	GString *gstr;
+	char		*line;
+	GHashTable	*hash;
+	GString		*gstr;
 
 	line = NULL;
 	gstr = g_string_sized_new (512);
@@ -235,7 +235,8 @@ get_string_from_args (GHashTable *args, const char *param, gboolean optional,
 }
 
 static gboolean
-get_bool_from_args (GHashTable *args, const char *param, gboolean optional, GError **err)
+get_bool_from_args (GHashTable *args, const char *param, gboolean optional,
+		    GError **err)
 {
 	const char *val;
 
@@ -511,7 +512,7 @@ get_encrypted_msg_opts (GHashTable *args)
 	return opts;
 }
 
-enum { NEW, REPLY, FORWARD, EDIT, INVALID_TYPE };
+enum { NEW, REPLY, FORWARD, EDIT, RESEND, INVALID_TYPE };
 static unsigned
 compose_type (const char *typestr)
 {
@@ -521,18 +522,19 @@ compose_type (const char *typestr)
 		return FORWARD;
 	else if (EQSTR (typestr, "edit"))
 		return EDIT;
+	else if (EQSTR (typestr, "resend"))
+		return RESEND;
 	else if (EQSTR (typestr, "new"))
 		return NEW;
 	else
 		return INVALID_TYPE;
 }
 
-/* 'compose' produces the un-changed *original* message sexp (ie., the
- * message to reply to, forward or edit) for a new message to
- * compose). It takes two parameters: 'type' with the compose type
- * (either reply, forward or edit), and 'docid' for the message to
- * reply to. Note, type:new does not have an original message, and
- * therefore does not need a docid
+/* 'compose' produces the un-changed *original* message sexp (ie., the message
+ * to reply to, forward or edit) for a new message to compose). It takes two
+ * parameters: 'type' with the compose type (either reply, forward or
+ * edit/resend), and 'docid' for the message to reply to. Note, type:new does
+ * not have an original message, and therefore does not need a docid
  *
  * In returns a (:compose <type> [:original <original-msg>] [:include] )
  * message (detals: see code below)
@@ -557,7 +559,8 @@ cmd_compose (ServerContext *ctx, GHashTable *args, GError **err)
 		return MU_OK;
 	}
 
-	if (ctype == REPLY || ctype == FORWARD || ctype == EDIT) {
+	if (ctype == REPLY || ctype == FORWARD ||
+	    ctype == EDIT || ctype == RESEND) {
 		MuMsg *msg;
 		const char *docidstr;
 		GET_STRING_OR_ERROR_RETURN (args, "docid", &docidstr, err);
@@ -717,7 +720,7 @@ print_sexps (MuMsgIter *iter, unsigned maxnum)
 
 static MuError
 save_part (MuMsg *msg, unsigned docid, unsigned index,
-           MuMsgOptions opts, GHashTable *args, GError **err)
+	   MuMsgOptions opts, GHashTable *args, GError **err)
 {
 	gboolean rv;
 	const gchar *path;
@@ -743,7 +746,7 @@ save_part (MuMsg *msg, unsigned docid, unsigned index,
 
 static MuError
 open_part (MuMsg *msg, unsigned docid, unsigned index,
-           MuMsgOptions opts, GError **err)
+	   MuMsgOptions opts, GError **err)
 {
 	char *targetpath;
 	gboolean rv;
@@ -778,7 +781,7 @@ leave:
 
 static MuError
 temp_part (MuMsg *msg, unsigned docid, unsigned index,
-           MuMsgOptions opts, GHashTable *args, GError **err)
+	   MuMsgOptions opts, GHashTable *args, GError **err)
 {
 	const char *what, *param;
 	char *path;
@@ -1066,13 +1069,14 @@ get_checked_path (const char *path)
 
 
 static MuError
-index_and_cleanup (MuIndex *index, const char *path, GError **err)
+index_and_maybe_cleanup (MuIndex *index, const char *path,
+			 gboolean cleanup, gboolean lazy_check, GError **err)
 {
 	MuError rv;
 	MuIndexStats stats, stats2;
 
 	mu_index_stats_clear (&stats);
-	rv = mu_index_run (index, path, FALSE, &stats,
+	rv = mu_index_run (index, path, FALSE, lazy_check, &stats,
 			   index_msg_cb, NULL, NULL);
 
 	if (rv != MU_OK && rv != MU_STOP) {
@@ -1081,10 +1085,13 @@ index_and_cleanup (MuIndex *index, const char *path, GError **err)
 	}
 
 	mu_index_stats_clear (&stats2);
-	rv = mu_index_cleanup (index, &stats2, NULL, NULL, err);
-	if (rv != MU_OK && rv != MU_STOP) {
-		mu_util_g_set_error (err, MU_ERROR_INTERNAL, "cleanup failed");
-		return rv;
+	if (cleanup) {
+		rv = mu_index_cleanup (index, &stats2, NULL, NULL, err);
+		if (rv != MU_OK && rv != MU_STOP) {
+			mu_util_g_set_error (err, MU_ERROR_INTERNAL,
+					     "cleanup failed");
+			return rv;
+		}
 	}
 
 	print_expr ("(:info index :status complete "
@@ -1101,9 +1108,10 @@ index_and_cleanup (MuIndex *index, const char *path, GError **err)
 static MuError
 cmd_index (ServerContext *ctx, GHashTable *args, GError **err)
 {
-	MuIndex *index;
-	const char *argpath;
-	char *path;
+	MuIndex		*index;
+	const char	*argpath;
+	char		*path;
+	gboolean	 cleanup, lazy_check;
 
 	index = NULL;
 
@@ -1117,7 +1125,10 @@ cmd_index (ServerContext *ctx, GHashTable *args, GError **err)
 	if (!(index = mu_index_new (ctx->store, err)))
 		goto leave;
 
-	index_and_cleanup (index, path, err);
+	cleanup	   = get_bool_from_args (args, "cleanup", TRUE, NULL);
+	lazy_check = get_bool_from_args (args, "lazy-check", TRUE, NULL);
+
+	index_and_maybe_cleanup (index, path, cleanup, lazy_check, err);
 
 leave:
 	g_free (path);
@@ -1621,17 +1632,17 @@ mu_cmd_server (MuStore *store, MuConfig *opts/*unused*/, GError **err)
 		 * strings. returning NULL indicates an error */
 		my_err = NULL;
 		args   = read_command_line (&my_err);
-		if ((!args || g_hash_table_size(args) == 0) && !my_err) {
-			if (args)
-				g_hash_table_destroy (args);
-			continue;
-		} else if (my_err) {
-			print_and_clear_g_error (&my_err);
+		if (!args) {
+			if (feof(stdin))
+				break;
+			if (my_err)
+				print_and_clear_g_error (&my_err);
 			continue;
 		}
 
 		switch (handle_args (&ctx, args, &my_err)) {
-		case MU_OK: break;
+		case MU_OK:
+			break;
 		case MU_STOP:
 			do_quit = TRUE;
 			break;

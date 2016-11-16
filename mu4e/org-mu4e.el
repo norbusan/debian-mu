@@ -117,15 +117,21 @@ Example usage:
                             :description (funcall org-mu4e-link-desc-func msg))
         link))))
 
-(org-add-link-type "mu4e" 'org-mu4e-open)
-(add-hook 'org-store-link-functions 'org-mu4e-store-link)
+;; org-add-link-type is obsolete as of org-mode 9.
+;; Instead we will use the org-link-set-parameters method
+(if (fboundp 'org-link-set-parameters)
+    (org-link-set-parameters "mu4e"
+			     :follow #'org-mu4e-open
+			     :store #'org-mu4e-store-link)
+  (org-add-link-type "mu4e" 'org-mu4e-open)
+  (add-hook 'org-store-link-functions 'org-mu4e-store-link))
 
 (defun org-mu4e-open (path)
   "Open the mu4e message (for paths starting with 'msgid:') or run
 the query (for paths starting with 'query:')."
   (cond
     ((string-match "^msgid:\\(.+\\)" path)
-      (mu4e-view-message-with-msgid (match-string 1 path)))
+      (mu4e-view-message-with-message-id (match-string 1 path)))
     ((string-match "^query:\\(.+\\)" path)
       (mu4e-headers-search (match-string 1 path) current-prefix-arg))
     (t (mu4e-error "mu4e: unrecognized link type '%s'" path))))
@@ -192,8 +198,6 @@ and images in a multipart/related part."
   "Convert the current body to html."
   (unless (fboundp 'org-export-string-as)
     (mu4e-error "require function 'org-export-string-as not found."))
-  (unless (executable-find "dvipng")
-    (mu4e-error "Required program dvipng not found"))
   (let* ((begin
 	     (save-excursion
 	       (goto-char (point-min))
@@ -209,7 +213,9 @@ and images in a multipart/related part."
 	    ;; makes the replies with ">"s look nicer
 	    (org-export-preserve-breaks t)
 	    ;; dvipng for inline latex because MathJax doesn't work in mail
-	    (org-export-with-LaTeX-fragments 'dvipng)
+	    (org-export-with-LaTeX-fragments
+	      (if (executable-find "dvipng") 'dvipng
+	        (mu4e-message "Cannot find dvipng, ignore inline LaTeX") nil))
 	    ;; to hold attachments for inline html images
 	    (html-and-images
 	      (org~mu4e-mime-replace-images

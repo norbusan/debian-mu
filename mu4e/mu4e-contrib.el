@@ -51,25 +51,6 @@
 
 ;;;
 
-(defun mu4e-shr2text ()
-  "Html to text using the shr engine; this can be used in
-`mu4e-html2text-command' in a new enough emacs. Based on code by
-Titus von der Malsburg."
-  (interactive)
-  (let ((dom (libxml-parse-html-region (point-min) (point-max)))
-	 ;; When HTML emails contain references to remote images,
-	 ;; retrieving these images leaks information. For example,
-	 ;; the sender can see when I openend the email and from which
-	 ;; computer (IP address). For this reason, it is preferrable
-	 ;; to not retrieve images.
-	 ;; See this discussion on mu-discuss:
-	 ;; https://groups.google.com/forum/#!topic/mu-discuss/gr1cwNNZnXo
-	(shr-inhibit-images t))
-    (erase-buffer)
-    (shr-insert-document dom)
-    (goto-char (point-min))))
-
-
 ;;; Bookmark handlers
 ;;
 ;;  Allow bookmarking a mu4e buffer in regular emacs bookmarks.
@@ -86,7 +67,8 @@ Titus von der Malsburg."
                    'mu4e-view-bookmark-make-record)))
 
 (defun mu4e-view-bookmark-make-record ()
-  "Make a bookmark entry for a mu4e buffer."
+  "Make a bookmark entry for a mu4e buffer. Note that this is an
+emacs bookmark, not to be confused with `mu4e-bookmarks'."
   (let* ((msg     (mu4e-message-at-point))
          (maildir (plist-get msg :maildir))
          (date    (format-time-string "%Y%m%d" (plist-get msg :date)))
@@ -132,10 +114,6 @@ BOOKMARK is a bookmark name or a bookmark record."
 ;;              '("sMark as spam" . mu4e-register-msg-as-spam) t)
 ;; (add-to-list 'mu4e-headers-actions
 ;;              '("hMark as ham" . mu4e-register-msg-as-ham) t)
-;; (add-to-list 'mu4e-headers-actions
-;;              '("aMark unsure as spam" . mu4e-mark-unsure-as-spam) t)
-;; (add-to-list 'mu4e-headers-actions
-;;              '("bMark unsure as ham" . mu4e-mark-unsure-as-ham) t)
 
 (defvar mu4e-register-as-spam-cmd nil
   "Command for invoking spam processor to register message as spam,
@@ -161,6 +139,77 @@ For example for bogofile, use \"/usr/bin/bogofilter -Sn < %s\"")
     (shell-command command))
 (mu4e-mark-at-point 'something nil))
  
-;;; end of spam-filtering functions 
+;; (add-to-list 'mu4e-view-actions
+;;              '("sMark as spam" . mu4e-view-register-msg-as-spam) t)
+;; (add-to-list 'mu4e-view-actions
+;;              '("hMark as ham" . mu4e-view-register-msg-as-ham) t)
+
+(defun mu4e-view-register-msg-as-spam (msg)
+  "Mark message as spam (view mode)."
+  (interactive)
+  (let* ((path (shell-quote-argument (mu4e-message-field msg :path)))
+         (command (format mu4e-register-as-spam-cmd path)))
+    (shell-command command))
+  (mu4e-view-mark-for-delete))
+
+(defun mu4e-view-register-msg-as-ham (msg)
+  "Mark message as ham (view mode)."
+  (interactive)
+  (let* ((path (shell-quote-argument(mu4e-message-field msg :path)))
+         (command (format mu4e-register-as-ham-cmd path)))
+    (shell-command command))
+  (mu4e-view-mark-for-something))
+
+;;; end of spam-filtering functions
+
+;;; eshell functions
+;; Code for 'gnus-dired-attached' modifed to run from eshell, allowing files to
+;; be attached to an email via mu4e using the eshell. Does not depend on gnus.
+(defun eshell/mu4e-attach (&rest args)
+  "Attach files to a mu4e message using eshell. If no mu4e
+buffers found, compose a new message and then attach the file."
+  (let ((destination nil)
+        (files-str nil)
+        (bufs nil)
+        ;; Remove directories from the list
+        (files-to-attach
+         (delq nil (mapcar
+                    (lambda (f) (if (or (not (file-exists-p f)) (file-directory-p f))
+                                    nil
+                                  (expand-file-name f)))
+                    (eshell-flatten-list (reverse args))))))
+    ;; warn if user tries to attach without any files marked
+    (if (null files-to-attach)
+        (error "No files to attach")
+      (setq files-str
+            (mapconcat
+             (lambda (f) (file-name-nondirectory f))
+             files-to-attach ", "))
+      (setq bufs (mu4e~active-composition-buffers))
+      ;; set up destination mail composition buffer
+      (if (and bufs
+               (y-or-n-p "Attach files to existing mail composition buffer? "))
+          (setq destination
+                (if (= (length bufs) 1)
+                    (get-buffer (car bufs))
+                  (let ((prompt (mu4e-format "%s" "Attach to buffer")))
+                    (funcall mu4e-completing-read-function prompt
+                             bufs))))
+        ;; setup a new mail composition buffer
+        (if (y-or-n-p "Compose new mail and attach this file? ")
+            (progn (mu4e-compose-new)
+                   (setq destination (current-buffer)))))
+      ;; if buffer was found, set buffer to destination buffer, and attach files
+      (if (not (eq destination 'nil))
+          (progn (set-buffer destination)
+                 (goto-char (point-max))		;attach at end of buffer
+                 (while files-to-attach
+                   (mml-attach-file (car files-to-attach)
+                                    (or (mm-default-file-encoding (car files-to-attach))
+                                        "application/octet-stream") nil)
+                   (setq files-to-attach (cdr files-to-attach)))
+                 (message "Attached file(s) %s" files-str))
+        (message "No buffer to attach file to.")))))
+;;; end of eshell functions
 
 (provide 'mu4e-contrib)

@@ -45,8 +45,9 @@ describing mu4e's contexts.")
   "Propertized string with the current context name, or \"\" if
   there is none."
   (if (mu4e-context-current)
-    (concat "[" (propertize (mu4e-context-name (mu4e-context-current))
-		  'face 'mu4e-title-face) "]") ""))
+    (concat "[" (propertize (mu4e~quote-for-modeline
+			      (mu4e-context-name (mu4e-context-current)))
+		  'face 'mu4e-context-face) "]") ""))
 
 (defstruct mu4e-context
   "A mu4e context object with the following members:

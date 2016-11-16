@@ -60,10 +60,10 @@ link."
 Common values are \"offlineimap\", \"fetchmail\" or \"mbsync\", but
 arbitrary shell-commands can be used.
 
-When set to \"true\" (the default), the command simply finishes
-succesfully (running the 'true' command) without retrieving any
-mail. This can be useful when mail is already retrieved in another
-way."
+When set to the literal string \"true\" (the default), the
+command simply finishes succesfully (running the 'true' command)
+without retrieving any mail. This can be useful when mail is
+already retrieved in another way."
   :type 'string
   :group 'mu4e
   :safe 'stringp)
@@ -79,6 +79,33 @@ way."
   "Whether to continue with indexing when we the retrieval
   process (as per `mu4e-get-mail-command') finished with a non-zero
   exit code."
+  :type 'boolean
+  :group 'mu4e
+  :safe 'booleanp)
+
+(defcustom mu4e-index-update-in-background t
+  "Whether to run the automatic mail retrieval in the
+background."
+  :type 'boolean
+  :group 'mu4e
+  :safe 'booleanp)
+
+(defcustom mu4e-index-cleanup t
+  "Whether to run a cleanup face after indexing -- that is, see
+if the is a message in the filesystem for each file in the
+message store. Having this option as `t' ensures that no
+non-existing mesages are shown but can also be quite slow with
+large message stores."
+  :type 'boolean
+  :group 'mu4e
+  :safe 'booleanp)
+
+(defcustom mu4e-index-lazy-check nil
+  "Whether to run do a 'lazy check' for deciding whether to
+indexing a message. When this is set to `t', mu only uses the
+directory timestamps to decide on whether it needs to check the
+messages beneath it, which would miss messages that are modified
+outside mu. On the other hand, it's significantly faster."
   :type 'boolean
   :group 'mu4e
   :safe 'booleanp)
@@ -99,9 +126,11 @@ mu4e."
  You can use this hook for example to `mu4e-get-mail-command' with
  some specific setting.")
 
-(defvar mu4e-hide-index-messages nil
-  "If non-nil, mu4e does not show the \"Indexing...\" messages, or
-  any messages relating to updated contacts.")
+(defcustom mu4e-hide-index-messages nil
+  "Whether to hide the \"Indexing...\" messages, or any messages
+relating to updated contacts."
+  :type 'boolean
+  :group 'mu4e)
 
 (defcustom mu4e-change-filenames-when-moving nil
   "When moving messages to different folders, normally mu/mu4e keep
@@ -126,8 +155,11 @@ the attachment dir. See Info node `(mu4e) Attachments' for details."
 (defcustom mu4e-user-mail-address-list `(,user-mail-address)
   "List of e-mail addresses to consider 'my email addresses'.
 I.e. addresses whose presence in an email imply that it is a
-personal message. Note that e-mail addresses are case-sensitive,
-as per RFC531."
+personal message. Note that the local part (the part before '@')
+of e-mail addresses is case-sensitive, as per RFC531.  In
+practice however, most of the mail systems do not distinguish
+addresses based on the case, so the emails in this list will be
+matched case-insensitively."
   :type '(repeat (string :tag "Address"))
   :group 'mu4e)
 
@@ -171,6 +203,33 @@ is a shortcut key for the query."
 		   character))
   :group 'mu4e)
 
+(defvar mu4e-bookmarks
+  `( ,(make-mu4e-bookmark
+	:name  "Unread messages"
+	:query "flag:unread AND NOT flag:trashed"
+	:key ?u)
+     ,(make-mu4e-bookmark
+	:name "Today's messages"
+	:query "date:today..now"
+	:key ?t)
+     ,(make-mu4e-bookmark
+	:name "Last 7 days"
+	:query "date:7d..now"
+	:key ?w)
+     ,(make-mu4e-bookmark
+	:name "Messages with images"
+	:query "mime:image/*"
+	:key ?p))
+  "A list of pre-defined queries. Each query is represented by a
+mu4e-bookmark structure with parameters @t{:name} with the name
+of the bookmark, @t{:query} with the query expression (a query
+string or an s-expression that evaluates to query string) and a
+@t{:key}, which is the shortcut-key for the query.
+
+An older form of bookmark, a 3-item list with (QUERY DESCRIPTION
+KEY) is still recognized as well, for backward-compatibility.")
+
+
 (defcustom mu4e-split-view 'horizontal
   "How to show messages / headers.
 A symbol which is either:
@@ -199,8 +258,10 @@ view buffer."
   :type 'boolean
   :group 'mu4e)
 
-(defcustom mu4e-cited-regexp "^ *\\(\\(>+ ?\\)+\\)"
-  "Regular expression that determines whether a line is a citation."
+(defcustom mu4e-cited-regexp  "^\\(\\([[:alpha:]]+\\)\\|\\( *\\)\\)\\(\\(>+ ?\\)+\\)"
+  "Regular expression that determines whether a line is a
+  citation. This recognizes lines starting with numbers of '>'
+  and spaces as well as citations of the type \"John> ... \"."
   :type 'string
   :group 'mu4e)
 
@@ -237,9 +298,9 @@ Also see `mu4e-compose-context-policy'."
 	   (const :tag "Ask if none of the contexts match" 'ask)
 	   (const :tag "Ask when there's no context yet" 'ask-if-none)
 	   (const :tag "Pick the first context if none match" 'pick-first)
-	   (const :tag "Don't change the context when none match" nil)
+	   (const :tag "Don't change the context when none match" nil))
   :safe 'symbolp
-  :group 'mu4e))
+  :group 'mu4e)
 
 
 ;; crypto
@@ -496,12 +557,12 @@ I.e. a message with the draft flag set."
   :group 'mu4e-faces)
 
 (defface mu4e-header-value-face
-  '((t :inherit font-lock-doc-face))
+  '((t :inherit font-lock-type-face))
   "Face for a header value (such as \"Re: Hello!\")."
   :group 'mu4e-faces)
 
 (defface mu4e-special-header-value-face
-  '((t :inherit font-lock-variable-name-face))
+  '((t :inherit font-lock-builtin-face))
   "Face for special header values."
   :group 'mu4e-faces)
 
@@ -523,6 +584,11 @@ I.e. a message with the draft flag set."
 (defface mu4e-title-face
   '((t :inherit font-lock-type-face :bold t))
   "Face for a header title in the headers view."
+  :group 'mu4e-faces)
+
+(defface mu4e-context-face
+  '((t :inherit mu4e-title-face :bold t))
+  "Face for displaying the context in the modeline."
   :group 'mu4e-faces)
 
 (defface mu4e-modeline-face
@@ -556,7 +622,7 @@ I.e. a message with the draft flag set."
   :group 'mu4e-faces)
 
 (defface mu4e-cited-2-face
-  '((t :inherit font-lock-type-face :bold nil :italic t))
+  '((t :inherit font-lock-preprocessor-face :bold nil :italic t))
   "Face for cited message parts (level 2)."
   :group 'mu4e-faces)
 
@@ -581,7 +647,7 @@ I.e. a message with the draft flag set."
   :group 'mu4e-faces)
 
 (defface mu4e-cited-7-face
-  '((t :inherit font-lock-preprocessor-face :bold nil :italic t))
+  '((t :inherit font-lock-type-face :bold nil :italic t))
   "Face for cited message parts (level 7)."
   :group 'mu4e-faces)
 
@@ -623,6 +689,7 @@ mu4e-compose-mode."
        ( :name "Attachments"
 	 :shortname "Atts"
 	 :help "Message attachments"
+	 :require-full t
 	 :sortable nil))
      (:bcc .
        ( :name "Bcc"
@@ -683,11 +750,13 @@ mu4e-compose-mode."
        ( :name "Signature"
 	 :shortname "Sgn"
 	 :help "Check for the cryptographic signature"
+	 :require-full t
 	 :sortable nil))
      (:decryption .
        ( :name "Decryption"
 	 :shortname "Dec"
 	 :help "Check the cryptographic decryption status"
+	 :require-full t
 	 :sortable nil))
      (:size .
        ( :name "Size"
@@ -711,8 +780,14 @@ mu4e-compose-mode."
 	 :sortable :subject))
      (:to .
        ( :name "To"
-	 :shortname "T"
+	 :shortname "To"
 	 :help "Recipient of the message"
+	 :sortable t))
+     (:user-agent .
+       ( :name "User-Agent"
+	 :shortname "UA"
+	 :help "Program used for writing this message"
+	 :require-full t
 	 :sortable t)))
   "An alist of all possible header fields and information about them.
 This is used in the user-interface (the column headers in the header list, and
@@ -728,7 +803,12 @@ sort by this field.  This can be either a boolean (nil or t), or a
 symbol for /another/ field. For example, the `:human-date' field
 uses `:date' for that.
 
-Note, `:sortable' does not work for custom header fields.")
+Fields with which have the property `:require-full' set to
+non-nil require a full message; in practice this means that you
+cannot use such fieds as part of `mu4e-headers-fields', but only
+in `mu4e-view-fields.'
+
+Note, `:sortable' is not supported for custom header fields.")
 
 
 (defvar mu4e-header-info-custom
@@ -742,10 +822,10 @@ Note, `:sortable' does not work for custom header fields.")
 	     (+ (length (mu4e-message-field msg :to))
 	       (length (mu4e-message-field msg :cc))))))))
 "A list of custom (user-defined) headers. The format is similar
-to `mu4e-header-info', but addds a :function property, which should
-point to a function that takes a message p-list as argument, and
-returns a string. See the default value of `mu4e-header-info-custom
-for an example.")
+to `mu4e-header-info', but adds a :function property, which
+should point to a function that takes a message p-list as
+argument, and returns a string. See the default value of
+`mu4e-header-info-custom for an example.")
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
