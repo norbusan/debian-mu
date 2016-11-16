@@ -1,11 +1,11 @@
-maildir-utils (0.9.17-1) UNRELEASED; urgency=medium
+maildir-utils (0.9.17-1) unstable; urgency=medium
 
-  * New upstream version 0.9.17
+  * New upstream version 0.9.17 (Closes: #844375)
   * update patches
   * bump standards version, no changes necessary
   * switch to debhelper compat 9
 
- -- Norbert Preining <preining@debian.org>  Wed, 16 Nov 2016 14:44:04 +0900
+ -- Norbert Preining <preining@debian.org>  Wed, 16 Nov 2016 14:50:39 +0900
 
 maildir-utils (0.9.16-1) unstable; urgency=medium
 
