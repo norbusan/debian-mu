@@ -2,8 +2,9 @@ maildir-utils (0.9.17-1) UNRELEASED; urgency=medium
 
   * New upstream version 0.9.17
   * update patches
+  * bump standards version, no changes necessary
 
- -- Norbert Preining <norbert@burischnitzel.preining.info>  Wed, 16 Nov 2016 14:24:20 +0900
+ -- Norbert Preining <preining@debian.org>  Wed, 16 Nov 2016 14:43:08 +0900
 
 maildir-utils (0.9.16-1) unstable; urgency=medium
 
