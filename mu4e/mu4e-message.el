@@ -34,22 +34,26 @@
 (require 'html2text)
 
 
-(defcustom mu4e-html2text-command 'html2text
+(defcustom mu4e-html2text-command
+  (if (fboundp 'shr-insert-document) 'mu4e-shr2text 'html2text)
+
   "Either a shell command or a function that converts from html to plain text.
 
 If it is a shell-command, the command reads html from standard
 input and outputs plain text on standard output. If you use the
-htmltext program, it's recommended you use \"html2text -utf8 -width
-72\". Alternatives are the python-based html2markdown, w3m and on
-MacOS you may want to use textutil.
+htmltext program, it's recommended you use \"html2text -utf8
+-width 72\". Alternatives are the python-based html2markdown, w3m
+and on MacOS you may want to use textutil.
 
 It can also be a function, which takes the current buffer in html
 as input, and transforms it into html (like the `html2text'
 function).
 
-In both cases, the output is expected to be in utf-8 encoding.
+In both cases, the output is expected to be in UTF-8 encoding.
 
-The default is emacs' built-in `html2text' function."
+Newer emacs has the shr renderer, and when its available,
+conversion defaults `mu4e-shr2text'; otherwise, the default is
+emacs' built-in `html2text' function."
   :type '(choice string function)
   :group 'mu4e-view)
 
@@ -63,7 +67,9 @@ is always used."
 (defcustom mu4e-view-html-plaintext-ratio-heuristic 5
   "Ratio between the length of the html and the plain text part
 below which mu4e will consider the plain text part to be 'This
-messages requires html' text bodies."
+messages requires html' text bodies. You can neutralize
+it (always show the text version) by using
+`most-positive-fixnum'."
   :type 'integer
   :group 'mu4e-view)
 
@@ -152,40 +158,46 @@ This is equivalent to:
   (mu4e-message-field (mu4e-message-at-point) FIELD)."
   (mu4e-message-field (mu4e-message-at-point) field))
 
-(defun mu4e-message-body-text (msg)
+(defvar mu4e~message-body-html nil
+  "Whether the body text uses HTML.")
+
+(defun mu4e-message-body-text (msg &optional prefer-html)
   "Get the body in text form for this message.
-This is either :body-txt, or if not available, :body-html converted
-to text, using `mu4e-html2text-command' is non-nil, it will use
-that. Normally, thiss function prefers the text part, but this can
-be changed by setting `mu4e-view-prefer-html'."
+This is either :body-txt, or if not available, :body-html
+converted to text, using `mu4e-html2text-command' is non-nil, it
+will use that. Normally, this function prefers the text part,
+unless PREFER-HTML is non-nil."
+  (setq mu4e~message-body-html nil) ;; default
   (let* ((txt (mu4e-message-field msg :body-txt))
 	  (html (mu4e-message-field msg :body-html))
+	  (txtlen (length txt))
+	  (txtlimit (* mu4e-view-html-plaintext-ratio-heuristic txtlen))
+	  (txtlimit (if (>= txtlimit 0) txtlimit most-positive-fixnum)) ;; overflow
 	  (body
 	    (cond
 	      ;; does it look like some text? ie., if the text part is more than
-          ;; mu4e-view-html-plaintext-ratio-heuristic times shorter than the
-          ;; html part, it should't be used
-          ;; This is an heuristic to guard against 'This messages requires
-          ;; html' text bodies.
-	      ((and (> (* mu4e-view-html-plaintext-ratio-heuristic
-                      (length txt)) (length html))
-		 ;; use html if it's prefered, unless there is no html
-		 (or (not mu4e-view-prefer-html) (not html)))
+	      ;; mu4e-view-html-plaintext-ratio-heuristic times shorter than the
+	      ;; html part, it should't be used
+	      ;; This is an heuristic to guard against 'This messages requires
+	      ;; html' text bodies.
+	      ((and (> txtlen 0)
+		 (or (> txtlimit (length html)) (not prefer-html)))
 		txt)
 	      ;; otherwise, it there some html?
 	      (html
 		(with-temp-buffer
 		  (insert html)
 		  (cond
-                   ((stringp mu4e-html2text-command)
-                    (let* ((tmp-file (make-temp-file "mu4e-html")))
-                     (write-region (point-min) (point-max) tmp-file)
-                     (erase-buffer)
-                     (call-process-shell-command mu4e-html2text-command tmp-file t t)
-                     (delete-file tmp-file)))
+		    ((stringp mu4e-html2text-command)
+		      (let* ((tmp-file (mu4e-make-temp-file "html")))
+			(write-region (point-min) (point-max) tmp-file)
+			(erase-buffer)
+			(call-process-shell-command mu4e-html2text-command tmp-file t t)
+			(delete-file tmp-file)))
 		    ((functionp mu4e-html2text-command)
 		      (funcall mu4e-html2text-command))
 		    (t (mu4e-error "Invalid `mu4e-html2text-command'")))
+		  (setq mu4e~message-body-html t)
 		  (buffer-string))
                 )
 	      (t ;; otherwise, an empty body
@@ -258,5 +270,22 @@ point in eiter the headers buffer or the view buffer."
   (plist-get (mu4e-message-at-point) field))
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+
+(defun mu4e-shr2text ()
+  "Html to text using the shr engine; this can be used in
+`mu4e-html2text-command' in a new enough emacs. Based on code by
+Titus von der Malsburg."
+  (interactive)
+  (let (
+	 ;; When HTML emails contain references to remote images,
+	 ;; retrieving these images leaks information. For example,
+	 ;; the sender can see when I openend the email and from which
+	 ;; computer (IP address). For this reason, it is preferrable
+	 ;; to not retrieve images.
+	 ;; See this discussion on mu-discuss:
+	 ;; https://groups.google.com/forum/#!topic/mu-discuss/gr1cwNNZnXo
+	 (shr-inhibit-images t))
+    (shr-render-region (point-min) (point-max))
+    (goto-char (point-min))))
 
 (provide 'mu4e-message)

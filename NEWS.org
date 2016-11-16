@@ -1,11 +1,74 @@
 #+STARTUP:showall
 * NEWS (user visible changes)
 
+** 0.9.17
+
+   New development series which will lead to 0.9.18.
+
+*** mu
+
+   - Increase the maximum default for message to index to 500 Mb; you
+     can customize this using the --max-msg-size parameter to mu
+     index.
+   - implement "lazy-checking", which makes mu not descend into
+     subdirectories when the directory-timestamp is up to date;
+     greatly speeds up indexing.
+   - prefer gpg2 for crypto
+    
+*** mu4e
+    
+   - Add `mu4e-action-view-with-xwidget`, and action for viewing e-mails
+     inside a Webkit-widget inside emacs (requires emacs 25.x)
+   - Explicitly specify utf8 for external html viewing, so browser can
+     handle it correctly.
+   - Cleanly handle early exits from message composition as well as
+     while composing.
+   - Add a hook `mu4e-mark-execute-pre-hook`, which is run just before
+     executing marks.
+   - Remove the 'z' keybinding for leaving the headers
+     view. Keybindings are precious!
+   - Make `shr' the default renderer for rich-text emails (when available)
+   - Allow for resending existing messages, possibly editing them. M-x
+     mu4e-compose-resend, or use the menu; no shortcut.
+   - Let `mu4e~read-char-choice' become case-insensitive if there is
+     no exact match; small convenience that affects most the
+     single-char option reading in mu4e.
+   - Now, just before executing any search, a hook-function
+     `mu4e-headers-search-hook` is invoked, which receives the
+     search expression as its parameter.
+   - In addition, there's a `mu4e-headers-search-bookmark-hook` which
+     gets called when searches get invoked as a bookmark (note that
+     `mu4e-headers-search-hook` will also be called just
+     afterwards). This hook also receives the search expression as its
+     parameter.
+   - Better handle the closing of separate compose frames
+   - Make org-links (and more general, all users of
+     mu4e-view-message-with-message-id) use a headers buffer, then
+     view the message. This way, those linked message are just like
+     any other, and can be deleted, moved etc.
+   - Support org-mode 9.x
+   - Allow for indexing in the background; see
+     `mu4e-index-update-in-background`.
+   - Add a :user-agent field to the message-sexp (in mu4e-view), which
+     is either the User-Agent or X-Mailer field, when present.
+   - Improve file-name escaping, and make it support non-ascii filenames
+   - Attempt to jump to the same messages after a re-search update operation
+   - Add action for spam-filter options
+   - Fixing parentheses in narrowing search terms
+   - Better handle mbsync output in the update buffer
+   - Improved font-locking for the compose buffers, and more extensive
+     checks for cited parts.
+   - automatically sign/encrypt replies to signed/encrypted messages
+     (subject to `mu4e-compose-crypto-reply-policy')
+   - Add variables mu4e-index-cleanup and mu4e-index-lazy to enable
+     lazy checking from mu4e.
+   - don't overwrite global-mode-string, append to it.
+             
 ** 0.9.16
 
 *** Release
 
-    2015-01-20: Release from the 0.9.15 series
+    2016-01-20: Release from the 0.9.15 series
 
 *** Contributors:
 

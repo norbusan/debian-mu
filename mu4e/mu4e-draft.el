@@ -99,7 +99,6 @@ its settings apply."
 	(funcall mu4e-compose-cite-function))
       (pop-mark)
       (goto-char (point-min))
-      (mu4e~fontify-cited)
       (buffer-string))))
 
 (defun mu4e~draft-header (hdr val)
@@ -109,7 +108,17 @@ If VAL is nil, return nil."
   ;; later.
   (when val (format "%s: %s\n"
 	      (propertize hdr 'face 'mu4e-header-key-face)
-	      (propertize val 'face 'mu4e-header-val-face))))
+	      (propertize val 'face 'mu4e-header-value-face))))
+
+(defconst mu4e~max-reference-num 21
+  "Maximum number of References:, as suggested by
+`message-shorten-references'.")
+
+(defun mu4e~shorten-1 (list cut surplus)
+  "Cut SURPLUS elements out of LIST, beginning with CUTth
+one. Code borrowed from `message-shorten-1'."
+  (setcdr (nthcdr (- cut 2) list)
+	  (nthcdr (+ (- cut 2) surplus 1) list)))
 
 (defun mu4e~draft-references-construct (msg)
   "Construct the value of the References: header based on MSG as a
@@ -125,10 +134,16 @@ References. If both are empty, return nil."
 	  (refs (if (and msgid (not (string= msgid "")))
 		  (append refs (list msgid)) refs))
 	  ;; no doubles
-	  (refs (delete-duplicates refs :test #'equal)))
+	  (refs (delete-duplicates refs :test #'equal))
+	  (refnum (length refs))
+	  (cut 2))
+    ;; remove some refs when there are too many
+    (when (> refnum mu4e~max-reference-num)
+      (let ((surplus (- refnum mu4e~max-reference-num)))
+	(mu4e~shorten-1 refs cut surplus)))
     (mapconcat (lambda (id) (format "<%s>" id)) refs " ")))
 
- 
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; determine the recipient fields for new messages
 
@@ -231,7 +246,7 @@ based on `user-full-name' and `user-mail-address'; if the latter is
 nil, function returns nil."
   (when user-mail-address
     (if user-full-name
-      (format "%s <%s>" user-full-name user-mail-address)
+      (format "%s <%s>" (mu4e~rfc822-quoteit user-full-name) user-mail-address)
       (format "%s" user-mail-address))))
 
 
@@ -311,7 +326,7 @@ You can append flags."
       (format-time-string "%s" (current-time))
       (random 65535) (random 65535) (random 65535) (random 65535)
       hostname (or flagstr ""))))
- 
+
 (defun mu4e~draft-common-construct ()
   "Construct the common headers for each message."
   (concat
@@ -346,11 +361,12 @@ fields will be the same as in the original."
 	  (mu4e~draft-header "To" (mu4e~draft-recipients-list-to-string
 				    (mu4e-message-field origmsg :to)))
 	  (mu4e~draft-header "Cc" (mu4e~draft-recipients-list-to-string
-				    (mu4e-message-field origmsg :cc)))) 
-	
+				    (mu4e-message-field origmsg :cc))))
+
 	;; if there's no-one in To, copy the CC-list
 	(if (zerop (length (mu4e~draft-create-to-lst origmsg)))
-	  (mu4e~draft-header "To" (mu4e~draft-recipients-construct :cc origmsg reply-all))
+	  (mu4e~draft-header "To" (mu4e~draft-recipients-construct
+				    :cc origmsg reply-all))
 	  ;; otherwise...
 	  (concat
 	    (mu4e~draft-header "To" (mu4e~draft-recipients-construct :to origmsg))
@@ -402,57 +418,78 @@ fields will be the same as in the original."
   "The drafts-folder for this compose buffer, based on
 `mu4e-drafts-folder', which is evaluated once.")
 
-(defun mu4e-draft-open (compose-type &optional msg)
-  "Open a draft file for a new message (when COMPOSE-TYPE is reply, forward or new),
-or open an existing draft (when COMPOSE-TYPE is edit).
+(defun mu4e~draft-open-file (path)
+  "Open the the draft file at PATH."
+  (if mu4e-compose-in-new-frame
+    (find-file-other-frame path)
+    (find-file path)))
 
-The name of the draft folder is constructed from the concatenation
-of `mu4e-maildir' and `mu4e-drafts-folder' (the latter will be
-evaluated). The message file name is a unique name determined by
-`mu4e-send-draft-file-name'. The initial contents will be created
-from either `mu4e~draft-reply-construct', or
+(defun mu4e~draft-determine-path (draft-dir)
+  "Determine the path for a new draft file."
+  (format "%s/%s/cur/%s"
+    mu4e-maildir draft-dir (mu4e~draft-message-filename-construct "DS")))
+
+
+(defun mu4e-draft-open (compose-type &optional msg)
+  "Open a draft file for a new message (when COMPOSE-TYPE is `reply',
+ `forward' or `new'), open an existing draft (when COMPOSE-TYPE
+is `edit'), or re-send an existing message (when COMPOSE-TYPE is
+`resend').
+
+The name of the draft folder is constructed from the
+concatenation of `mu4e-maildir' and `mu4e-drafts-folder' (the
+latter will be evaluated). The message file name is a unique name
+determined by `mu4e-send-draft-file-name'. The initial contents
+will be created from either `mu4e~draft-reply-construct', or
 `mu4e~draft-forward-construct' or `mu4e~draft-newmsg-construct'."
   (unless mu4e-maildir (mu4e-error "mu4e-maildir not set"))
-  (let ((draft-dir))
-    (if (eq compose-type 'edit)
-      ;; case-1: re-editing a draft messages. in this case, we do know the full
-      ;; path, but we cannot really know 'drafts folder'... we make a guess
-      (progn
+  (let ((draft-dir nil))
+    (case compose-type
+
+      (edit
+	;; case-1: re-editing a draft messages. in this case, we do know the
+	;; full path, but we cannot really know 'drafts folder'... we make a
+	;; guess
 	(setq draft-dir (mu4e~guess-maildir (mu4e-message-field msg :path)))
-        (if (and mu4e-compose-in-new-frame (window-system))
-            (find-file-other-frame (mu4e-message-field msg :path))
-          (find-file (mu4e-message-field msg :path))))
-      ;; case-2: creating a new message; in this case, we can determing
-      ;; mu4e-get-drafts-folder
-      (progn
+	(mu4e~draft-open-file (mu4e-message-field msg :path)))
+
+      (resend
+	;; case-2: copy some exisisting message to a draft message, then edit
+	;; that.
+	(setq draft-dir (mu4e~guess-maildir (mu4e-message-field msg :path)))
+	(let ((draft-path (mu4e~draft-determine-path draft-dir)))
+	  (copy-file (mu4e-message-field msg :path) draft-path)
+	  (mu4e~draft-open-file draft-path)))
+
+      ((reply forward new)
+	;; case-3: creating a new message; in this case, we can determine
+	;; mu4e-get-drafts-folder
 	(setq draft-dir (mu4e-get-drafts-folder msg))
-	(let ((draft-path
-		(format "%s/%s/cur/%s"
-		  mu4e-maildir
-		  draft-dir
-		  (mu4e~draft-message-filename-construct "DS"))))
-          (if (and mu4e-compose-in-new-frame (window-system))
-              (find-file-other-frame draft-path)
-            (find-file draft-path)))
-	(insert
-	  (case compose-type
-	    (reply   (mu4e~draft-reply-construct msg))
-	    (forward (mu4e~draft-forward-construct msg))
-	    (new     (mu4e~draft-newmsg-construct))
-	    (t (mu4e-error "unsupported compose-type %S" compose-type))))
-	(newline)
-	;; include the message signature (if it's set)
-	(if (and mu4e-compose-signature-auto-include mu4e-compose-signature)
-	  (let ((message-signature mu4e-compose-signature))
-	    (save-excursion
-	      (message-insert-signature)
-	      (mu4e~fontify-signature))))))
-	  ;; evaluate mu4e~drafts-drafts-folder once, here, and use that value
-	  ;; throughout.
+	(let ((draft-path (mu4e~draft-determine-path draft-dir))
+	       (initial-contents
+		 (case compose-type
+		   (reply   (mu4e~draft-reply-construct msg))
+		   (forward (mu4e~draft-forward-construct msg))
+		   (new     (mu4e~draft-newmsg-construct)))))
+	  (mu4e~draft-open-file draft-path)
+          (insert initial-contents)
+	  (newline)
+	  ;; include the message signature (if it's set)
+	  (if (and mu4e-compose-signature-auto-include mu4e-compose-signature)
+	    (let ((message-signature mu4e-compose-signature))
+	      (save-excursion
+		(message-insert-signature)
+		(mu4e~fontify-signature))))))
+      (t (mu4e-error "unsupported compose-type %S" compose-type)))
+    ;; if we didn't find a draft folder yet, try some default
+    (unless draft-dir
+      (setq draft-dir (mu4e-get-drafts-folder msg)))
+    ;; evaluate mu4e~drafts-drafts-folder once, here, and use that value
+    ;; throughout.
     (set (make-local-variable 'mu4e~draft-drafts-folder) draft-dir)
     (put 'mu4e~draft-drafts-folder 'permanent-local t)
     (unless mu4e~draft-drafts-folder
       (mu4e-error "failed to determine drafts folder"))))
 
- 
+
 (provide 'mu4e-draft)

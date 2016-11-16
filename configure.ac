@@ -14,7 +14,7 @@
 ## along with this program; if not, write to the Free Software Foundation,
 ## Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
 
-AC_INIT([mu],[0.9.16],[https://github.com/djcb/mu/issues],[mu])
+AC_INIT([mu],[0.9.17],[https://github.com/djcb/mu/issues],[mu])
 AC_CONFIG_HEADERS([config.h])
 AC_CONFIG_SRCDIR([mu/mu.cc])
 # libtoolize wants to put some stuff in here; if you have an old
@@ -65,10 +65,24 @@ AS_IF([test "x$enable_mu4e" != "xno"], [
     emacs_version="`$EMACS --version | head -1`"
     lispdir="${lispdir}/mu4e/"
   ])
-  AS_CASE([$emacs_version],[*23*|*24*|*25*],[build_mu4e=yes],
+  AS_CASE([$emacs_version],[*23*|*24*|*25*|*26*],[build_mu4e=yes],
           [AC_WARN([emacs is too old to build mu4e (need emacs >= 23.x)])])
 ])
 AM_CONDITIONAL(BUILD_MU4E, test "x$build_mu4e" = "xyes")
+
+# Perl interface requires Data::SExpression
+build_perl=no
+AC_ARG_ENABLE([perl],
+  AS_HELP_STRING([--enable-perl],[Enable building the Perl interface]))
+AC_ARG_VAR([PERL], [the Perl interpreter command])
+AC_CHECK_PROGS([PERL], [perl], [no])
+AS_IF([test x"$enable_perl" = "xyes" -a x"$PERL" != "xno"], [
+    AM_PERL_MODULE([Data::SExpression],[build_perl=yes])
+    if test x"$build_perl" = "xyes"; then
+        perl_version=`$PERL -Iperl/lib -Mmup -e 'print "$mup::VERSION\n";'`
+    fi
+])
+AM_CONDITIONAL(BUILD_PERL, test "x$build_perl" = "xyes")
 
 # we need some special tricks for filesystems that don't have d_type;
 # e.g. Solaris. See mu-maildir.c. Explicitly disabling it is for
@@ -269,6 +283,13 @@ contrib/Makefile
 ])
 AC_OUTPUT
 
+if test x"$build_perl" != "xno"; then
+   echo "Configuring Perl interface..."
+   cd perl
+   $PERL Makefile.PL
+   cd ..
+fi
+
 echo
 echo "mu configuration is complete."
 echo "------------------------------------------------"
@@ -299,6 +320,10 @@ if test "x$build_mu4e" = "xyes"; then
 echo "Emacs version                        : $emacs_version"
 fi
 
+#AM_COND_IF([BUILD_PERL],[
+#echo "Perl interface version               : $perl_version"
+#])
+
 echo
 echo "Have wordexp                         : $ac_cv_header_wordexp_h"
 echo "Build mu4e emacs frontend            : $build_mu4e"
@@ -307,7 +332,6 @@ AM_COND_IF([BUILD_GUI],[
 echo "Build 'mug' toy-ui (gtk+/webkit)     : yes"],[
 echo "Build 'mug' toy-ui (gtk+/webkit)     : no"
 ])
-
 
 echo "McCabe's Cyclomatic Complexity tool  : $have_pmccabe"
 echo

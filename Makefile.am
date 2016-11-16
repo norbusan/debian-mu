@@ -28,7 +28,13 @@ else
 mu4e=
 endif
 
-SUBDIRS=m4 man lib $(guile) mu $(mu4e) contrib toys
+if BUILD_PERL
+perl=perl
+else
+perl=
+endif
+
+SUBDIRS=m4 man lib $(guile) mu $(mu4e) contrib toys # $(perl)
 
 ACLOCAL_AMFLAGS=-I m4
 
@@ -63,7 +69,7 @@ line35:
 	 | grep -v config_options_group_find			\
 	 | grep -v SCM_DEFINE					\
 	 | grep -v tests					\
-         | awk '($$5 > 35)'
+	 | awk '($$5 > 35)'
 
 # get all todo/fixme messages
 fixme:
