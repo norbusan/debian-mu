@@ -2996,7 +2996,7 @@ File: mu4e.info,  Node: Message functions,  Next: Contact functions,  Prev: Avai
 12.3 Message functions
 ======================
 
-Many functions in mu4e deal with message plist (property lists).  They
+Many functions in mu4e deal with message plists (property lists).  They
 contain information about messages, such as sender and recipient,
 subject, date and so on.  To deal with these plists, there are a number
 of ‘mu4e-message-’ functions (in ‘mu4e-message.el’), such as
@@ -3017,13 +3017,14 @@ Note that:
    • The message body is only available in the message view, not in the
      headers view.
 
-   Note that the message-functions work available to mu4e – the headers
-that are stored in the database and, in ‘mu4e-message-view’-context, the
-message body.
+   Note that in headers-mode, you only have access to a reduced message
+plist, without the information about the message-body or mime-parts;
+mu4e does this for performance reasons.  And even in view-mode, you do
+not have access to arbitrary message-headers.
 
-   If you need access to other parts of the message, it is possible to
-do so by hand, using the raw-message and some third-party tool like
-procmail’s formail:
+   However, it is possible to get the information indirectly, using the
+raw-message and some third-party tool like procmail’s formail:
+
      (defun my-mu4e-any-message-field-at-point (hdr)
        "Quick & dirty way to get an arbitrary header HDR at
      point. Requires the 'formail' tool from procmail."
@@ -3143,11 +3144,10 @@ A.2 Org-mode links
 
 It can be useful to include links to e-mail messages or even search
 queries in your org-mode files.  mu4e supports this with the org-mu4e
-module; you can set it up by adding it to your configuration:
+module; you can set it up by adding it to your configuration, which
+expects org-mode 8.x.  or higher(1)
 
      (require 'org-mu4e)
-
-   this expects org-mode 8.x.(1)
 
 After this, you can use the normal org-mode mechanisms to store links:
 ‘M-x org-store-link’ stores a link to a particular message when you are
@@ -3182,7 +3182,8 @@ key-bindings for that in headers and view mode:
 
    ---------- Footnotes ----------
 
-   (1) If you have an older version, you can try org-old-mu4e instead
+   (1) If you have an older version, you can try using org-old-mu4e
+instead
 
 
 File: mu4e.info,  Node: Org-contacts,  Next: BBDB,  Prev: Org-mode links,  Up: Interaction with other tools
@@ -5106,49 +5107,49 @@ Node: Extending mu4e115187
 Node: Extension points115728
 Node: Available functions117507
 Node: Message functions118417
-Node: Contact functions120451
-Node: Utility functions122010
-Ref: Utility functions-Footnote-1123277
-Node: Interaction with other tools123393
-Node: Emacs default124087
-Node: Org-mode links124532
-Ref: Org-mode links-Footnote-1126643
-Node: Org-contacts126714
-Ref: Org-contacts-Footnote-1127812
-Node: BBDB127873
-Ref: BBDB-Footnote-1129274
-Node: Sauron129326
-Ref: Sauron-Footnote-1130855
-Node: Speedbar130998
-Node: Mu-cite131941
-Ref: Mu-cite-Footnote-1132613
-Node: Dired132689
-Node: Example configurations133956
-Node: Minimal configuration134537
-Node: Longer configuration135809
-Node: Gmail configuration138575
-Node: CONF Other settings143885
-Node: FAQ144437
-Node: General144962
-Node: Retrieving mail147927
-Ref: Retrieving mail-Footnote-1150888
-Node: Reading messages150921
-Node: Writing messages154688
-Node: Known issues160514
-Node: Tips and Tricks162144
-Node: Fancy characters162607
-Node: Multiple accounts163638
-Node: Refiling messages168980
-Node: Saving outgoing messages172575
-Node: Confirmation before sending175115
-Node: How it works175582
-Node: High-level overview176094
-Node: mu server177606
-Node: Reading from the server178633
-Node: The message s-expression180940
-Ref: The message s-expression-Footnote-1184157
-Node: Logging and debugging184350
-Node: GNU Free Documentation License185424
+Node: Contact functions120522
+Node: Utility functions122081
+Ref: Utility functions-Footnote-1123348
+Node: Interaction with other tools123464
+Node: Emacs default124158
+Node: Org-mode links124603
+Ref: Org-mode links-Footnote-1126722
+Node: Org-contacts126799
+Ref: Org-contacts-Footnote-1127897
+Node: BBDB127958
+Ref: BBDB-Footnote-1129359
+Node: Sauron129411
+Ref: Sauron-Footnote-1130940
+Node: Speedbar131083
+Node: Mu-cite132026
+Ref: Mu-cite-Footnote-1132698
+Node: Dired132774
+Node: Example configurations134041
+Node: Minimal configuration134622
+Node: Longer configuration135894
+Node: Gmail configuration138660
+Node: CONF Other settings143970
+Node: FAQ144522
+Node: General145047
+Node: Retrieving mail148012
+Ref: Retrieving mail-Footnote-1150973
+Node: Reading messages151006
+Node: Writing messages154773
+Node: Known issues160599
+Node: Tips and Tricks162229
+Node: Fancy characters162692
+Node: Multiple accounts163723
+Node: Refiling messages169065
+Node: Saving outgoing messages172660
+Node: Confirmation before sending175200
+Node: How it works175667
+Node: High-level overview176179
+Node: mu server177691
+Node: Reading from the server178718
+Node: The message s-expression181025
+Ref: The message s-expression-Footnote-1184242
+Node: Logging and debugging184435
+Node: GNU Free Documentation License185509
 
 End Tag Table
 

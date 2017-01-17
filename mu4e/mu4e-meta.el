@@ -1,5 +1,5 @@
 ;; auto-generated
-(defconst mu4e-mu-version "0.9.17"
+(defconst mu4e-mu-version "0.9.18"
   "Required mu binary version; mu4e's version must agree with this.")
 
 (defconst mu4e-builddir "/home/djcb/Sources/mu"

@@ -254,7 +254,13 @@ found."
 		 (mu4e~view-custom-field msg field))))))
       mu4e-view-fields "")
     "\n"
-    (let ((body (mu4e-message-body-text msg mu4e-view-prefer-html)))
+    (let* ((prefer-html
+	     (cond
+	       ((eq mu4e~view-html-text 'html) t)
+	       ((eq mu4e~view-html-text 'text) nil)
+	       (t mu4e-view-prefer-html)))
+	    (body (mu4e-message-body-text msg prefer-html)))
+      (setq mu4e~view-html-text nil)
       (when (fboundp 'add-face-text-property)
         (add-face-text-property 0 (length body) 'mu4e-view-body-face t body))
       body)))
@@ -969,11 +975,16 @@ the new docid. Otherwise, return nil."
     (mu4e-view-refresh)
     (mu4e~view-hide-cited)))
 
+(defvar mu4e~view-html-text nil
+  "Should we prefer html or text just this once? A symbol `text'
+or `html' or nil.")
+
 (defun mu4e-view-toggle-html ()
   "Toggle html-display of the message body (if any)."
   (interactive)
-  (let ((mu4e-view-prefer-html (not mu4e~message-body-html))) 
-    (mu4e-view-refresh))) 
+  (setq mu4e~view-html-text
+    (if mu4e~message-body-html 'text 'html))
+  (mu4e-view-refresh))
 
 (defun mu4e-view-refresh ()
   "Redisplay the current message."
@@ -1200,8 +1211,8 @@ offer to save a range of attachments."
 
 (defun mu4e-view-open-attachment (&optional msg attnum)
   "Open attachment number ATTNUM from MSG.
-If MSG is nil use the message returned by `message-at-point'.
-If ATTNUM is nil ask for the attachment number."
+If MSG is nil use the message returned by `message-at-point'.  If
+ATTNUM is nil ask for the attachment number."
   (interactive)
   (let* ((msg (or msg (mu4e-message-at-point)))
 	  (attnum (or attnum
@@ -1231,7 +1242,6 @@ If ATTNUM is nil ask for the attachment number."
 (defun mu4e-view-open-attachment-with (msg attachnum &optional cmd)
   "Open MSG's attachment ATTACHNUM with CMD.
 If CMD is nil, ask user for it."
-  (interactive)
   (let* ((att (mu4e~view-get-attach msg attachnum))
 	  (cmd (or cmd
 		 (read-string
@@ -1247,7 +1257,6 @@ If CMD is nil, ask user for it."
 (defun mu4e-view-pipe-attachment (msg attachnum &optional pipecmd)
   "Feed MSG's attachment ATTACHNUM through pipe PIPECMD.
 If PIPECMD is nil, ask user for it."
-  (interactive)
   (let* ((att (mu4e~view-get-attach msg attachnum))
 	  (pipecmd (or pipecmd
 		     (read-string
@@ -1261,7 +1270,6 @@ If PIPECMD is nil, ask user for it."
 
 (defun mu4e-view-open-attachment-emacs (msg attachnum)
   "Open MSG's attachment ATTACHNUM in the current emacs instance."
-  (interactive)
   (let* ((att (mu4e~view-get-attach msg attachnum))
 	  (index (plist-get att :index)))
     (mu4e~view-temp-action (mu4e-message-field msg :docid) index "emacs")))
