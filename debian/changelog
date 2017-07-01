@@ -1,3 +1,10 @@
+maildir-utils (0.9.18-2) UNRELEASED; urgency=medium
+
+  * drop maildir-utils-extra package, mug/sg2pdf cannot be build with 
+    webkitgtk4 (Closes: #866645)
+
+ -- Norbert Preining <preining@debian.org>  Sat, 01 Jul 2017 10:25:50 +0900
+
 maildir-utils (0.9.18-1) unstable; urgency=medium
 
   * New upstream version 0.9.18 (Closes: #851596)
