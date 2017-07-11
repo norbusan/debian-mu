@@ -2,8 +2,9 @@ maildir-utils (0.9.18-2) unstable; urgency=medium
 
   * drop maildir-utils-extra package, mug/msg2pdf cannot be build with 
     webkitgtk4 (Closes: #866645)
+  * bump standards version, no changes necessary
 
- -- Norbert Preining <preining@debian.org>  Tue, 11 Jul 2017 23:19:51 +0900
+ -- Norbert Preining <preining@debian.org>  Tue, 11 Jul 2017 23:28:20 +0900
 
 maildir-utils (0.9.18-1) unstable; urgency=medium
 
