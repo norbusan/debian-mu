@@ -1,3 +1,9 @@
+maildir-utils (0.9.18-3) UNRELEASED; urgency=medium
+
+  * switch to guile-2.2 for building (Closes: #885216)
+
+ -- Norbert Preining <preining@debian.org>  Tue, 26 Dec 2017 10:11:26 +0900
+
 maildir-utils (0.9.18-2) unstable; urgency=medium
 
   * drop maildir-utils-extra package, mug/msg2pdf cannot be build with 
