@@ -4,6 +4,7 @@
 export DH_OPTIONS
 
 mu := $(CURDIR)/debian/maildir-utils
+muextra := $(CURDIR)/debian/maildir-utils-extra
 mu4e := $(CURDIR)/debian/mu4e
 
 
@@ -53,6 +54,12 @@ install-stamp: build-stamp
 	$(MAKE) install prefix=$(mu)/usr
 	# remove wrong info/dir
 	rm -f $(mu)/usr/share/info/dir*
+	# maildir-utils-extra package
+	mkdir -p $(muextra)/usr/bin
+	cp toys/mug/mug $(muextra)/usr/bin/mug
+	cp toys/msg2pdf/msg2pdf $(muextra)/usr/bin/msg2pdf
+	mkdir -p $(muextra)/usr/share/pixmaps
+	cp toys/mug/mug.svg $(muextra)/usr/share/pixmaps/
 	# mu4e package
 	mkdir -p $(mu4e)/usr/share
 	mv $(mu)/usr/share/emacs $(mu4e)/usr/share
