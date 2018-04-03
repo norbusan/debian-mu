@@ -52,7 +52,8 @@ get_output_format (const char *formatstr)
 		{"plain",	MU_CONFIG_FORMAT_PLAIN},
 		{"sexp",	MU_CONFIG_FORMAT_SEXP},
 		{"xml",		MU_CONFIG_FORMAT_XML},
-		{"xquery",	MU_CONFIG_FORMAT_XQUERY}
+		{"xquery",	MU_CONFIG_FORMAT_XQUERY},
+		{"mquery",	MU_CONFIG_FORMAT_MQUERY}
 	};
 
 	for (i = 0; i != G_N_ELEMENTS(formats); i++)
@@ -471,6 +472,7 @@ cmd_from_string (const char *str)
 		{ "remove",  MU_CONFIG_CMD_REMOVE  },
 		{ "script",  MU_CONFIG_CMD_SCRIPT  },
 		{ "server",  MU_CONFIG_CMD_SERVER  },
+		{ "tickle",  MU_CONFIG_CMD_TICKLE  },
 		{ "verify",  MU_CONFIG_CMD_VERIFY  },
 		{ "view",    MU_CONFIG_CMD_VIEW    }
 	};
@@ -622,13 +624,11 @@ mu_config_show_help (MuConfigCmd cmd)
 	cleanhelp = massage_help
 		(g_option_context_get_help (ctx, TRUE, group));
 
-	g_print ("usage:\n\t%s\n%s",
+	g_print ("usage:\n\t%s%s",
 		 get_help_string (cmd, FALSE), cleanhelp);
 
 	g_free (cleanhelp);
 }
-
-
 
 static gboolean
 cmd_help (void)
@@ -650,16 +650,6 @@ cmd_help (void)
 	return TRUE;
 }
 
-
-static void
-show_usage (void)
-{
-	g_print ("usage: mu <command> [options] [parameters]\n");
-	g_print ("try 'mu help <command>', or ");
-	g_print ("see the mu, mu-<command> or mu-easy manpages.\n");
-}
-
-
 static gboolean
 parse_params (int *argcp, char ***argvp, GError **err)
 {
@@ -678,8 +668,6 @@ parse_params (int *argcp, char ***argvp, GError **err)
 
 	switch (MU_CONFIG.cmd) {
 	case MU_CONFIG_CMD_NONE:
-		show_usage();
-		break;
 	case MU_CONFIG_CMD_HELP:
 		/* 'help' is special; sucks in the options of the
 		 * command after it */

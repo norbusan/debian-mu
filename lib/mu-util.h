@@ -62,7 +62,8 @@ char* mu_util_guess_maildir (void)
 
 
 /**
- * guess the place of the mu homedir (typically, ~/.mu). Note, this
+ * guess the place of the mu homedir; first try $MU_HOME; if it is
+ * unset or non-existant, try ~/.mu. Note, the fallback ~/.mu
  * directory does not necessarily exist. mu_util_check_dir can be used
  * to check that
  *
@@ -107,8 +108,6 @@ gboolean mu_util_check_dir (const gchar* path, gboolean readable,
  * @return the cache directory; don't free
  */
 const char* mu_util_cache_dir (void) G_GNUC_CONST;
-
-
 
 /**
  * create a writeable file and return its file descriptor (which
@@ -244,17 +243,6 @@ gboolean mu_util_supports (MuFeature feature);
 GQuark mu_util_error_quark (void) G_GNUC_CONST;
 #define MU_ERROR_DOMAIN (mu_util_error_quark())
 
-
-/**
- * convert a string array in to a string, with the elements separated
- * by ' '
- *
- * @param params a non-NULL, NULL-terminated string array
- *
- * @return a newly allocated string
- */
-gchar* mu_util_str_from_strv (const gchar **params)
-G_GNUC_MALLOC G_GNUC_WARN_UNUSED_RESULT;
 
 /*
  * for OSs with out support for direntry->d_type, like Solaris

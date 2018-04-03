@@ -82,7 +82,7 @@ typedef enum _MuMsgOptions MuMsgOptions;
  */
 MuMsg *mu_msg_new_from_file (const char* filepath, const char *maildir,
 			     GError **err)
-                             G_GNUC_MALLOC G_GNUC_WARN_UNUSED_RESULT;
+			     G_GNUC_MALLOC G_GNUC_WARN_UNUSED_RESULT;
 
 
 /**
@@ -164,6 +164,19 @@ void mu_msg_cache_values (MuMsg *self);
  * The returned data is in UTF8 or NULL.
  */
 const char*     mu_msg_get_body_text       (MuMsg *msg, MuMsgOptions opts);
+
+
+/**
+ * get the content type parameters for the text body part
+ *
+ * @param msg a valid MuMsg* instance
+ * @param opts options for getting the body
+ *
+ * @return the value of the requested body part content type parameter, or
+ * NULL in case of error or if there is no such body. the returned string
+ * should *not* be modified or freed. The returned data is in UTF8 or NULL.
+ */
+const GSList*	mu_msg_get_body_text_content_type_parameters	(MuMsg *self, MuMsgOptions opts);
 
 
 /**
@@ -279,18 +292,6 @@ const char*     mu_msg_get_msgid           (MuMsg *msg);
  */
 const char*     mu_msg_get_mailing_list            (MuMsg *msg);
 
-
-/**
- * get any arbitrary header from this message
- *
- * @param msg a valid MuMsg* instance
- * @header the header requested
- *
- * @return the header requested or NULL in case of error or if there
- * is no such header. the returned string should *not* be modified or freed.
- */
-const char*     mu_msg_get_header          (MuMsg *msg,
-					    const char* header);
 
 /**
  * get the message date/time (the Date: field) as time_t, using UTC
@@ -486,6 +487,23 @@ gboolean mu_msg_move_to_maildir (MuMsg *msg, const char *maildir,
 				 MuFlags flags, gboolean ignore_dups,
 				 gboolean new_name,
 				 GError **err);
+
+
+/**
+ * Tickle a message -- ie., rename a message to some new semi-random name,while
+ * maintaining the maildir and flags. This can be useful when dealing with
+ * third-party tools such as mbsync that depend on changed filenames.
+ *
+ * @param msg a message with an existing file system path in an actual
+ * maildir
+ * @param err (may be NULL) may contain error information; note if the
+ * function return FALSE, err is not set for all error condition
+ * (ie. not for parameter error
+ *
+ * @return TRUE if it worked, FALSE otherwise
+ */
+gboolean mu_msg_tickle (MuMsg *msg, GError **err);
+
 
 
 enum _MuMsgContactType {  /* Reply-To:? */
