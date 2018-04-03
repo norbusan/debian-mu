@@ -4,3 +4,4 @@ fix-manpages
 fix-mu4e-msg2pdf-path
 mu4e-dont-bytecompile
 use-guile22
+adjust-mu-docdir

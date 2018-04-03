@@ -1,9 +1,11 @@
 maildir-utils (1.0-2) unstable; urgency=medium
 
   * fix NEWS entry in mu4e welcome screen (Closes: #882341)
+    - install everything into /u/s/d/maildir-utils
+    - adjust MU_DOC_DIR to refer to it
   * reintroduce maildir-utils-extra with mug 
 
- -- Norbert Preining <preining@debian.org>  Wed, 04 Apr 2018 01:43:04 +0900
+ -- Norbert Preining <preining@debian.org>  Wed, 04 Apr 2018 01:58:11 +0900
 
 maildir-utils (1.0-1) unstable; urgency=medium
 

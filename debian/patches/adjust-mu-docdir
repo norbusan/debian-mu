@@ -1,0 +1,15 @@
+---
+ configure.ac |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+--- maildir-utils.git.orig/configure.ac
++++ maildir-utils.git/configure.ac
+@@ -246,7 +246,7 @@
+ 
+ ###############################################################################
+ # docdir, so we can use it in mu4e-meta.el.in
+-AC_SUBST(MU_DOC_DIR, "${prefix}/share/doc/mu")
++AC_SUBST(MU_DOC_DIR, "${prefix}/share/doc/maildir-utils")
+ ###############################################################################
+ 
+ 
