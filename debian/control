@@ -5,8 +5,8 @@ Maintainer: Norbert Preining <preining@debian.org>
 Build-Depends: libxapian-dev, debhelper (>= 9), zlib1g-dev, libgmime-2.6-dev, xdg-utils, emacsen-common (>= 2.0.8), dh-autoreconf, guile-2.2-dev [!ia64], texinfo, pmccabe
 Standards-Version: 4.0.0
 Homepage: http://www.djcbsoftware.nl/code/mu/
-Vcs-Git: git://anonscm.debian.org/users/preining/maildir-utils.git
-Vcs-Browser: http://anonscm.debian.org/cgit/users/preining/maildir-utils.git/
+Vcs-Git: https://salsa.debian.org/preining/maildir-utils.git
+Vcs-Browser: https://salsa.debian.org/preining/maildir-utils
 
 Package: maildir-utils
 Section: mail
