@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2011-2016 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+** Copyright (C) 2011-2017 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 **
 ** This program is free software; you can redistribute it and/or modify it
 ** under the terms of the GNU General Public License as published by the
@@ -178,7 +178,7 @@ append_sexp_contacts (GString *gstr, MuMsg *msg)
 	ContactData cdata;
 
 	cdata.from	 = cdata.to = cdata.cc = cdata.bcc
-		         = cdata.reply_to = FALSE;
+			 = cdata.reply_to = FALSE;
 	cdata.gstr	 = gstr;
 	cdata.prev_ctype = (unsigned)-1;
 
@@ -279,25 +279,40 @@ struct _PartInfo {
 };
 typedef struct _PartInfo PartInfo;
 
-static const char*
+static char*
 sig_verdict (MuMsgPart *mpart)
 {
-	MuMsgPartSigStatusReport *report;
+	char				*signers, *s;
+	const char			*verdict;
+	MuMsgPartSigStatusReport	*report;
 
 	report = mpart->sig_status_report;
 	if (!report)
-		return "";
+		return g_strdup ("");
 
 	switch (report->verdict) {
 	case MU_MSG_PART_SIG_STATUS_GOOD:
-		return ":signature verified";
+		verdict = ":signature verified";
+		break;
 	case MU_MSG_PART_SIG_STATUS_BAD:
-		return ":signature bad";
+		verdict = ":signature bad";
+		break;
 	case MU_MSG_PART_SIG_STATUS_ERROR:
-		return ":signature unverified";
+		verdict = ":signature unverified";
+		break;
 	default:
-		return "";
+		verdict = "";
+		break;
 	}
+
+	if (!report->signers)
+		return g_strdup (verdict);
+
+	signers = mu_str_escape_c_literal (report->signers, TRUE);
+	s	= g_strdup_printf ("%s :signers %s", verdict, signers);
+	g_free (signers);
+
+	return s;
 }
 
 static const char*
@@ -353,21 +368,29 @@ get_part_type_string (MuMsgPartType ptype)
 static void
 each_part (MuMsg *msg, MuMsgPart *part, PartInfo *pinfo)
 {
-	char	*name, *tmp, *parttype;
-	char	*tmpfile, *cid;
+	char	*name, *encname, *tmp, *parttype;
+	char	*tmpfile, *cid, *verdict;
 
 	name     = mu_msg_part_get_filename (part, TRUE);
+	encname  = name ?
+		mu_str_escape_c_literal(name, TRUE) :
+		g_strdup("\"noname\"");
+	g_free (name);
+
 	tmpfile  = get_temp_file_maybe (msg, part, pinfo->opts);
 	parttype = get_part_type_string (part->part_type);
-	cid      = mu_str_escape_c_literal(mu_msg_part_get_content_id(part), TRUE);
+	verdict  = sig_verdict (part);
+	cid      = mu_str_escape_c_literal(mu_msg_part_get_content_id(part),
+					   TRUE);
+
 
 	tmp = g_strdup_printf
-		("%s(:index %d :name \"%s\" :mime-type \"%s/%s\"%s%s "
+		("%s(:index %d :name %s :mime-type \"%s/%s\"%s%s "
 		 ":type %s "
 		 ":attachment %s %s%s :size %i %s %s)",
 		 pinfo->parts ? pinfo->parts: "",
 		 part->index,
-		 name ? mu_str_escape_c_literal(name, FALSE) : "noname",
+		 encname,
 		 part->type ? part->type : "application",
 		 part->subtype ? part->subtype : "octet-stream",
 		 tmpfile ? " :temp" : "", tmpfile ? tmpfile : "",
@@ -375,12 +398,13 @@ each_part (MuMsg *msg, MuMsgPart *part, PartInfo *pinfo)
 		 mu_msg_part_maybe_attachment (part) ? "t" : "nil",
 		 cid ? " :cid" : "", cid ? cid : "",
 		 (int)part->size,
-		 sig_verdict (part),
+		 verdict,
 		 dec_verdict (part));
 
-	g_free (name);
+	g_free (encname);
 	g_free (tmpfile);
 	g_free (parttype);
+	g_free (verdict);
 	g_free (cid);
 
 	g_free (pinfo->parts);
@@ -423,10 +447,34 @@ append_sexp_thread_info (GString *gstr, const MuMsgIterThreadInfo *ti)
 }
 
 static void
+append_sexp_param (GString *gstr, const GSList *param)
+{
+	for (;param; param = g_slist_next (param)) {
+		const char *str;
+		char *key, *value;
+
+		str   = param->data;
+		key   = str ? mu_str_escape_c_literal (str, FALSE) : g_strdup ("");
+
+		param = g_slist_next (param);
+		str   = param->data;
+		value = str ? mu_str_escape_c_literal (str, FALSE) : g_strdup ("");
+
+		g_string_append_printf (gstr, "(\"%s\" . \"%s\")", key, value);
+		g_free (key);
+		g_free (value);
+
+		if (param->next)
+			g_string_append_c (gstr, ' ');
+	}
+}
+
+static void
 append_message_file_parts (GString *gstr, MuMsg *msg, MuMsgOptions opts)
 {
 	const char	*str;
 	GError		*err;
+	const GSList    *params;
 
 	err = NULL;
 
@@ -444,6 +492,13 @@ append_message_file_parts (GString *gstr, MuMsg *msg, MuMsgOptions opts)
 	str = mu_msg_get_header (msg, "User-Agent");
 	if (str || (str = mu_msg_get_header (msg, "X-Mailer")))
 		append_sexp_attr (gstr, "user-agent", str);
+
+	params = mu_msg_get_body_text_content_type_parameters (msg, opts);
+	if (params) {
+		g_string_append_printf (gstr, "\t:body-txt-params (");
+		append_sexp_param (gstr, params);
+		g_string_append_printf (gstr, ")\n");
+	}
 
 	append_sexp_body_attr (gstr, "body-txt",
 			  mu_msg_get_body_text(msg, opts));
@@ -467,7 +522,7 @@ append_sexp_date_and_size (GString *gstr, MuMsg *msg)
 
 	g_string_append_printf
 		(gstr,
-		 "\t:date (%u %u 0)\n\t:size %u\n",
+		 "\t:date (%d %u 0)\n\t:size %u\n",
 		 (unsigned)(t >> 16),
 		 (unsigned)(t & 0xffff),
 		 (unsigned)s);

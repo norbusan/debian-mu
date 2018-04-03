@@ -79,7 +79,7 @@ current window."
 
 (defvar mu4e-user-agent-string
   (format "mu4e %s; emacs %s" mu4e-mu-version emacs-version)
-  "The User-Agent string for mu4e.")
+  "The User-Agent string for mu4e, or nil.")
 
 (defun mu4e~draft-cite-original (msg)
   "Return a cited version of the original message MSG as a plist.
@@ -191,6 +191,30 @@ the list form the original."
       reply-to)))
 
 
+(defun mu4e~strip-ignored-addresses (addrs)
+  "Return all the addresses in ADDRS not matching
+`mu4e-compose-reply-ignore-address'."
+  (cond
+    ((null mu4e-compose-reply-ignore-address)
+      addrs)
+    ((functionp mu4e-compose-reply-ignore-address)
+      (remove-if
+	(lambda (elt)
+	  (funcall mu4e-compose-reply-ignore-address (cdr elt)))
+	addrs))
+    (t
+      ;; regexp or list of regexps
+      (let* ((regexp mu4e-compose-reply-ignore-address)
+	     (regexp (if (listp regexp)
+		       (mapconcat (lambda (elt) (concat "\\(" elt "\\)"))
+			 regexp "\\|")
+		       regexp)))
+	(remove-if
+	  (lambda (elt)
+	    (string-match regexp (cdr elt)))
+	  addrs)))))
+
+
 (defun mu4e~draft-create-cc-lst (origmsg reply-all)
   "Create a list of address for the Cc: in a new message, based on
 the original message ORIGMSG, and whether it's a reply-all."
@@ -211,6 +235,8 @@ the original message ORIGMSG, and whether it's a reply-all."
 		      (mu4e~draft-address-cell-equal cc-cell to-cell))
 		    (mu4e~draft-create-to-lst origmsg)))
 		cc-lst))
+	    ;; remove ignored addresses
+	    (cc-lst (mu4e~strip-ignored-addresses cc-lst))
 	    ;; finally, we need to remove ourselves from the cc-list
 	    ;; unless mu4e-compose-keep-self-cc is non-nil
 	    (cc-lst
@@ -276,7 +302,13 @@ separator is never written to the message file. Also see
       ;; search for the first empty line
       (goto-char (point-min))
       (if (search-forward-regexp "^$" nil t)
-	  (replace-match sepa)
+	  (progn
+	    (replace-match sepa)
+	    ;; `message-narrow-to-headers` searches for a
+	    ;; `mail-header-separator` followed by a new line. Therefore, we
+	    ;; must insert a newline if on the last line of the buffer.
+	    (when (= (point) (point-max))
+	      (insert "\n")))
 	  (progn ;; no empty line? then prepend one
 	    (goto-char (point-max))
 	    (insert "\n" sepa))))))
@@ -293,7 +325,6 @@ never hits the disk. Also see `mu4e~draft-insert-mail-header-separator."
       (let ((inhibit-read-only t))
 	(replace-match "")))))
 
-
 (defun mu4e~draft-reply-all-p (origmsg)
   "Ask user whether she wants to reply to *all* recipients.
 If there is just one recipient of ORIGMSG do nothing."
@@ -301,8 +332,8 @@ If there is just one recipient of ORIGMSG do nothing."
 	   (+ (length (mu4e~draft-create-to-lst origmsg))
 	     (length (mu4e~draft-create-cc-lst origmsg t))))
 	  (response
-	    (if (= recipnum 1)
-	      'all ;; with one recipient, we can reply to 'all'....
+	    (if (< recipnum 2)
+	      'all ;; with less than 2 recipients, we can reply to 'all'
 	      (mu4e-read-option
 		"Reply to "
 		`( (,(format "all %d recipients" recipnum) . all)
@@ -315,9 +346,10 @@ It looks something like
   <time>-<random>.<hostname>:2,
 You can append flags."
   (let* ((sysname (if (fboundp 'system-name)
-		      (system-name)
+		    (system-name)
 		    (with-no-warnings system-name)))
-	 (hostname (downcase
+	  (sysname (if (string= sysname "") "localhost" sysname))
+	  (hostname (downcase
 		    (save-match-data
 		      (substring sysname
 				 (string-match "^[^.]+" sysname)
@@ -330,7 +362,8 @@ You can append flags."
 (defun mu4e~draft-common-construct ()
   "Construct the common headers for each message."
   (concat
-    (mu4e~draft-header "User-agent" mu4e-user-agent-string)
+    (when mu4e-user-agent-string
+      (mu4e~draft-header "User-agent" mu4e-user-agent-string))
    (when mu4e-compose-auto-include-date
      (mu4e~draft-header "Date" (message-make-date)))))
 
@@ -402,8 +435,10 @@ fields will be the same as in the original."
 	    ""
 	    mu4e~draft-forward-prefix)
 	  subject))
-      "\n\n"
-      (mu4e~draft-cite-original origmsg))))
+      (unless mu4e-compose-forward-as-attachment
+	(concat
+	 "\n\n"
+	  (mu4e~draft-cite-original origmsg))))))
 
 (defun mu4e~draft-newmsg-construct ()
   "Create a new message."
@@ -472,7 +507,7 @@ will be created from either `mu4e~draft-reply-construct', or
 		   (forward (mu4e~draft-forward-construct msg))
 		   (new     (mu4e~draft-newmsg-construct)))))
 	  (mu4e~draft-open-file draft-path)
-          (insert initial-contents)
+	  (insert initial-contents)
 	  (newline)
 	  ;; include the message signature (if it's set)
 	  (if (and mu4e-compose-signature-auto-include mu4e-compose-signature)

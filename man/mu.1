@@ -152,7 +152,9 @@ including \fBmu\fR without any command.
 .TP
 \fB\-\-muhome\fR
 causes \fBmu\fR to use an alternative directory to
-store and read its database and logs. By default, \fI~/.mu\fR is used.
+store and read its database and logs. By default, \fBmu\fR uses
+whatever the \fBMU_HOME\fR environment variable is set to; if it is
+not set, \fI~/.mu\fR is used.
 
 .TP
 \fB\-d\fR, \fB\-\-debug\fR
@@ -233,12 +235,5 @@ Please report bugs if you find them:
 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 
 .SH "SEE ALSO"
-
-.BR mu-index(1)
-.BR mu-find(1)
-.BR mu-cfind(1)
-.BR mu-mkdir(1)
-.BR mu-view(1)
-.BR mu-extract(1)
-.BR mu-easy(1)
-.BR mu-bookmarks(5)
+mu-index(1) mu-find(1) mu-cfind(1) mu-mkdir(1) mu-view(1)
+mu-extract(1) mu-easy(1) mu-bookmarks(5) mu-query(7)

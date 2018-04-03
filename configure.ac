@@ -1,4 +1,4 @@
-## Copyright (C) 2008-2015 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+## Copyright (C) 2008-2017 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 ##
 ## This program is free software; you can redistribute it and/or modify
 ## it under the terms of the GNU General Public License as published by
@@ -14,13 +14,20 @@
 ## along with this program; if not, write to the Free Software Foundation,
 ## Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
 
-AC_INIT([mu],[0.9.18],[https://github.com/djcb/mu/issues],[mu])
+AC_PREREQ([2.68])
+AC_INIT([mu],[1.0],[https://github.com/djcb/mu/issues],[mu])
+AC_COPYRIGHT([Copyright (C) 2008-2017 Dirk-Jan C. Binnema])
 AC_CONFIG_HEADERS([config.h])
 AC_CONFIG_SRCDIR([mu/mu.cc])
 # libtoolize wants to put some stuff in here; if you have an old
 # autotools/libtool setup. you can try to comment this out
 AC_CONFIG_MACRO_DIR([m4])
-AM_INIT_AUTOMAKE
+AC_CONFIG_AUX_DIR([build-aux])
+
+m4_ifdef([AX_IS_RELEASE],[AX_IS_RELEASE([git-directory])])
+m4_ifdef([AX_CHECK_ENABLE_DEBUG],[AX_CHECK_ENABLE_DEBUG([yes])])
+
+AM_INIT_AUTOMAKE([1.14 foreign no-dist-gzip tar-ustar dist-xz])
 
 # silent build if we have a new enough automake
 m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES([yes])])
@@ -36,6 +43,10 @@ AC_PROG_CC_STDC
 AC_PROG_CC_C99
 AC_PROG_INSTALL
 AC_HEADER_STDC
+
+AX_CXX_COMPILE_STDCXX_14
+m4_ifdef([AX_COMPILER_FLAGS],[AX_COMPILER_FLAGS(,,[yes])])
+AX_VALGRIND_CHECK
 
 # for now, use AM_PROG_LIBTOOL, as we don't want to require
 # a too new setup for autotools/libtool
@@ -65,8 +76,8 @@ AS_IF([test "x$enable_mu4e" != "xno"], [
     emacs_version="`$EMACS --version | head -1`"
     lispdir="${lispdir}/mu4e/"
   ])
-  AS_CASE([$emacs_version],[*23*|*24*|*25*|*26*],[build_mu4e=yes],
-          [AC_WARN([emacs is too old to build mu4e (need emacs >= 23.x)])])
+  AS_CASE([$emacs_version],[*23*|*24*|*25*|*26*|*27*],[build_mu4e=yes],
+	  [AC_WARN([emacs is too old to build mu4e (need emacs >= 23.x)])])
 ])
 AM_CONDITIONAL(BUILD_MU4E, test "x$build_mu4e" = "xyes")
 
@@ -79,7 +90,7 @@ AC_CHECK_PROGS([PERL], [perl], [no])
 AS_IF([test x"$enable_perl" = "xyes" -a x"$PERL" != "xno"], [
     AM_PERL_MODULE([Data::SExpression],[build_perl=yes])
     if test x"$build_perl" = "xyes"; then
-        perl_version=`$PERL -Iperl/lib -Mmup -e 'print "$mup::VERSION\n";'`
+	perl_version=`$PERL -Iperl/lib -Mmup -e 'print "$mup::VERSION\n";'`
     fi
 ])
 AM_CONDITIONAL(BUILD_PERL, test "x$build_perl" = "xyes")
@@ -110,7 +121,7 @@ AS_IF([test "x$ac_cv_member_struct_dirent_d_ino" != "xyes"],
 
 
 # we need these
-AC_CHECK_FUNCS([memset memcpy realpath setlocale strerror getpass])
+AC_CHECK_FUNCS([memset memcpy realpath setlocale strerror getpass setsid])
 AC_CHECK_FUNC(timegm,[],[AC_MSG_ERROR([missing required function timegm])])
 
 # require pkg-config
@@ -166,7 +177,7 @@ AC_SUBST(XAPIAN_LIBS)
 # note that MU_STORE_SCHEMA_VERSION does not necessarily follow MU
 # versioning, as we hopefully don't have updates for each version;
 # also, this has nothing to do with Xapian's software version
-AC_DEFINE(MU_STORE_SCHEMA_VERSION,["9.9"], ['Schema' version of the database])
+AC_DEFINE(MU_STORE_SCHEMA_VERSION,["0.99"], ['Schema' version of the database])
 ###############################################################################
 
 
@@ -213,15 +224,15 @@ AS_IF([test "x$enable_guile" != "xno"], [
    AS_IF([test "x$build_guile" = "xyes"],[
    AC_PATH_PROG(GUILE_BINARY, [guile], [], [$GUILE_EXECDIR])
       AS_IF([test "x$GUILE_BINARY" != "x"],
-         [AC_DEFINE_UNQUOTED([GUILE_BINARY],["$GUILE_BINARY"],[Path to the guile binary])],
-         [AC_MSG_WARN([cannot find guile-snarf])])])
+	 [AC_DEFINE_UNQUOTED([GUILE_BINARY],["$GUILE_BINARY"],[Path to the guile binary])],
+	 [AC_MSG_WARN([cannot find guile-snarf])])])
 
    AS_IF([test "x$build_guile" = "xyes"],[
       AC_PATH_PROG(GUILE_SNARF, [guile-snarf], [], [$GUILE_EXECDIR])
       AS_IF([test "x$GUILE_SNARF" != "x"],
-         [AC_DEFINE_UNQUOTED([GUILE_SNARF],["$GUILE_SNARF"],[Path to guile-snarf])
-         GUILE_SITEDIR="`${PKG_CONFIG} guile-2.0 --variable=sitedir`"],
-         [AC_MSG_WARN([cannot find guile-snarf])])])
+	 [AC_DEFINE_UNQUOTED([GUILE_SNARF],["$GUILE_SNARF"],[Path to guile-snarf])
+	 GUILE_SITEDIR="`${PKG_CONFIG} guile-2.0 --variable=sitedir`"],
+	 [AC_MSG_WARN([cannot find guile-snarf])])])
    AC_SUBST(GUILE_SITEDIR)])
 
 AS_IF([test "x$build_guile" = "xyes" -a "x$GUILE_SNARF" != "x"],
@@ -264,6 +275,7 @@ mu/Makefile
 mu/tests/Makefile
 lib/Makefile
 lib/doxyfile
+lib/parser/Makefile
 lib/tests/Makefile
 mu4e/Makefile
 mu4e/mu4e-meta.el
@@ -370,5 +382,5 @@ if test "x$ac_cv_header_wordexp_h" != "xyes"; then
 fi
 
 echo
-echo "Now, type 'gmake' to build mu (or 'gmake check' to run the unit tests, too)"
+echo "Now, type 'make' (or 'gmake') to build mu"
 echo

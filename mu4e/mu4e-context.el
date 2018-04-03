@@ -37,9 +37,16 @@ describing mu4e's contexts.")
   "The current context; for internal use. Use
   `mu4e-context-switch' to change it.")
 
-(defun mu4e-context-current ()
-  "Get the currently active context, or nil if there is none."
-  mu4e~context-current)
+(defun mu4e-context-current (&optional output)
+  "Get the currently active context, or nil if there is none.
+When OUTPUT is non-nil, echo the name of the current context or
+none."
+  (interactive "p")
+  (let ((ctx mu4e~context-current))
+    (when output
+      (mu4e-message "Current context: %s"
+	(if ctx (mu4e-context-name ctx) "<none>")))
+    ctx))
 
 (defun mu4e-context-label ()
   "Propertized string with the current context name, or \"\" if
@@ -51,16 +58,16 @@ describing mu4e's contexts.")
 
 (defstruct mu4e-context
   "A mu4e context object with the following members:
-- `name': the name of the context, eg. \"Work\" or \"Private\".'
+- `name': the name of the context, eg. \"Work\" or \"Private\".
 - `enter-func': a parameterless function invoked when entering
   this context, or nil
-- `leave-func':a parameterless fuction invoked when leaving this
+- `leave-func':a parameterless function invoked when leaving this
   context, or nil
-- `match-func': a function called when comnposing a new messages,
-  and takes a message plist
-for the message replied to or forwarded, and nil
-otherwise. Before composing a new message, `mu4e' switches to the
-first context for which `match-func' return t."
+- `match-func': a function called when composing a new message,
+  that takes a message plist for the message replied to or
+  forwarded, and nil otherwise. Before composing a new message,
+  `mu4e' switches to the first context for which `match-func'
+  returns t."
   name                      ;; name of the context, e.g. "work"
   (enter-func nil)          ;; function invoked when entering the context
   (leave-func nil)          ;; function invoked when leaving the context
@@ -108,7 +115,8 @@ non-nil."
 		  (set (car cell) (cdr cell)))
 	  (mu4e-context-vars context)))
       (setq mu4e~context-current context)
-      (mu4e~main-view-real nil nil)
+      (unless (eq mu4e-split-view 'single-window)
+        (mu4e~main-view-real nil nil))
       (mu4e-message "Switched context to %s" (mu4e-context-name context)))
     context))
 
@@ -155,4 +163,3 @@ match, POLICY determines what to do:
 	  (otherwise nil))))))
 
 (provide 'mu4e-context)
- 
