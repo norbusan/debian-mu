@@ -3,3 +3,4 @@ fix-manpages
 #disable-emacs-compile
 fix-mu4e-msg2pdf-path
 mu4e-dont-bytecompile
+use-guile22

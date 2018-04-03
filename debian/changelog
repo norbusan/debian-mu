@@ -5,8 +5,9 @@ maildir-utils (1.0-1) unstable; urgency=medium
   * update patches
   * switch VCS fields to Salsa
   * bump standards version, no changes necessary
+  * use guile-2.2 instead of guile-2.0
 
- -- Norbert Preining <preining@debian.org>  Wed, 04 Apr 2018 00:00:22 +0900
+ -- Norbert Preining <preining@debian.org>  Wed, 04 Apr 2018 00:18:00 +0900
 
 maildir-utils (0.9.18-2) unstable; urgency=medium
 
