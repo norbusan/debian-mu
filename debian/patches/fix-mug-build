@@ -7,9 +7,9 @@
 @@ -20,7 +20,7 @@
  SUBDIRS= .
  
- AM_CPPFLAGS=-I${top_srcdir} -I${top_srcdir}/lib $(GTK_CFLAGS) $(WEBKIT_CFLAGS) \
--	-DICONDIR='"$(icondir)"' -DMUGDIR='"$(abs_srcdir)"' \
-+	-DICONDIR='"$(icondir)"' -DMUGDIR='"/usr/share/pixmaps"' \
+ AM_CPPFLAGS=-I${top_srcdir} -I${top_srcdir}/lib $(GTK_CFLAGS) $(WEBKIT_CFLAGS)	\
+-	-DICONDIR='"$(icondir)"' -DMUGDIR='"$(abs_srcdir)"'			\
++	-DICONDIR='"$(icondir)"' -DMUGDIR='"/usr/share/pixmaps"'			\
  	-DGSEAL_ENABLE
  
  # remove -DGTK_DISABLE_DEPRECATED for now, since it breaks 3.10+ compilation

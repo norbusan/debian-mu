@@ -16,7 +16,7 @@
  	mu4e-context.el		\
 --- maildir-utils.git.orig/configure.ac
 +++ maildir-utils.git/configure.ac
-@@ -56,17 +56,10 @@
+@@ -67,17 +67,10 @@
  
  # we need emacs for byte-compiling mu4e
  
@@ -29,8 +29,8 @@
 -    emacs_version="`$EMACS --version | head -1`"
 -    lispdir="${lispdir}/mu4e/"
 -  ])
--  AS_CASE([$emacs_version],[*23*|*24*|*25*|*26*],[build_mu4e=yes],
--          [AC_WARN([emacs is too old to build mu4e (need emacs >= 23.x)])])
+-  AS_CASE([$emacs_version],[*23*|*24*|*25*|*26*|*27*],[build_mu4e=yes],
+-	  [AC_WARN([emacs is too old to build mu4e (need emacs >= 23.x)])])
 +build_mu4e=yes
 +AM_PATH_LISPDIR
 +AS_IF([test "x$lispdir" != "xno"], [

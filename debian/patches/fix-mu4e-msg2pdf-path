@@ -2,17 +2,19 @@ mu4e expects msg2pdf in some strange path, fix that
 also remove the reference to the build path
 See bug #760598
 ---
- mu4e/mu4e-actions.el |    2 +-
+ mu4e/mu4e-actions.el |    4 +---
  mu4e/mu4e-meta.el.in |    2 +-
- 2 files changed, 2 insertions(+), 2 deletions(-)
+ 2 files changed, 2 insertions(+), 4 deletions(-)
 
 --- maildir-utils.git.orig/mu4e/mu4e-actions.el
 +++ maildir-utils.git/mu4e/mu4e-actions.el
-@@ -49,7 +49,7 @@
+@@ -49,9 +49,7 @@
  
  
  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
--(defvar mu4e-msg2pdf (concat mu4e-builddir "/toys/msg2pdf/msg2pdf")
+-(defvar mu4e-msg2pdf
+-  (let ((exec-path (cons (concat mu4e-builddir "/toys/msg2pdf/") exec-path)))
+-    (locate-file "msg2pdf" exec-path exec-suffixes))
 +(defvar mu4e-msg2pdf "/usr/bin/msg2pdf"
    "Path to the msg2pdf toy.")
  
