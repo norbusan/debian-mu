@@ -31,7 +31,7 @@ build-stamp:
 	dh_testdir
 	dh_autoreconf
 	CXXFLAGS="$(CXXFLAGS)" CFLAGS="$(CFLAGS)" LDFLAGS="$(LDFLAGS)" \
-		./configure --prefix=/usr $(DOGUILECONFIG)
+		./configure --prefix=/usr --docdir='$${prefix}/share/doc/maildir-utils' $(DOGUILECONFIG)
 	$(MAKE)
 	touch $@
 
@@ -89,7 +89,7 @@ binary-arch: install
 ifeq "$(findstring nostrip,$(DEB_BUILD_OPTIONS))" ""
 	dh_strip
 endif
-	dh_compress
+	dh_compress -XNEWS.org
 	dh_fixperms
 	dh_installdeb
 	dh_shlibdeps
