@@ -1,3 +1,9 @@
+maildir-utils (1.0-3) unstable; urgency=medium
+
+  * don't request non-existing libguile-2.2-dev on armel 
+
+ -- Norbert Preining <preining@debian.org>  Tue, 08 May 2018 13:42:47 +0900
+
 maildir-utils (1.0-2) unstable; urgency=medium
 
   * fix NEWS entry in mu4e welcome screen (Closes: #882341)
