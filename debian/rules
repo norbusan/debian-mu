@@ -16,7 +16,7 @@ mu4e := $(CURDIR)/debian/mu4e
 DOGUILECONFIG=
 BAD_GUILE_ARCHS := ia64 armel
 DEB_HOST_ARCH     ?= $(shell dpkg-architecture -qDEB_HOST_ARCH)
-ifneq ($(filter $(DEB_HOST_ARCH),$(BAD_GUILE_ARCH)),)
+ifneq ($(filter $(DEB_HOST_ARCH),$(BAD_GUILE_ARCHS)),)
   DOGUILECONFIG=--disable-guile
 endif
 
@@ -69,7 +69,7 @@ install-stamp: build-stamp
 	mkdir -p $(mu4e)/usr/share/info
 	mv $(mu)/usr/share/info/mu4e.info* $(mu4e)/usr/share/info
 	# shared libs dealing
-ifeq ($(filter $(DEB_HOST_ARCH),$(BAD_GUILE_ARCH)),)
+ifeq ($(filter $(DEB_HOST_ARCH),$(BAD_GUILE_ARCHS)),)
 	rm $(mu)/usr/lib/libguile-mu.la
 endif
 	touch install-stamp

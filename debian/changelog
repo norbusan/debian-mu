@@ -1,3 +1,9 @@
+maildir-utils (1.0-5) unstable; urgency=medium
+
+  * typos in Makefile, next round on armel
+
+ -- Norbert Preining <preining@debian.org>  Fri, 18 May 2018 13:56:28 +0900
+
 maildir-utils (1.0-4) unstable; urgency=medium
 
   * also make sure that we don't try to install guile related libs
