@@ -2,7 +2,7 @@ Source: maildir-utils
 Section: mail
 Priority: optional
 Maintainer: Norbert Preining <preining@debian.org>
-Build-Depends: libxapian-dev, debhelper (>= 9), zlib1g-dev, libgtk-3-dev, libwebkitgtk-3.0-dev, libgmime-2.6-dev, xdg-utils, emacsen-common (>= 2.0.8), dh-autoreconf, guile-2.2-dev [!ia64 !armel], texinfo, pmccabe
+Build-Depends: libxapian-dev, debhelper (>= 9), zlib1g-dev, libgtk-3-dev, libgmime-2.6-dev, xdg-utils, emacsen-common (>= 2.0.8), dh-autoreconf, guile-2.2-dev [!ia64 !armel], texinfo, pmccabe
 Standards-Version: 4.1.3
 Homepage: http://www.djcbsoftware.nl/code/mu/
 Vcs-Git: https://salsa.debian.org/preining/maildir-utils.git
@@ -36,15 +36,3 @@ Description: e-mail client for Emacs based on mu (maildir-utils)
  mu4e (mu-for-emacs) is an e-mail client for GNU-Emacs version 23 and
  later, built on top of the mu e-mail search engine. mu4e is optimized
  for fast handling of large amounts of e-mail.
-
-Package: maildir-utils-extra
-Section: mail
-Priority: optional
-Architecture: any
-Depends: maildir-utils (>= ${source:Version}), maildir-utils (<< ${source:Version}.1~), xdg-utils, ${shlibs:Depends}, ${misc:Depends}
-Replaces: maildir-utils (<= 0.9.6-1), maildir-utils-gtk
-Conflicts: maildir-utils-gtk
-Description: Extra utilities for maildir-utils
- mu is a set of utilities to deal with Maildirs, specifically, 
- indexing and searching. This package provides extra utilities that are
- under heavy development, currently only a GUI for searching with mu.
