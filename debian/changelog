@@ -1,3 +1,9 @@
+maildir-utils (1.0-7) unstable; urgency=medium
+
+  * update vcs, email, bump standards version
+
+ -- Norbert Preining <norbert@preining.info>  Sun, 03 Mar 2019 08:08:05 +0900
+
 maildir-utils (1.0-6) unstable; urgency=medium
 
   * drop all of m-u-extra as it needs deprecated webkit1 (Closes: #905695)
