@@ -4,3 +4,4 @@ fix-manpages
 fix-mu4e-msg2pdf-path
 mu4e-dont-bytecompile
 adjust-mu-docdir
+fix-guile-dev-package-bugginess
