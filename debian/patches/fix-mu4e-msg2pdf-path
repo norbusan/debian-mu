@@ -8,7 +8,7 @@ See bug #760598
 
 --- maildir-utils.git.orig/mu4e/mu4e-actions.el
 +++ maildir-utils.git/mu4e/mu4e-actions.el
-@@ -49,9 +49,7 @@
+@@ -48,9 +48,7 @@ Works for headers view and message-view.
  
  
  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
