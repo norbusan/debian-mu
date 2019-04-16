@@ -28,8 +28,8 @@ AM_CPPFLAGS=						\
 # don't use -Werror, as it might break on other compilers
 # use -Wno-unused-parameters, because some callbacks may not
 # really need all the params they get
-AM_CFLAGS=-Wall -Wextra -Wno-unused-parameter -Wdeclaration-after-statement
-AM_CXXFLAGS=-Wall -Wextra -Wno-unused-parameter
+AM_CFLAGS=$(ASAN_CFLAGS) ${WARN_CFLAGS}
+AM_CXXFLAGS=$(ASAN_CXXFLAGS) ${WARN_CXXFLAGS}
 
 lib_LTLIBRARIES=					\
 	libguile-mu.la
@@ -44,7 +44,9 @@ libguile_mu_la_LIBADD=					\
 	${top_builddir}/lib/libmu.la			\
 	${GUILE_LIBS}
 
-libguile_mu_la_LDFLAGS= -export-dynamic
+libguile_mu_la_LDFLAGS= 				\
+	$(ASAN_LDFLAGS)
+	-export-dynamic
 
 XFILES=							\
 	mu-guile.x					\
@@ -72,4 +74,4 @@ EXTRA_DIST=$(scm_DATA)
 ## Add -MG to make the .x magic work with auto-dep code.
 MKDEP = $(CC) -M -MG $(snarfcppopts)
 
-DISTCLEANFILES=$(XFILES)
+CLEANFILES=$(XFILES)

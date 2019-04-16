@@ -51,6 +51,7 @@ get_output_format (const char *formatstr)
 		{"links",	MU_CONFIG_FORMAT_LINKS},
 		{"plain",	MU_CONFIG_FORMAT_PLAIN},
 		{"sexp",	MU_CONFIG_FORMAT_SEXP},
+		{"json",	MU_CONFIG_FORMAT_JSON},
 		{"xml",		MU_CONFIG_FORMAT_XML},
 		{"xquery",	MU_CONFIG_FORMAT_XQUERY},
 		{"mquery",	MU_CONFIG_FORMAT_MQUERY}
@@ -78,9 +79,9 @@ set_group_mu_defaults (void)
 		MU_CONFIG.muhome = exp;
 	}
 
-	/* check for the MU_NOCOLOR env var; but in any case don't
+	/* check for the MU_NOCOLOR or NO_COLOR env vars; but in any case don't
 	 * use colors unless we're writing to a tty */
-	if (g_getenv (MU_NOCOLOR) != NULL)
+	if (g_getenv (MU_NOCOLOR) != NULL || g_getenv ("NO_COLOR") != NULL)
 		MU_CONFIG.nocolor = TRUE;
 
 	if (!isatty(fileno(stdout)) || !isatty(fileno(stderr)))
@@ -608,7 +609,7 @@ mu_config_show_help (MuConfigCmd cmd)
 {
 	GOptionContext *ctx;
 	GOptionGroup *group;
-	char *cleanhelp;
+	char *help, *cleanhelp;
 
 	g_return_if_fail (mu_config_cmd_is_valid(cmd));
 
@@ -619,15 +620,16 @@ mu_config_show_help (MuConfigCmd cmd)
 	if (group)
 		g_option_context_add_group (ctx, group);
 
-	g_option_context_set_description (ctx,
-					  get_help_string (cmd, TRUE));
-	cleanhelp = massage_help
-		(g_option_context_get_help (ctx, TRUE, group));
+	g_option_context_set_description (ctx, get_help_string (cmd, TRUE));
+	help	  = g_option_context_get_help (ctx, TRUE, group);
+	cleanhelp = massage_help (help);
 
 	g_print ("usage:\n\t%s%s",
 		 get_help_string (cmd, FALSE), cleanhelp);
 
+	g_free (help);
 	g_free (cleanhelp);
+	g_option_context_free (ctx);
 }
 
 static gboolean

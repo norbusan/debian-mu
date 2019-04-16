@@ -26,7 +26,6 @@
 ;; In this file, various functions to compose/send messages, piggybacking on
 ;; gnus' message mode
 
-
 ;; Magic / Rupe Goldberg
 
 ;; 1) When we reply/forward a message, we get it from the backend, ie:
@@ -34,7 +33,6 @@
 ;;     compose type:reply docid:30935
 ;; backend responds with:
 ;;      (:compose reply :original ( .... <original message> ))
-
 
 ;; 2) When we compose a message, message and headers are separated by
 ;; `mail-header-separator', ie. '--text follows this line--. We use
@@ -69,10 +67,8 @@
 ;;
 
 ;;; Code:
-
-(eval-when-compile (byte-compile-disable-warning 'cl-functions))
-(require 'cl)
-
+(eval-when-compile
+  (require 'cl))
 (require 'message)
 (require 'mail-parse)
 (require 'smtpmail)
@@ -85,7 +81,6 @@
 (require 'mu4e-message)
 (require 'mu4e-draft)
 (require 'mu4e-context)
-
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Composing / Sending messages
@@ -120,7 +115,6 @@ for querying the message information."
 	   (const :tag "delete message" delete))
   :group 'mu4e-compose)
 
-
 (defcustom mu4e-compose-context-policy 'ask
   "Policy for determining the context when composing a new message.
 
@@ -144,7 +138,6 @@ Also see `mu4e-context-policy'."
 	   (const :tag "Don't change the context when none match" nil)
 	   :safe 'symbolp
 	   :group 'mu4e-compose))
-
 
 (defcustom mu4e-compose-crypto-reply-encrypted-policy 'sign-and-encrypt
   "Policy for signing/encrypting replies to encrypted messages.
@@ -182,12 +175,11 @@ We have the following choices:
  'mu4e-compose-crypto-reply-policy' variable is deprecated.
  'mu4e-compose-crypto-reply-plain-policy' and
  'mu4e-compose-crypto-reply-encrypted-policy' should be used instead")
-(make-obsolete-variable mu4e-compose-crypto-reply-policy "The use of the
+(make-obsolete-variable 'mu4e-compose-crypto-reply-policy "The use of the
  'mu4e-compose-crypto-reply-policy' variable is deprecated.
  'mu4e-compose-crypto-reply-plain-policy' and
  'mu4e-compose-crypto-reply-encrypted-policy' should be used instead"
 			"2017-09-02")
-
 
 (defcustom mu4e-compose-format-flowed nil
   "Whether to compose messages to be sent as format=flowed (or
@@ -219,7 +211,6 @@ place to do that."
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-
 (defun mu4e-compose-attach-message (msg)
   "Insert message MSG as an attachment."
   (let ((path (plist-get msg :path)))
@@ -240,7 +231,6 @@ Messages are captured with `mu4e-action-capture-message'."
   (mu4e-compose-attach-message mu4e-captured-message))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
 
 ;; 'fcc' refers to saving a copy of a sent message to a certain folder. that's
 ;; what these 'Sent mail' folders are for!
@@ -267,7 +257,7 @@ If needed, set the Fcc header, and register the handler function."
 	       (funcall mu4e-sent-messages-behavior)
 	       mu4e-sent-messages-behavior)))
 	  (mdir
-	    (case sent-behavior
+	    (cl-case sent-behavior
 	      (delete nil)
 	      (trash (mu4e-get-trash-folder mu4e-compose-parent-message))
 	      (sent (mu4e-get-sent-folder mu4e-compose-parent-message))
@@ -287,6 +277,12 @@ If needed, set the Fcc header, and register the handler function."
 	(lexical-let ((maildir mdir) (old-handler message-fcc-handler-function))
 	  (lambda (file)
 	    (setq message-fcc-handler-function old-handler) ;; reset the fcc handler
+	    (let ((mdir-path (concat mu4e-maildir maildir)))
+	      ;; Create the full maildir structure for the sent folder if it doesn't exist.
+              ;; `mu4e~proc-mkdir` runs asynchronously but no matter whether it runs before or after
+              ;; `write-file`, the sent maildir ends up in the correct state.
+	      (unless (file-exists-p mdir-path)
+		(mu4e~proc-mkdir mdir-path)))
 	    (write-file file)		       ;; writing maildirs files is easy
 	    (mu4e~proc-add file (or maildir "/")))))))) ;; update the database
 
@@ -459,14 +455,18 @@ buffers; lets remap its faces so it uses the ones for mu4e."
     (setq default-directory (expand-file-name "~/"))
     ;; offer completion for e-mail addresses
     (when mu4e-compose-complete-addresses
+      (unless mu4e~contacts   ;; work-around for https://github.com/djcb/mu/issues/1016
+	(mu4e~request-contacts-maybe))
       (mu4e~compose-setup-completion))
-
-    (when mu4e-compose-format-flowed
-      (turn-off-auto-fill)
-      (setq truncate-lines nil
-	word-wrap t
-	use-hard-newlines t)
-      (visual-line-mode t))
+    (if mu4e-compose-format-flowed
+	(progn
+	  (turn-off-auto-fill)
+	  (setq truncate-lines nil
+		word-wrap t
+		mml-enable-flowed t
+		use-hard-newlines t)
+	  (visual-line-mode t))
+      (setq mml-enable-flowed nil))
 
     (let ((keymap (lookup-key message-mode-map [menu-bar text])))
       (when keymap
@@ -532,13 +532,12 @@ buffers; lets remap its faces so it uses the ones for mu4e."
 (defconst mu4e~compose-buffer-max-name-length 30
   "Maximum length of the mu4e-send-buffer-name.")
 
-
 (defun mu4e~compose-set-friendly-buffer-name (&optional compose-type)
   "Set some user-friendly buffer name based on the compose type."
   (let* ((subj (message-field-value "subject"))
 	  (subj (unless (and subj (string-match "^[:blank:]*$" subj)) subj))
 	  (str (or subj
-		 (case compose-type
+		 (cl-case compose-type
 		   (reply       "*reply*")
 		   (forward     "*forward*")
 		   (otherwise   "*draft*")))))
@@ -554,12 +553,12 @@ automatically encrypt that reply. When the message is unencrypted,
 we can decide what we want to do."
   (if (and  (eq compose-type 'reply)
 	  (and parent (member 'encrypted (mu4e-message-field parent :flags))))
-	(case mu4e-compose-crypto-reply-encrypted-policy
+	(cl-case mu4e-compose-crypto-reply-encrypted-policy
 	  (sign (mml-secure-message-sign))
 	  (encrypt (mml-secure-message-encrypt))
 	  (sign-and-encrypt (mml-secure-message-sign-encrypt))
 	  (message "Do nothing"))
-	(case mu4e-compose-crypto-reply-plain-policy
+	(cl-case mu4e-compose-crypto-reply-plain-policy
 	  (sign (mml-secure-message-sign))
 	  (encrypt (mml-secure-message-encrypt))
 	  (sign-and-encrypt (mml-secure-message-sign-encrypt))
@@ -567,7 +566,7 @@ we can decide what we want to do."
   )
 
 
-(defun* mu4e~compose-handler (compose-type &optional original-msg includes)
+(cl-defun mu4e~compose-handler (compose-type &optional original-msg includes)
   "Create a new draft message, or open an existing one.
 
 COMPOSE-TYPE determines the kind of message to compose and is a
@@ -604,7 +603,7 @@ tempfile)."
       (mu4e-draft-open compose-type original-msg)
       (quit (set-window-configuration winconf)
 	(mu4e-message "Operation aborted")
-	(return-from mu4e~compose-handler))))
+	(cl-return-from mu4e~compose-handler))))
   ;; insert mail-header-separator, which is needed by message mode to separate
   ;; headers and body. will be removed before saving to disk
   (mu4e~draft-insert-mail-header-separator)
@@ -620,15 +619,14 @@ tempfile)."
       (dolist (att includes)
 	(mml-attach-file
 	 (plist-get att :file-name) (plist-get att :mime-type)))))
-  ;; buffer is not user-modified yet
-  (mu4e~compose-set-friendly-buffer-name compose-type)
-  (set-buffer-modified-p nil)
-  ;; now jump to some useful positions, and start writing that mail!
 
+  (mu4e~compose-set-friendly-buffer-name compose-type)
+
+  ;; now jump to some useful positions, and start writing that mail!
   (if (member compose-type '(new forward))
     (message-goto-to)
     ;; otherwise, it depends...
-    (case message-cite-reply-position
+    (cl-case message-cite-reply-position
       ((above traditional)
 	(message-goto-body))
       (t
@@ -653,7 +651,10 @@ tempfile)."
     ;; make sure to close the frame when we're done with the message these are
     ;; all buffer-local;
     (push 'delete-frame message-exit-actions)
-    (push 'delete-frame message-postpone-actions)))
+    (push 'delete-frame message-postpone-actions))
+
+  ;; buffer is not user-modified yet
+  (set-buffer-modified-p nil))
 
 (defun mu4e~switch-back-to-mu4e-buffer ()
   "Try to go back to some previous buffer, in the order view->headers->main."
