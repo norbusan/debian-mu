@@ -2,8 +2,9 @@ maildir-utils (1.2.0-1) experimental; urgency=medium
 
   * New upstream version 1.2.0
   * update/cleanup patches
+  * update build-deps
 
- -- Norbert Preining <norbert@preining.info>  Tue, 16 Apr 2019 14:55:10 +0900
+ -- Norbert Preining <norbert@preining.info>  Tue, 16 Apr 2019 15:04:49 +0900
 
 maildir-utils (1.0-7) unstable; urgency=medium
 

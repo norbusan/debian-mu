@@ -2,7 +2,7 @@ Source: maildir-utils
 Section: mail
 Priority: optional
 Maintainer: Norbert Preining <norbert@preining.info>
-Build-Depends: libxapian-dev, debhelper (>= 9), zlib1g-dev, libgtk-3-dev, libgmime-2.6-dev, xdg-utils, emacsen-common (>= 2.0.8), dh-autoreconf, guile-2.2-dev [!ia64 !armel], texinfo, pmccabe
+Build-Depends: libxapian-dev, debhelper (>= 9), zlib1g-dev, libgtk-3-dev, xdg-utils, emacsen-common (>= 2.0.8), dh-autoreconf, guile-2.2-dev [!ia64 !armel], texinfo, pmccabe, libgmime-3.0-dev
 Standards-Version: 4.2.1
 Homepage: http://www.djcbsoftware.nl/code/mu/
 Vcs-Git: https://github.com/norbusan/debian-mu.git
@@ -23,7 +23,7 @@ Description: Set of utilities to deal with Maildirs (upstream name mu)
   - mu find - searches for messages based on some search criteria.
   - mu mkmdir - creates a new Maildir.
  .
- mu uses libgmime2 to parse the message, and Xapian to store the message data. 
+ mu uses libgmime to parse the message, and Xapian to store the message data. 
 
 Package: mu4e
 Section: lisp
