@@ -62,6 +62,9 @@ test_date_basic ()
 		{ "1972-12-14T09:10:23", true,	"0093165023" },
 		{ "1854-11-18T17:10:23", true,	"0000000000" },
 
+		{ "2000-02-31T09:10:23", true,  "0951861599" },
+		{ "2000-02-29T23:59:59", true,  "0951861599" },
+
 		{ "2016",		true,	"1451599200" },
 		{ "2016",		false,  "1483221599" },
 
@@ -78,13 +81,13 @@ static void
 test_date_ymwdhMs (void)
 {
 	struct {
-		std::string expr;
-		long diff;
-		int tolerance;
+		std::string	expr;
+		long		diff;
+		int		tolerance;
 	} tests[] = {
 		{ "3h", 3 * 60 * 60, 1 },
-		{ "21d", 21 * 24 * 60 * 60, 1 },
-		{ "2w", 2 * 7 * 24 * 60 * 60, 1 },
+		{ "21d", 21 * 24 * 60 * 60, 3600 + 1 },
+		{ "2w", 2 * 7 * 24 * 60 * 60, 3600 + 1 },
 
 		{ "2y", 2 * 365 * 24 * 60 * 60, 24 * 3600 + 1 },
 		{ "3m", 3 * 30 * 24 * 60 * 60, 3 * 24 * 3600 + 1 }
@@ -150,8 +153,6 @@ test_format ()
 	g_assert_true (format ("hello %s, %u", "world", 123) ==
 		       "hello world, 123");
 }
-
-
 
 int
 main (int argc, char *argv[])

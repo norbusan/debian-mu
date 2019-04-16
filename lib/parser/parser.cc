@@ -135,7 +135,7 @@ range (const ProcIface::FieldInfoVec& fields, const std::string& lower,
 	if (prange.lower > prange.upper)
 		prange = proc->process_range (field.field, upper, lower);
 
-	return Tree({{Node::Type::Range},
+	return Tree({Node::Type::Range,
 			     std::make_unique<Range>(field.field, field.prefix, field.id,
 						     prange.lower, prange.upper)});
 }
@@ -167,14 +167,9 @@ data (Mux::Tokens& tokens, ProcPtr proc, WarningVec& warnings)
 	}
 
 	// does it look like a regexp?
-	if (val.length()>=2) {
-		if (val[0]=='/' && val[val.length()-1] == '/')
+	if (val.length() >=2 )
+		if (val[0] == '/' && val[val.length()-1] == '/')
 			return regex (fields, val, token.pos, proc, warnings);
-		else if (val[val.length()-1] == '*')
-			return regex (fields, // transfrom wildcard into regexp
-				      "/" + val.substr(0, val.length()-1) + ".*/",
-				      token.pos, proc, warnings);
-	}
 
 	// does it look like a range?
 	const auto dotdot = val.find("..");

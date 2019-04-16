@@ -20,24 +20,35 @@ include $(top_srcdir)/gtest.mk
 # before decending into tests/
 SUBDIRS= parser . tests
 
+if HAVE_JSON_GLIB
+json_srcs=					\
+	mu-msg-json.c				\
+	mu-msg-json.h
+json_flag="-DHAVE_JSON_GLIB"
+endif
+
 AM_CFLAGS=					\
 	$(WARN_CFLAGS)				\
 	$(GMIME_CFLAGS)				\
 	$(GLIB_CFLAGS)				\
 	$(GUILE_CFLAGS)				\
+	$(JSON_GLIB_CFLAGS)			\
+	$(ASAN_CFLAGS)				\
+	$(json_flag)				\
 	-Wno-format-nonliteral			\
 	-Wno-switch-enum			\
 	-Wno-suggest-attribute=format		\
 	-Wno-deprecated-declarations		\
 	-Wno-inline
 
-
 AM_CXXFLAGS=					\
 	$(WARN_CXXFLAGS)			\
 	$(GMIME_CFLAGS)				\
 	$(GLIB_CFLAGS)				\
+	$(JSON_GLIB_CFLAGS)			\
 	$(XAPIAN_CXXFLAGS)			\
-	$(GUILE_CFLAGS)
+	$(GUILE_CFLAGS)				\
+	$(ASAN_CXXFLAGS)
 
 # don't use -Werror, as it might break on other compilers
 # use -Wno-unused-parameters, because some callbacks may not
@@ -75,6 +86,7 @@ libmu_la_SOURCES=				\
 	mu-msg-file.h				\
 	mu-msg-iter.cc				\
 	mu-msg-iter.h				\
+	$(json_srcs)				\
 	mu-msg-part.c				\
 	mu-msg-part.h				\
 	mu-msg-prio.c				\
@@ -107,7 +119,12 @@ libmu_la_LIBADD=				\
 	$(GMIME_LIBS)				\
 	$(GLIB_LIBS)				\
 	$(GUILE_LIBS)				\
+	$(JSON_GLIB_LIBS)			\
 	${builddir}/parser/libmuxparser.la
+
+libmu_la_LDFLAGS=				\
+	$(ASAN_LDFLAGS)
+
 
 EXTRA_DIST=					\
 	mu-msg-crypto.c				\

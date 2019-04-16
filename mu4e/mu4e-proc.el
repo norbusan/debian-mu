@@ -193,8 +193,10 @@ The server output is as follows:
 
 	  ;; something got moved/flags changed
 	  ((plist-get sexp :update)
-	    (funcall mu4e-update-func
-	      (plist-get sexp :update) (plist-get sexp :move)))
+            (funcall mu4e-update-func
+	      (plist-get sexp :update)
+	      (plist-get sexp :move)
+	      (plist-get sexp :maybe-view)))
 
 	  ;; a message got removed
 	  ((plist-get sexp :remove)
@@ -348,7 +350,7 @@ or an error."
     (if skip-dups "true" "false")
     (if include-related "true" "false")))
 
-(defun mu4e~proc-move (docid-or-msgid &optional maildir flags)
+(defun mu4e~proc-move (docid-or-msgid &optional maildir flags no-view)
   "Move message identified by DOCID-OR-MSGID to optional MAILDIR
 and optionally setting FLAGS. If MAILDIR is nil, message will be
 moved within the same maildir.
@@ -374,12 +376,13 @@ The server reports the results for the operation through
 `mu4e-update-func'.
 
 If the variable `mu4e-change-filenames-when-moving' is
-non-nil, moving to a different maildir generates new names for
+non-nil, moving to a different maildir generates new names forq
 the target files; this helps certain tools (such as mbsync).
 
-The results are reported through either (:update ... )
-or (:error ) sexp, which are handled my `mu4e-update-func' and
-`mu4e-error-func', respectively."
+If NO-VIEW is non-nil, don't updat the view.
+
+Returns either (:update ... ) or (:error ) sexp, which are handled my
+`mu4e-update-func' and `mu4e-error-func', respectively."
   (unless (or maildir flags)
     (mu4e-error "At least one of maildir and flags must be specified"))
   (unless (or (not maildir)
@@ -396,9 +399,12 @@ or (:error ) sexp, which are handled my `mu4e-update-func' and
 	  (rename
 	    (if (and maildir mu4e-change-filenames-when-moving)
 	      "true" "false")))
-    (mu4e~proc-send-command "cmd:move %s %s %s %s"
-      idparam (or flagstr "") (or path "")
-      (format "newname:%s" rename))))
+    (mu4e~proc-send-command "cmd:move %s %s %s %s %s"
+      idparam
+      (or flagstr "")
+      (or path "")
+      (format "newname:%s" rename)
+      (format "noview:%s" (if no-view "true" "false")))))
 
 (defun mu4e~proc-index (path my-addresses cleanup lazy-check)
   "Update the message database for filesystem PATH, which should
@@ -465,7 +471,7 @@ mean:
        (:temp <path> :what <what> :param <param>)."
   (let ((cmd
 	  (concat "cmd:extract "
-	    (case action
+	    (cl-case action
 	      (save
 		(format "action:save docid:%d index:%d path:%s extract-encrypted:%s use-agent:true"
 		  docid partidx (mu4e~escape path) (if decrypt "true" "false")))

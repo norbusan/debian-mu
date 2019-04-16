@@ -50,6 +50,7 @@
 #include "mu-maildir.h"
 #include "mu-query.h"
 #include "mu-index.h"
+#include "mu-store.h"
 #include "mu-msg-part.h"
 #include "mu-contacts.h"
 
@@ -257,11 +258,11 @@ get_bool_from_args (GHashTable *args, const char *param, gboolean optional,
 }
 
 
-#define GET_STRING_OR_ERROR_RETURN(ARGS,PARAM,SP,E)			\
-	do {								\
+#define GET_STRING_OR_ERROR_RETURN(ARGS,PARAM,SP,E)			 \
+	do {								 \
 		*(SP) = get_string_from_args ((ARGS),(PARAM),FALSE,(E)); \
-		if (!(*(SP)))						\
-			return MU_G_ERROR_CODE((E));			\
+		if (!(*(SP)))						 \
+			return MU_G_ERROR_CODE((E));			 \
 	} while (0);
 
 
@@ -274,6 +275,13 @@ get_docids_from_msgids (MuQuery *query, const char *msgid,
 	char		*rawq, *tmp;
 	MuMsgIter	*iter;
 	GSList		*lst;
+
+	if (!msgid || strlen(msgid) > MU_STORE_MAX_TERM_LENGTH - 1) {
+		mu_util_g_set_error (err, MU_ERROR_IN_PARAMETERS,
+				     "invalid message-id '%s' (length=%zu)",
+				     msgid, strlen(msgid));
+		return NULL;
+	}
 
 	xprefix = mu_msg_field_xapian_prefix(MU_MSG_FIELD_ID_MSGID);
 	/*XXX this is a bit dodgy */
@@ -1055,8 +1063,6 @@ get_checked_path (const char *path)
 }
 
 
-
-
 static MuError
 index_and_maybe_cleanup (MuIndex *index, const char *path,
 			 gboolean cleanup, gboolean lazy_check, GError **err)
@@ -1174,11 +1180,11 @@ get_flags (const char *path, const char *flagstr)
 
 static MuError
 do_move (MuStore *store, unsigned docid, MuMsg *msg, const char *maildir,
-	 MuFlags flags, gboolean new_name, GError **err)
+	 MuFlags flags, gboolean new_name, gboolean no_view, GError **err)
 {
-	unsigned rv;
-	gchar *sexp;
-	gboolean different_mdir;
+	unsigned	 rv;
+	gchar		*sexp;
+	gboolean	 different_mdir;
 
 	if (!maildir) {
 		maildir = mu_msg_get_maildir (msg);
@@ -1204,8 +1210,9 @@ do_move (MuStore *store, unsigned docid, MuMsg *msg, const char *maildir,
 	sexp = mu_msg_to_sexp (msg, docid, NULL, MU_MSG_OPTION_VERIFY);
 	/* note, the :move t thing is a hint to the frontend that it
 	 * could remove the particular header */
-	print_expr ("(:update %s :move %s)", sexp,
-		    different_mdir ? "t" : "nil");
+	print_expr ("(:update %s :move %s :maybe-view %s)", sexp,
+		    different_mdir ? "t" : "nil",
+		    no_view ? "nil" : "t");
 	g_free (sexp);
 
 	return MU_OK;
@@ -1213,7 +1220,7 @@ do_move (MuStore *store, unsigned docid, MuMsg *msg, const char *maildir,
 
 static MuError
 move_docid (MuStore *store, unsigned docid, const char* flagstr,
-	    gboolean new_name, GError **err)
+	    gboolean new_name, gboolean no_view, GError **err)
 {
 	MuMsg		*msg;
 	MuError		 rv;
@@ -1234,7 +1241,8 @@ move_docid (MuStore *store, unsigned docid, const char* flagstr,
 		goto leave;
 	}
 
-	rv = do_move (store, docid, msg, NULL, flags, new_name, err);
+	rv = do_move (store, docid, msg, NULL, flags,
+		      new_name, no_view, err);
 
 leave:
 	if (msg)
@@ -1256,12 +1264,13 @@ move_msgid_maybe (ServerContext *ctx, GHashTable *args, GError **err)
 {
 	GSList		*docids, *cur;
 	const char*	 maildir, *msgid, *flagstr;
-	gboolean	 new_name;
+	gboolean	 new_name, no_view;
 
-	maildir	 = get_string_from_args (args, "maildir", TRUE, err);
-	msgid	 = get_string_from_args (args, "msgid", TRUE, err);
-	flagstr	 = get_string_from_args (args, "flags", TRUE, err);
-	new_name = get_bool_from_args (args, "newname", TRUE, err);
+	maildir	  = get_string_from_args (args, "maildir", TRUE, err);
+	msgid	  = get_string_from_args (args, "msgid", TRUE, err);
+	flagstr	  = get_string_from_args (args, "flags", TRUE, err);
+	new_name  = get_bool_from_args (args, "newname", TRUE, err);
+	no_view = get_bool_from_args (args, "noupdate", TRUE, err);
 
 	/*  you cannot use 'maildir' for multiple messages at once */
 	if (!msgid || !flagstr || maildir)
@@ -1275,7 +1284,7 @@ move_msgid_maybe (ServerContext *ctx, GHashTable *args, GError **err)
 
 	for (cur = docids; cur; cur = g_slist_next(cur))
 		if (move_docid (ctx->store, GPOINTER_TO_SIZE(cur->data),
-				flagstr, new_name, err) != MU_OK)
+				flagstr, new_name, no_view, err) != MU_OK)
 			break;
 
 	g_slist_free (docids);
@@ -1301,16 +1310,17 @@ cmd_move (ServerContext *ctx, GHashTable *args, GError **err)
 	MuMsg *msg;
 	MuFlags flags;
 	const char *maildir, *flagstr;
-	gboolean new_name;
+	gboolean new_name, no_view;
 
 	/* check if the move is based on the message id; if so, handle
 	 * it in move_msgid_maybe */
 	if (move_msgid_maybe (ctx, args, err))
 		return MU_OK;
 
-	maildir	 = get_string_from_args (args, "maildir", TRUE, err);
-	flagstr	 = get_string_from_args (args, "flags", TRUE, err);
-	new_name = get_bool_from_args (args, "newname", TRUE, err);
+	maildir	  = get_string_from_args (args, "maildir", TRUE, err);
+	flagstr	  = get_string_from_args (args, "flags", TRUE, err);
+	new_name  = get_bool_from_args (args, "newname", TRUE, err);
+	no_view = get_bool_from_args (args, "noupdate", TRUE, err);
 
 	docid = determine_docid (ctx->query, args, err);
 	if (docid == MU_STORE_INVALID_DOCID ||
@@ -1336,7 +1346,8 @@ cmd_move (ServerContext *ctx, GHashTable *args, GError **err)
 		goto leave;
 	}
 
-	if ((do_move (ctx->store, docid, msg, maildir, flags, new_name, err)
+	if ((do_move (ctx->store, docid, msg, maildir, flags,
+		      new_name, no_view, err)
 	     != MU_OK))
 		print_and_clear_g_error (err);
 
@@ -1406,7 +1417,8 @@ get_path_from_docid (MuStore *store, unsigned docid, GError **err)
 		return NULL;
 	}
 
-	strncpy (path, msgpath, sizeof(path));
+	strncpy (path, msgpath, sizeof(path) - 1);
+	path[sizeof(path)-1] = '\0';
 
 	mu_msg_unref (msg);
 	return path;

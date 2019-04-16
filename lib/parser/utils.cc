@@ -17,6 +17,9 @@
 **  02110-1301, USA.
 */
 
+#define _XOPEN_SOURCE
+#include <time.h>
+
 #define GNU_SOURCE
 #include <stdio.h>
 #include <stdint.h>
@@ -28,6 +31,7 @@
 #include <algorithm>
 
 #include <glib.h>
+#include <glib/gprintf.h>
 
 using namespace Mux;
 
@@ -95,36 +99,30 @@ gx_utf8_flatten (const gchar *str, gssize len)
 
 } // namespace
 
-
 std::string // gx_utf8_flatten
-Mux::utf8_flatten (const std::string& str)
+Mux::utf8_flatten (const char *str)
 {
-	// optimization for boring old ascii strings
-	bool is_ascii = true;
-	std::string s{str};
-	for (auto it = s.begin(); it != s.end(); ++it) {
-		if (*it & 0x80) {
-			is_ascii = false;
-			break;
-		} else
-			*it = tolower(*it);
+	if (!str)
+		return {};
+
+	// the pure-ascii case
+	if (g_str_is_ascii(str)) {
+		auto l = g_ascii_strdown (str, -1);
+		std::string s{l};
+		g_free (l);
+		return s;
 	}
 
-	if (G_LIKELY(is_ascii))
-		return s;
-	///////////////////////////////////////////
-
 	// seems we need the big guns
-	char *flat = gx_utf8_flatten (str.c_str(), str.length());
+	char *flat = gx_utf8_flatten (str, -1);
 	if (!flat)
 		return {};
 
-	s = flat;
+	std::string s{flat};
 	g_free (flat);
 
 	return s;
 }
-
 
 std::string
 Mux::utf8_clean (const std::string& dirty)
@@ -162,7 +160,6 @@ Mux::split (const std::string& str, const std::string& sepa)
 	return vec;
 }
 
-
 std::string
 Mux::quote (const std::string& str)
 {
@@ -184,7 +181,7 @@ Mux::quote (const std::string& str)
 	 va_start (args, frm);
 
 	 char *s = {};
-	 const auto res = vasprintf (&s, frm, args);
+	 const auto res = g_vasprintf (&s, frm, args);
 	 va_end (args);
 	 if (res == -1) {
 		 std::cerr << "string format failed" << std::endl;
@@ -217,7 +214,6 @@ Mux::date_to_time_t_string (int64_t t)
 
 	return buf;
 }
-
 
 static std::string
 delta_ymwdhMs (const std::string& expr)
@@ -287,8 +283,40 @@ special_date (const std::string& d, bool is_first)
 		return date_boundary (is_first);
 }
 
-constexpr const char UserDateMin[] = "19700101000000";
-constexpr const char UserDateMax[] = "29991231235959";
+// if a date has a month day greater than the number of days in that month,
+// change it to a valid date point to the last second in that month
+static void
+fixup_month (struct tm *tbuf)
+{
+	decltype(tbuf->tm_mday)	max_days;
+	const auto	month = tbuf->tm_mon + 1;
+	const auto	year  = tbuf->tm_year + 1900;
+
+	switch (month) {
+	case 2:
+		if (year % 4 == 0 && (year % 100 != 0 || year % 400 == 0))
+			max_days = 29;
+		else
+			max_days = 28;
+		break;
+	case 4:
+	case 6:
+	case 9:
+	case 11:
+		max_days = 30;
+		break;
+	default:
+		max_days = 31;
+		break;
+	}
+
+	if (tbuf->tm_mday > max_days) {
+		tbuf->tm_mday = max_days;
+		tbuf->tm_hour  = 23;
+		tbuf->tm_min   = 59;
+		tbuf->tm_sec   = 59;
+	}
+}
 
 std::string
 Mux::date_to_time_t_string (const std::string& dstr, bool is_first)
@@ -306,6 +334,9 @@ Mux::date_to_time_t_string (const std::string& dstr, bool is_first)
 	else if (dstr.find_first_of("ymdwhMs") != std::string::npos)
 		return delta_ymwdhMs (dstr);
 
+	constexpr char UserDateMin[] = "19700101000000";
+	constexpr char UserDateMax[] = "29991231235959";
+
 	std::string date (is_first ? UserDateMin : UserDateMax);
 	std::copy_if (dstr.begin(), dstr.end(), date.begin(),[](auto c){return isdigit(c);});
 
@@ -316,6 +347,8 @@ Mux::date_to_time_t_string (const std::string& dstr, bool is_first)
 	    !strptime (date.c_str(), "%Y%m", &tbuf) &&
 	    !strptime (date.c_str(), "%Y", &tbuf))
 		return date_boundary (is_first);
+
+	fixup_month(&tbuf);
 
 	dtime = g_date_time_new_local (tbuf.tm_year + 1900,
 				       tbuf.tm_mon + 1,
@@ -337,7 +370,6 @@ Mux::date_to_time_t_string (const std::string& dstr, bool is_first)
 	else
 		return date_to_time_t_string (t);
 }
-
 
 constexpr const auto SizeFormat = "%010" G_GINT64_FORMAT;
 

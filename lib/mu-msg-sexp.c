@@ -46,9 +46,6 @@ append_sexp_attr_list (GString *gstr, const char* elm, const GSList *lst)
 	g_string_append (gstr, ")\n");
 }
 
-
-
-
 static void
 append_sexp_attr (GString *gstr, const char* elm, const char *str)
 {
@@ -71,7 +68,6 @@ append_sexp_attr (GString *gstr, const char* elm, const char *str)
 	g_free (esc);
 }
 
-
 static void
 append_sexp_body_attr (GString *gstr, const char* elm, const char *str)
 {
@@ -85,11 +81,6 @@ append_sexp_body_attr (GString *gstr, const char* elm, const char *str)
 	g_string_append_printf (gstr, "\t:%s %s\n", elm, esc);
 	g_free (esc);
 }
-
-
-
-
-
 
 struct _ContactData {
 	gboolean from, to, cc, bcc, reply_to;
@@ -117,6 +108,7 @@ get_name_addr_pair (MuMsgContact *c)
 
 	return pair;
 }
+
 
 static void
 add_prefix_maybe (GString *gstr, gboolean *field, const char *prefix)
@@ -173,6 +165,36 @@ each_contact (MuMsgContact *c, ContactData *cdata)
 
 
 static void
+maybe_append_list_post_as_reply_to (GString *gstr, MuMsg *msg)
+{
+	/* some mailing lists do not set the reply-to; see pull #1278. So for
+	 * those cases, check the List-Post address and use that instead */
+
+	GMatchInfo	*minfo;
+	GRegex		*rx;
+	const char*	 list_post;
+
+	list_post = mu_msg_get_header (msg, "List-Post");
+	if (!list_post)
+		return;
+
+	rx = g_regex_new ("^(<?mailto:)?([a-z0-9%+@.-]+)>?", G_REGEX_CASELESS, 0, NULL);
+	g_return_if_fail(rx);
+
+	if (g_regex_match (rx, list_post, 0, &minfo)) {
+		char	*addr;
+		addr = g_match_info_fetch (minfo, 2);
+		g_string_append_printf (gstr,"\t:reply-to ((nil . \"%s\"))\n", addr);
+		g_free(addr);
+	}
+
+	g_match_info_free (minfo);
+	g_regex_unref (rx);
+}
+
+
+
+static void
 append_sexp_contacts (GString *gstr, MuMsg *msg)
 {
 	ContactData cdata;
@@ -184,9 +206,11 @@ append_sexp_contacts (GString *gstr, MuMsg *msg)
 
 	mu_msg_contact_foreach (msg, (MuMsgContactForeachFunc)each_contact,
 				&cdata);
-
 	if (cdata.from || cdata.to || cdata.cc || cdata.bcc || cdata.reply_to)
 		gstr = g_string_append (gstr, ")\n");
+
+	if (!cdata.reply_to)
+		maybe_append_list_post_as_reply_to (gstr, msg);
 }
 
 struct _FlagData {
@@ -368,8 +392,9 @@ get_part_type_string (MuMsgPartType ptype)
 static void
 each_part (MuMsg *msg, MuMsgPart *part, PartInfo *pinfo)
 {
-	char	*name, *encname, *tmp, *parttype;
-	char	*tmpfile, *cid, *verdict;
+	char		*name, *encname, *tmp, *parttype;
+	char		*tmpfile, *cidesc, *verdict;
+	const char	*cid;
 
 	name     = mu_msg_part_get_filename (part, TRUE);
 	encname  = name ?
@@ -380,9 +405,9 @@ each_part (MuMsg *msg, MuMsgPart *part, PartInfo *pinfo)
 	tmpfile  = get_temp_file_maybe (msg, part, pinfo->opts);
 	parttype = get_part_type_string (part->part_type);
 	verdict  = sig_verdict (part);
-	cid      = mu_str_escape_c_literal(mu_msg_part_get_content_id(part),
-					   TRUE);
 
+	cid    = mu_msg_part_get_content_id(part);
+	cidesc = cid ? mu_str_escape_c_literal(cid, TRUE) : NULL;
 
 	tmp = g_strdup_printf
 		("%s(:index %d :name %s :mime-type \"%s/%s\"%s%s "
@@ -396,7 +421,7 @@ each_part (MuMsg *msg, MuMsgPart *part, PartInfo *pinfo)
 		 tmpfile ? " :temp" : "", tmpfile ? tmpfile : "",
 		 parttype,
 		 mu_msg_part_maybe_attachment (part) ? "t" : "nil",
-		 cid ? " :cid" : "", cid ? cid : "",
+		 cidesc ? " :cid" : "", cidesc ? cidesc : "",
 		 (int)part->size,
 		 verdict,
 		 dec_verdict (part));
@@ -405,7 +430,7 @@ each_part (MuMsg *msg, MuMsgPart *part, PartInfo *pinfo)
 	g_free (tmpfile);
 	g_free (parttype);
 	g_free (verdict);
-	g_free (cid);
+	g_free (cidesc);
 
 	g_free (pinfo->parts);
 	pinfo->parts = tmp;
@@ -433,11 +458,13 @@ static void
 append_sexp_thread_info (GString *gstr, const MuMsgIterThreadInfo *ti)
 {
 	g_string_append_printf
-		(gstr, "\t:thread (:path \"%s\" :level %u%s%s%s%s)\n",
+		(gstr, "\t:thread (:path \"%s\" :level %u%s%s%s%s%s)\n",
 		 ti->threadpath,
 		 ti->level,
 		 ti->prop & MU_MSG_ITER_THREAD_PROP_FIRST_CHILD  ?
 		 " :first-child t" : "",
+		 ti->prop & MU_MSG_ITER_THREAD_PROP_LAST_CHILD   ?
+		 " :last-child t" : "",
 		 ti->prop & MU_MSG_ITER_THREAD_PROP_EMPTY_PARENT ?
 		 " :empty-parent t" : "",
 		 ti->prop & MU_MSG_ITER_THREAD_PROP_DUP          ?
@@ -554,7 +581,6 @@ append_sexp_tags (GString *gstr, MuMsg *msg)
 	g_string_free (tagstr, TRUE);
 }
 
-
 char*
 mu_msg_to_sexp (MuMsg *msg, unsigned docid, const MuMsgIterThreadInfo *ti,
 		MuMsgOptions opts)
@@ -577,9 +603,8 @@ mu_msg_to_sexp (MuMsg *msg, unsigned docid, const MuMsgIterThreadInfo *ti,
 
 	append_sexp_attr (gstr, "subject", mu_msg_get_subject (msg));
 
-	/* in the no-headers-only case (see below) we get a more
-	 * complete list of contacts, so no need to get them here if
-	 * that's the case */
+	/* in the no-headers-only case (see below) we get a more complete list
+	 * of contacts, so no need to get them here if that's the case */
 	if (opts & MU_MSG_OPTION_HEADERS_ONLY)
 		append_sexp_contacts (gstr, msg);
 

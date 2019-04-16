@@ -30,6 +30,7 @@
 #include "mu-util.h"
 #include "mu-str.h"
 #include "mu-maildir.h"
+#include "mu-store.h"
 #include "mu-msg-priv.h"
 
 static gboolean init_file_metadata (MuMsgFile *self, const char* path,
@@ -58,7 +59,6 @@ mu_msg_file_new (const char* filepath, const char *mdir, GError **err)
 	return self;
 }
 
-
 void
 mu_msg_file_destroy (MuMsgFile *self)
 {
@@ -70,7 +70,6 @@ mu_msg_file_destroy (MuMsgFile *self)
 
 	g_slice_free (MuMsgFile, self);
 }
-
 
 static gboolean
 init_file_metadata (MuMsgFile *self, const char* path, const gchar* mdir,
@@ -112,8 +111,6 @@ init_file_metadata (MuMsgFile *self, const char* path, const gchar* mdir,
 	strncpy (self->_maildir, mdir ? mdir : "", PATH_MAX);
 	return TRUE;
 }
-
-
 
 static GMimeStream*
 get_mime_stream (MuMsgFile *self, const char *path, GError **err)
@@ -159,7 +156,7 @@ init_mime_msg (MuMsgFile *self, const char* path, GError **err)
 		return FALSE;
 	}
 
-	self->_mime_msg = g_mime_parser_construct_message (parser);
+	self->_mime_msg = g_mime_parser_construct_message (parser, NULL);
 	g_object_unref (parser);
 	if (!self->_mime_msg) {
 		g_set_error (err, MU_ERROR_DOMAIN, MU_ERROR_GMIME,
@@ -171,15 +168,15 @@ init_mime_msg (MuMsgFile *self, const char* path, GError **err)
 }
 
 static char*
-get_recipient (MuMsgFile *self, GMimeRecipientType rtype)
+get_recipient (MuMsgFile *self, GMimeAddressType atype)
 {
 	char			*recip;
 	InternetAddressList	*recips;
 
-	recips = g_mime_message_get_recipients (self->_mime_msg, rtype);
+	recips = g_mime_message_get_addresses (self->_mime_msg, atype);
 
 	/* FALSE --> don't encode */
-	recip = (char*)internet_address_list_to_string (recips, FALSE);
+	recip = (char*)internet_address_list_to_string (recips, NULL, FALSE);
 
 	if (recip && !g_utf8_validate (recip, -1, NULL)) {
 		g_debug ("invalid recipient in %s\n", self->_path);
@@ -223,32 +220,38 @@ get_fake_mailing_list_maybe (MuMsgFile *self)
 	return NULL;
 }
 
-
 static gchar*
 get_mailing_list (MuMsgFile *self)
 {
-	const char *hdr, *b, *e;
+	char		*dechdr, *res;
+	const char	*hdr, *b, *e;
 
 	hdr = g_mime_object_get_header (GMIME_OBJECT(self->_mime_msg),
 					"List-Id");
 	if (mu_str_is_empty (hdr))
 		return get_fake_mailing_list_maybe (self);
 
+	dechdr = g_mime_utils_header_decode_phrase (NULL, hdr);
+	if (!dechdr)
+		return NULL;
+
 	e = NULL;
-	b = strchr (hdr, '<');
+	b = strchr (dechdr, '<');
 	if (b)
 		e = strchr (b, '>');
 
 	if (b && e)
-		return g_strndup (b + 1, e - b - 1);
+		res = g_strndup (b + 1, e - b - 1);
 	else
-		return g_strdup (hdr);
-}
+		res = g_strdup (dechdr);
 
+	return res;
+}
 
 static gboolean
 looks_like_attachment (GMimeObject *part)
 {
+
 	GMimeContentDisposition *disp;
 	GMimeContentType	*ctype;
 	const char		*dispstr;
@@ -260,8 +263,6 @@ looks_like_attachment (GMimeObject *part)
 		{ "image", "*" },
 		{ "audio", "*" },
 		{ "application", "*"},
-		{ "text", "x-diff" },
-		{ "text", "x-patch"},
 		{ "application", "x-patch"}
 	};
 
@@ -282,6 +283,14 @@ looks_like_attachment (GMimeObject *part)
 	if (g_mime_content_type_is_type (ctype, "*", "pgp-signature"))
 		return FALSE; /* don't consider as a signature */
 
+	if (g_mime_content_type_is_type (ctype, "text", "*")) {
+		if (g_mime_content_type_is_type (ctype, "*", "plain") ||
+		    g_mime_content_type_is_type (ctype, "*", "html"))
+			return FALSE;
+		else
+			return TRUE;
+	}
+
 	for (u = 0; u != G_N_ELEMENTS(att_types); ++u)
 		if (g_mime_content_type_is_type (
 			    ctype, att_types[u].type, att_types[u].sub_type))
@@ -289,7 +298,6 @@ looks_like_attachment (GMimeObject *part)
 
 	return FALSE;
 }
-
 
 static void
 msg_cflags_cb (GMimeObject *parent, GMimeObject *part, MuFlags *flags)
@@ -315,8 +323,6 @@ msg_cflags_cb (GMimeObject *parent, GMimeObject *part, MuFlags *flags)
 		*flags |= MU_FLAG_HAS_ATTACH;
 }
 
-
-
 static MuFlags
 get_content_flags (MuMsgFile *self)
 {
@@ -337,10 +343,8 @@ get_content_flags (MuMsgFile *self)
 		g_free (ml);
 	}
 
-
 	return flags;
 }
-
 
 static MuFlags
 get_flags (MuMsgFile *self)
@@ -360,14 +364,12 @@ get_flags (MuMsgFile *self)
 	return flags;
 }
 
-
 static size_t
 get_size (MuMsgFile *self)
 {
 	g_return_val_if_fail (self, 0);
 	return self->_size;
 }
-
 
 static MuMsgPrio
 parse_prio_str (const char* priostr)
@@ -418,7 +420,6 @@ get_prio (MuMsgFile *self)
 	return priostr ? parse_prio_str (priostr) : MU_MSG_PRIO_NORMAL;
 }
 
-
 /* NOTE: buffer will be *freed* or returned unchanged */
 static char*
 convert_to_utf8 (GMimePart *part, char *buffer)
@@ -448,7 +449,6 @@ convert_to_utf8 (GMimePart *part, char *buffer)
 	return buffer;
 }
 
-
 static gchar*
 stream_to_string (GMimeStream *stream, size_t buflen)
 {
@@ -471,7 +471,6 @@ stream_to_string (GMimeStream *stream, size_t buflen)
 	return buffer;
 }
 
-
 gchar*
 mu_msg_mime_part_to_string (GMimePart *part, gboolean *err)
 {
@@ -488,7 +487,7 @@ mu_msg_mime_part_to_string (GMimePart *part, gboolean *err)
 	*err = TRUE; /* guilty until proven innocent */
 	g_return_val_if_fail (GMIME_IS_PART(part), NULL);
 
-	wrapper = g_mime_part_get_content_object (part);
+	wrapper = g_mime_part_get_content (part);
 	if (!wrapper) {
 		/* this happens with invalid mails */
 		g_debug ("failed to create data wrapper");
@@ -520,8 +519,6 @@ cleanup:
 	return buffer;
 }
 
-
-
 static gboolean
 contains (GSList *lst, const char *str)
 {
@@ -530,7 +527,6 @@ contains (GSList *lst, const char *str)
 			return TRUE;
 	return FALSE;
 }
-
 
 /*
  * NOTE: this will get the list of references with the oldest parent
@@ -545,20 +541,21 @@ get_references  (MuMsgFile *self)
 	for (msgids = NULL, u = 0; headers[u]; ++u) {
 
 		char *str;
-		const GMimeReferences *cur;
 		GMimeReferences *mime_refs;
+		int i, refs_len;
 
 		str = mu_msg_file_get_header (self, headers[u]);
 		if (!str)
 			continue;
 
-		mime_refs = g_mime_references_decode (str);
+		mime_refs = g_mime_references_parse (NULL, str);
 		g_free (str);
 
-		for (cur = mime_refs; cur;
-		     cur = g_mime_references_get_next(cur)) {
+		refs_len = g_mime_references_length (mime_refs);
+		for (i = 0; i < refs_len; ++i) {
 			const char* msgid;
-			msgid = g_mime_references_get_message_id (cur);
+			msgid = g_mime_references_get_message_id (mime_refs, i);
+
 			/* don't include duplicates */
 			if (msgid && !contains (msgids, msgid))
 				/* explicitly ensure it's utf8-safe,
@@ -573,9 +570,6 @@ get_references  (MuMsgFile *self)
 	 * reasons */
 	return g_slist_reverse (msgids);
 }
-
-
-
 
 /* see: http://does-not-exist.org/mail-archives/mutt-dev/msg08249.html */
 static GSList*
@@ -611,8 +605,6 @@ get_tags (MuMsgFile *self)
 	return lst;
 }
 
-
-
 static char*
 cleanup_maybe (const char *str, gboolean *do_free)
 {
@@ -636,15 +628,14 @@ cleanup_maybe (const char *str, gboolean *do_free)
 	return s;
 }
 
-
-
-G_GNUC_CONST static GMimeRecipientType
-recipient_type (MuMsgFieldId mfid)
+G_GNUC_CONST static GMimeAddressType
+address_type (MuMsgFieldId mfid)
 {
 	switch (mfid) {
-	case MU_MSG_FIELD_ID_BCC: return GMIME_RECIPIENT_TYPE_BCC;
-	case MU_MSG_FIELD_ID_CC : return GMIME_RECIPIENT_TYPE_CC;
-	case MU_MSG_FIELD_ID_TO : return GMIME_RECIPIENT_TYPE_TO;
+	case MU_MSG_FIELD_ID_BCC : return GMIME_ADDRESS_TYPE_BCC;
+	case MU_MSG_FIELD_ID_CC	 : return GMIME_ADDRESS_TYPE_CC;
+	case MU_MSG_FIELD_ID_TO	 : return GMIME_ADDRESS_TYPE_TO;
+	case MU_MSG_FIELD_ID_FROM: return GMIME_ADDRESS_TYPE_FROM;
 	default: g_return_val_if_reached (-1);
 	}
 }
@@ -655,16 +646,14 @@ get_msgid (MuMsgFile *self, gboolean *do_free)
 	const char *msgid;
 
 	msgid = g_mime_message_get_message_id (self->_mime_msg);
-	if (msgid)
+	if (msgid && strlen(msgid) < MU_STORE_MAX_TERM_LENGTH) {
 		return (char*)msgid;
-	else { /* if there is none, fake it */
+	} else { /* if there is none, fake it */
 		*do_free = TRUE;
-		return g_strdup_printf (
-			"%s@fake-msgid",
-			mu_util_get_hash (self->_path));
+		return g_strdup_printf ("%s@fake-msgid",
+					mu_util_get_hash (self->_path));
 	}
 }
-
 
 char*
 mu_msg_file_get_str_field (MuMsgFile *self, MuMsgFieldId mfid,
@@ -679,12 +668,10 @@ mu_msg_file_get_str_field (MuMsgFile *self, MuMsgFieldId mfid,
 
 	case MU_MSG_FIELD_ID_BCC:
 	case MU_MSG_FIELD_ID_CC:
-	case MU_MSG_FIELD_ID_TO: *do_free = TRUE;
-		return get_recipient (self, recipient_type(mfid));
-
 	case MU_MSG_FIELD_ID_FROM:
-		return (char*)cleanup_maybe
-			(g_mime_message_get_sender (self->_mime_msg), do_free);
+	case MU_MSG_FIELD_ID_TO:
+		*do_free = TRUE;
+		return get_recipient (self, address_type(mfid));
 
 	case MU_MSG_FIELD_ID_PATH: return self->_path;
 
@@ -712,7 +699,6 @@ mu_msg_file_get_str_field (MuMsgFile *self, MuMsgFieldId mfid,
 	}
 }
 
-
 GSList*
 mu_msg_file_get_str_list_field (MuMsgFile *self, MuMsgFieldId mfid)
 {
@@ -726,7 +712,6 @@ mu_msg_file_get_str_list_field (MuMsgFile *self, MuMsgFieldId mfid)
 	}
 }
 
-
 gint64
 mu_msg_file_get_num_field (MuMsgFile *self, const MuMsgFieldId mfid)
 {
@@ -736,9 +721,9 @@ mu_msg_file_get_num_field (MuMsgFile *self, const MuMsgFieldId mfid)
 	switch (mfid) {
 
 	case MU_MSG_FIELD_ID_DATE: {
-		time_t t;
-		g_mime_message_get_date (self->_mime_msg, &t, NULL);
-		return (time_t)t;
+		GDateTime *dt;
+		dt = g_mime_message_get_date (self->_mime_msg);
+		return dt ? g_date_time_to_unix (dt) : 0;
 	}
 
 	case MU_MSG_FIELD_ID_FLAGS:
@@ -753,7 +738,6 @@ mu_msg_file_get_num_field (MuMsgFile *self, const MuMsgFieldId mfid)
 	default: g_return_val_if_reached (-1);
 	}
 }
-
 
 char*
 mu_msg_file_get_header (MuMsgFile *self, const char *header)
@@ -772,14 +756,12 @@ mu_msg_file_get_header (MuMsgFile *self, const char *header)
 	return hdr ? mu_str_utf8ify(hdr) : NULL;
 }
 
-
 struct _ForeachData {
 	GMimeObjectForeachFunc user_func;
 	gpointer user_data;
 	gboolean decrypt;
 };
 typedef struct _ForeachData ForeachData;
-
 
 static void
 foreach_cb (GMimeObject *parent, GMimeObject *part, ForeachData *fdata)
@@ -808,7 +790,6 @@ foreach_cb (GMimeObject *parent, GMimeObject *part, ForeachData *fdata)
 		g_object_unref (dec);
 	}
 }
-
 
 void
 mu_mime_message_foreach (GMimeMessage *msg, gboolean decrypt,
