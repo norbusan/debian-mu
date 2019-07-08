@@ -1,3 +1,11 @@
+maildir-utils (1.2.0-2) unstable; urgency=medium
+
+  * Enable guile for armel and ia64 (Closes: #918051)
+  * upload to unstable (source only)
+  * close old gmime3 conversion bug (Closes: #867352)
+
+ -- Norbert Preining <norbert@preining.info>  Mon, 08 Jul 2019 17:21:12 +0900
+
 maildir-utils (1.2.0-1) experimental; urgency=medium
 
   * New upstream version 1.2.0
