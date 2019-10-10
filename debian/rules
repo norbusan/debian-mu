@@ -72,7 +72,7 @@ binary-indep: install
 	dh_testroot
 	dh_makeshlibs
 	dh_shlibdeps
-	dh_installdocs README NEWS NEWS.org TODO HACKING
+	dh_installdocs README NEWS.org TODO HACKING
 	dh_installchangelogs
 	dh_installemacsen -pmu4e
 	dh_compress
