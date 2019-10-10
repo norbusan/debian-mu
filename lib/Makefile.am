@@ -37,7 +37,6 @@ AM_CFLAGS=					\
 	$(json_flag)				\
 	-Wno-format-nonliteral			\
 	-Wno-switch-enum			\
-	-Wno-suggest-attribute=format		\
 	-Wno-deprecated-declarations		\
 	-Wno-inline
 
@@ -63,8 +62,8 @@ noinst_LTLIBRARIES=				\
 libmu_la_SOURCES=				\
 	mu-bookmarks.c				\
 	mu-bookmarks.h				\
-	mu-contacts.c				\
-	mu-contacts.h				\
+	mu-contacts.cc				\
+	mu-contacts.hh				\
 	mu-container.c				\
 	mu-container.h				\
 	mu-date.c				\
@@ -98,15 +97,12 @@ libmu_la_SOURCES=				\
 	mu-msg.h				\
 	mu-query.cc				\
 	mu-query.h				\
-	mu-runtime.c				\
+	mu-runtime.cc				\
 	mu-runtime.h				\
 	mu-script.c				\
 	mu-script.h				\
 	mu-store.cc				\
-	mu-store.h				\
-	mu-store-read.cc			\
-	mu-store-write.cc			\
-	mu-store-priv.hh			\
+	mu-store.hh				\
 	mu-str.c				\
 	mu-str.h				\
 	mu-threader.c				\
@@ -124,7 +120,6 @@ libmu_la_LIBADD=				\
 
 libmu_la_LDFLAGS=				\
 	$(ASAN_LDFLAGS)
-
 
 EXTRA_DIST=					\
 	mu-msg-crypto.c				\

@@ -35,10 +35,9 @@
 #include "mu-str.h"
 #include "mu-date.h"
 #include "mu-maildir.h"
-#include "mu-contacts.h"
+#include "mu-contacts.hh"
 #include "mu-runtime.h"
 #include "mu-flags.h"
-#include "mu-store.h"
 #include "mu-log.h"
 
 #define VIEW_TERMINATOR '\f' /* form-feed */
@@ -198,7 +197,6 @@ handle_msg (const char *fname, MuConfig *opts, GError **err)
 	MuMsg *msg;
 	gboolean rv;
 
-	err = NULL;
 	msg = mu_msg_new_from_file (fname, NULL, err);
 	if (!msg)
 		return FALSE;
@@ -569,31 +567,67 @@ show_usage (void)
 
 typedef MuError (*store_func) (MuStore *, MuConfig *, GError **err);
 
+
+static gboolean
+needs_rebuild (MuStore *store, MuConfig *opts, GError **err)
+{
+	if (store)
+		return mu_store_count(store, NULL) == 0;
+	else
+		return err &&
+			(*err)->code == MU_ERROR_XAPIAN_NEEDS_REINDEX &&
+			opts->maildir;
+}
+
 static MuError
 with_store (store_func func, MuConfig *opts, gboolean read_only,
 	    GError **err)
 {
 	MuStore *store;
-	MuError merr;
+	MuError	 merr;
 
-	if (read_only)
-		store = mu_store_new_read_only
-			(mu_runtime_path(MU_RUNTIME_PATH_XAPIANDB),
-			 err);
-	else
+	if (opts->rebuild && read_only) {
+		g_set_error (err, MU_ERROR_DOMAIN, MU_ERROR,
+			     "cannot rebuild a read-only database");
+		return MU_G_ERROR_CODE(err);
+	}
+
+	if (read_only) {
+		store = mu_store_new_readable (
+			mu_runtime_path(MU_RUNTIME_PATH_XAPIANDB), err);
+	} else if (!opts->rebuild) {
 		store = mu_store_new_writable
+			(mu_runtime_path(MU_RUNTIME_PATH_XAPIANDB), err);
+		if (needs_rebuild (store, opts, err)) {
+			if (store)
+				mu_store_unref(store);
+			opts->rebuild = TRUE;
+			g_clear_error (err);
+			return with_store(func, opts, read_only, err);
+		}
+	} else { /* rebuilding */
+		if (!opts->maildir) {
+			g_set_error (err, MU_ERROR_DOMAIN,
+				     MU_ERROR_IN_PARAMETERS,
+				     "missing --maildir parameter");
+		}
+		store = mu_store_new_create
 			(mu_runtime_path(MU_RUNTIME_PATH_XAPIANDB),
-			 mu_runtime_path(MU_RUNTIME_PATH_CONTACTS),
-			 opts->rebuild, err);
+			 opts->maildir, err);
+	}
+
 	if (!store)
 		return MU_G_ERROR_CODE(err);
 
-	mu_store_set_my_addresses (store, (const char**)opts->my_addresses);
+	if (!read_only && opts->my_addresses)
+		mu_store_set_personal_addresses (
+			store, (const char**)opts->my_addresses);
+
 	merr = func (store, opts, err);
 	mu_store_unref (store);
+
 	return merr;
 }
-
 
 static gboolean
 check_params (MuConfig *opts, GError **err)
@@ -607,7 +641,6 @@ check_params (MuConfig *opts, GError **err)
 
 	return TRUE;
 }
-
 
 static void
 set_log_options (MuConfig *opts)
@@ -627,7 +660,6 @@ set_log_options (MuConfig *opts)
 }
 
 
-
 MuError
 mu_cmd_execute (MuConfig *opts, GError **err)
 {
@@ -644,13 +676,14 @@ mu_cmd_execute (MuConfig *opts, GError **err)
 		/* already handled in mu-config.c */
 	case MU_CONFIG_CMD_HELP: return MU_OK;
 
-	case MU_CONFIG_CMD_CFIND:   merr = mu_cmd_cfind   (opts, err); break;
 	case MU_CONFIG_CMD_MKDIR:   merr = mu_cmd_mkdir   (opts, err); break;
 	case MU_CONFIG_CMD_SCRIPT:  merr = mu_cmd_script  (opts, err); break;
 	case MU_CONFIG_CMD_VIEW:    merr = mu_cmd_view    (opts, err); break;
 	case MU_CONFIG_CMD_VERIFY:  merr = mu_cmd_verify  (opts, err); break;
 	case MU_CONFIG_CMD_EXTRACT: merr = mu_cmd_extract (opts, err); break;
 
+	case MU_CONFIG_CMD_CFIND:
+		merr = with_store (mu_cmd_cfind, opts, TRUE, err); break;
 	case MU_CONFIG_CMD_FIND:
 		merr = with_store (mu_cmd_find, opts, TRUE, err);      break;
 	case MU_CONFIG_CMD_INDEX:

@@ -1,4 +1,4 @@
-## Copyright (C) 2008-2018 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+## Copyright (C) 2008-2019 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 ##
 ## This program is free software; you can redistribute it and/or modify
 ## it under the terms of the GNU General Public License as published by
@@ -15,8 +15,8 @@
 ## Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
 
 AC_PREREQ([2.68])
-AC_INIT([mu],[1.2.0],[https://github.com/djcb/mu/issues],[mu])
-AC_COPYRIGHT([Copyright (C) 2008-2018 Dirk-Jan C. Binnema])
+AC_INIT([mu],[1.3.5],[https://github.com/djcb/mu/issues],[mu])
+AC_COPYRIGHT([Copyright (C) 2008-2019 Dirk-Jan C. Binnema])
 AC_CONFIG_HEADERS([config.h])
 AC_CONFIG_SRCDIR([mu/mu.cc])
 # libtoolize wants to put some stuff in here; if you have an old
@@ -44,19 +44,16 @@ AC_PROG_CC_C99
 AC_PROG_INSTALL
 AC_HEADER_STDC
 
-extra_flags="-Wformat-security		\
-             -Wstack-protector		\
-	     -Wstack-protector-all	\
-	     -Wno-cast-function-type"
+extra_flags="-Wformat-security                                        \
+             -Wstack-protector                                        \
+             -Wstack-protector-all                                    \
+             -Wno-cast-function-type"
 
 AX_CXX_COMPILE_STDCXX_14
 m4_ifdef([AX_COMPILER_FLAGS],[AX_COMPILER_FLAGS(,,[yes],${extra_flags})])
 AX_VALGRIND_CHECK
 
-# for now, use AM_PROG_LIBTOOL, as we don't want to require
-# a too new setup for autotools/libtool
-AM_PROG_LIBTOOL
-#LT_INIT([disable-shared])
+LT_INIT
 
 AC_PROG_AWK
 AC_CHECK_PROG(SORT,sort,sort)
@@ -92,80 +89,63 @@ AS_IF([test "x$enable_mu4e" != "xno"], [
     lispdir="${lispdir}/mu4e/"
   ])
   AS_CASE([$emacs_version],
-  	[*24.4*|*24.5*],[build_mu4e=yes],
-	[*25*|*26*|*27*],[build_mu4e=yes],
-	[AC_WARN([emacs is too old to build mu4e (need emacs >= 24.4)])])
+    [*24.4*|*24.5*],[build_mu4e=yes],
+    [*25*|*26*|*27*],[build_mu4e=yes],
+    [AC_WARN([emacs is too old to build mu4e (need emacs >= 24.4)])])
 ])
 AM_CONDITIONAL(BUILD_MU4E, test "x$build_mu4e" = "xyes")
-
-# Perl interface requires Data::SExpression
-dnl build_perl=no
-dnl AC_ARG_ENABLE([perl],
-dnl   AS_HELP_STRING([--enable-perl],[Enable building the Perl interface]))
-dnl AC_ARG_VAR([PERL], [the Perl interpreter command])
-dnl AC_CHECK_PROGS([PERL], [perl], [no])
-dnl AS_IF([test x"$enable_perl" = "xyes" -a x"$PERL" != "xno"], [
-dnl     AM_PERL_MODULE([Data::SExpression],[build_perl=yes])
-dnl     if test x"$build_perl" = "xyes"; then
-dnl 	perl_version=`$PERL -Iperl/lib -Mmup -e 'print "$mup::VERSION\n";'`
-dnl     fi
-dnl ])
-dnl AM_CONDITIONAL(BUILD_PERL, test "x$build_perl" = "xyes")
 
 # we need some special tricks for filesystems that don't have d_type;
 # e.g. Solaris. See mu-maildir.c. Explicitly disabling it is for
 # testing purposes only
 AC_ARG_ENABLE([dirent-d-type],
-	AC_HELP_STRING([--disable-dirent-d-type],
-			[Don't use dirent->d_type, even if you have it]),
-	[], [AC_STRUCT_DIRENT_D_TYPE]
+    AC_HELP_STRING([--disable-dirent-d-type],
+            [Don't use dirent->d_type, even if you have it]),
+    [], [AC_STRUCT_DIRENT_D_TYPE]
 )
 AS_IF([test "x$ac_cv_member_struct_dirent_d_type" != "xyes"],
-	    [use_dirent_d_type="no"], [use_dirent_d_type="yes"])
+        [use_dirent_d_type="no"], [use_dirent_d_type="yes"])
 
 # support for d_ino (inode) in struct dirent is optional; if it's
 # available we can sort direntries by inode and access them in that
 # order; this is much faster on some file systems (such as extfs3).
 # Explicity disabling it is for testing purposes only.
 AC_ARG_ENABLE([dirent-d-ino],
-	AC_HELP_STRING([--disable-dirent-d-ino],
-			[Don't use dirent->d_ino, even if you have it]),
-	[], [AC_STRUCT_DIRENT_D_INO]
+    AC_HELP_STRING([--disable-dirent-d-ino],
+            [Don't use dirent->d_ino, even if you have it]),
+    [], [AC_STRUCT_DIRENT_D_INO]
 )
 AS_IF([test "x$ac_cv_member_struct_dirent_d_ino" != "xyes"],
-	    [use_dirent_d_ino="no"], [use_dirent_d_ino="yes"])
+        [use_dirent_d_ino="no"], [use_dirent_d_ino="yes"])
 
 AC_CHECK_FUNCS([memset memcpy realpath setlocale strerror getpass setsid])
 AC_CHECK_FUNCS([vasprintf strptime])
 AC_CHECK_FUNC(timegm,[],[AC_MSG_ERROR([*** missing required function timegm])])
 
-# require pkg-config
-AC_PATH_PROG([PKG_CONFIG], [pkg-config], [no])
-AS_IF([test "x$PKG_CONFIG" = "xno"],[
+# require pkg-config >= 0.28 (release in 2013; should be old enough...)
+# with that version, we don't need the AC_SUBST stuff after PKG_CHECK.
+m4_ifndef([PKG_PROG_PKG_CONFIG],
+   [m4_fatal([please install pkg-config >= 0.28 before running autoconf/autogen])])
+PKG_PROG_PKG_CONFIG(0.28) # latest version in buildroot
+AS_IF([test -z "$PKG_CONFIG"],[
    AC_MSG_ERROR([
-   *** The pkg-config script could not be found. Make sure it is
-   *** in your path, or set the PKG_CONFIG environment variable
+   *** pkg-config with version >= 0.28 could not be found.
+   ***
+   *** Make sure it is in your path, or set the PKG_CONFIG environment variable
    *** to the full path to pkg-config.])
 ])
 
 # glib2?
-# we pick some late-2012 version
-PKG_CHECK_MODULES(GLIB,glib-2.0 >= 2.32 gobject-2.0 gio-2.0)
-AC_SUBST(GLIB_CFLAGS)
-AC_SUBST(GLIB_LIBS)
-glib_version="`$PKG_CONFIG --modversion glib-2.0`"
+PKG_CHECK_MODULES(GLIB,glib-2.0 >= 2.38 gobject-2.0 gio-2.0)
+glib_version="$($PKG_CONFIG --modversion glib-2.0)"
 
 # gmime, version 3.0 or higher
 PKG_CHECK_MODULES(GMIME,gmime-3.0)
-AC_SUBST(GMIME_CFLAGS)
-AC_SUBST(GMIME_LIBS)
-gmime_version="`$PKG_CONFIG --modversion gmime-3.0`"
+gmime_version="$($PKG_CONFIG --modversion gmime-3.0)"
 
 # gmime, version 3.0 or higher
 PKG_CHECK_MODULES(JSON_GLIB,json-glib-1.0 >= 1.4,[have_json_glib=yes],[have_json_glib=no])
 AS_IF([test "x$have_json_glib" = "xyes"],[
-  AC_SUBST(JSON_GLIB_CFLAGS)
-  AC_SUBST(JSON_GLIB_LIBS)
   json_glib_version="$($PKG_CONFIG --modversion json-glib-1.0)"
   AC_DEFINE(HAVE_JSON_GLIB,[1], [Do we support json-glib?])
 ])
@@ -183,9 +163,9 @@ AS_IF([test "x$XAPIAN_CONFIG" = "xno"],[
    [xapian_version=$($XAPIAN_CONFIG --version | sed -e 's/.* //')])
 
 AS_CASE([$xapian_version],
-	[1.[[4-9]].[[0-9]]*],
-	  [AC_DEFINE([XAPIAN_HAVE_OP_WILDCARD],[1],[Xapian::Query::OP_WILDCARD?])],
-	[AC_MSG_ERROR([*** xapian version >= 1.4 needed, but version $xapian_version found.])])
+    [1.[[4-9]].[[0-9]]*],
+      [AC_DEFINE([XAPIAN_HAVE_OP_WILDCARD],[1],[Xapian::Query::OP_WILDCARD?])],
+    [AC_MSG_ERROR([*** xapian version >= 1.4 needed, but version $xapian_version found.])])
 
 XAPIAN_CXXFLAGS="$($XAPIAN_CONFIG --cxxflags)"
 XAPIAN_LIBS="$($XAPIAN_CONFIG --libs)"
@@ -199,10 +179,10 @@ AC_SUBST(XAPIAN_LIBS)
 # here; it will become part of the db name, so we can automatically
 # recreate the database when we have incompatible changes.
 #
-# note that MU_STORE_SCHEMA_VERSION does not necessarily follow MU
-# versioning, as we hopefully don't have updates for each version;
-# also, this has nothing to do with Xapian's software version
-AC_DEFINE(MU_STORE_SCHEMA_VERSION,["0.99"], ['Schema' version of the database])
+# note that MU_STORE_SCHEMA_VERSION does not follow mu versioning, as we
+# hopefully don't have updates for each version; also, this has nothing to do
+# with Xapian's software version
+AC_DEFINE(MU_STORE_SCHEMA_VERSION,["451"],['Schema' version of the database])
 ###############################################################################
 
 ###############################################################################
@@ -211,20 +191,19 @@ AC_DEFINE(MU_STORE_SCHEMA_VERSION,["0.99"], ['Schema' version of the database])
 AC_ARG_ENABLE([gtk],AS_HELP_STRING([--disable-gtk],[Disable GTK+]))
 AS_IF([test "x$enable_gtk" != "xno"],[
      PKG_CHECK_MODULES(GTK,gtk+-3.0,[have_gtk=yes],[have_gtk=no])
-     AC_SUBST(GTK_CFLAGS)
-     AC_SUBST(GTK_LIBS)
-     gtk_version="`$PKG_CONFIG --modversion gtk+-3.0`"])
+     gtk_version="$($PKG_CONFIG --modversion gtk+-3.0)"
+])
 AM_CONDITIONAL(HAVE_GTK,[test "x$have_gtk" = "xyes"])
 
 # webkit? needed for the fancy web widget
 # use --disable-webkit to disable it, even if you have it
+#
+# and note this is just a toy, not for distribution.
 AC_ARG_ENABLE([webkit],AS_HELP_STRING([--disable-webkit],[Disable webkit]))
 AS_IF([test "x$enable_webkit" != "xno"],[
-       PKG_CHECK_MODULES(WEBKIT,webkitgtk-3.0 >= 1.8.0,[have_webkit=yes],[have_webkit=no])
+       PKG_CHECK_MODULES(WEBKIT,webkit2gtk-4.0 >= 2.0, [have_webkit=yes],[have_webkit=no])
        AS_IF([test "x$have_webkit" = "xyes"],[
-	    webkit_version="`$PKG_CONFIG --modversion webkitgtk-3.0`"])
-       AC_SUBST(WEBKIT_CFLAGS)
-       AC_SUBST(WEBKIT_LIBS)
+        webkit_version="$($PKG_CONFIG --modversion webkit2gtk-4.0)"])
 ])
 AM_CONDITIONAL(HAVE_WEBKIT, [test "x$have_webkit" = "xyes"])
 AM_CONDITIONAL(BUILD_GUI,[test "x$have_webkit" = "xyes" -a "x$have_gtk" = "xyes"])
@@ -288,29 +267,18 @@ guile/tests/Makefile
 guile/scripts/Makefile
 toys/Makefile
 toys/mug/Makefile
-toys/msg2pdf/Makefile
 man/Makefile
 m4/Makefile
 contrib/Makefile
 ])
 AC_OUTPUT
 
-dnl if test x"$build_perl" != "xno"; then
-dnl    echo "Configuring Perl interface..."
-dnl    cd perl
-dnl    $PERL Makefile.PL
-dnl    cd ..
-dnl fi
+# toys/msg2pdf/Makefile
+
 
 echo
 echo "mu configuration is complete."
 echo "------------------------------------------------"
-
-if test -e ~/.mu/xapian-0.6; then
-   echo "Note: since version 0.7, the Xapian database is no longer stored as "
-   echo "~/.mu/xapian-0.6 but instead simply as ~/.mu/xapian. You can "
-   echo "remove the old <muhome>/xapian-0.6 directory to save some disk space"
-fi
 
 echo "mu version                           : $VERSION"
 echo
@@ -324,7 +292,7 @@ echo "Json-Glib version                    : $json_glib_version"
 
 AM_COND_IF([BUILD_GUI],[
 echo "GTK+ version                         : $gtk_version"
-echo "Webkit version                       : $webkit_version"
+echo "Webkit2/GTK+ version                 : $webkit_version"
 ])
 
 AM_COND_IF([BUILD_GUILE],[
@@ -334,10 +302,6 @@ echo "Guile version                        : $GUILE_EFFECTIVE_VERSION"
 if test "x$build_mu4e" = "xyes"; then
 echo "Emacs version                        : $emacs_version"
 fi
-
-#AM_COND_IF([BUILD_PERL],[
-#echo "Perl interface version               : $perl_version"
-#])
 
 echo
 echo "Have wordexp                         : $ac_cv_header_wordexp_h"
@@ -369,20 +333,20 @@ if test "x$have_makeinfo" != "xyes"; then
 fi
 
 # gui
-if test "x$buildgui" = "xyes"; then
+AS_IF([test "x$buildgui" = "xyes"],[
      echo "* The demo UI will be built in toys/mug"
      echo
-fi
+])
 
 # wordexp
-if test "x$ac_cv_header_wordexp_h" != "xyes"; then
+AS_IF([test "x$ac_cv_header_wordexp_h" != "xyes"],[
    echo "* Your system does not seem to have the 'wordexp' function."
    echo "  This means that you cannot use shell-like expansion in options and "
    echo "  some other places. So, for example, instead of"
    echo "    --maildir=~/Maildir"
    echo "  you should use the complete path, something like:"
    echo "    --maildir=/home/user/Maildir"
-fi
+])
 
 echo
 echo "Now, type 'make' (or 'gmake') to build mu"

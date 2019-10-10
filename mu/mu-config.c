@@ -54,7 +54,8 @@ get_output_format (const char *formatstr)
 		{"json",	MU_CONFIG_FORMAT_JSON},
 		{"xml",		MU_CONFIG_FORMAT_XML},
 		{"xquery",	MU_CONFIG_FORMAT_XQUERY},
-		{"mquery",	MU_CONFIG_FORMAT_MQUERY}
+		{"mquery",	MU_CONFIG_FORMAT_MQUERY},
+		{"debug",	MU_CONFIG_FORMAT_DEBUG}
 	};
 
 	for (i = 0; i != G_N_ELEMENTS(formats); i++)
@@ -68,15 +69,16 @@ get_output_format (const char *formatstr)
 static void
 set_group_mu_defaults (void)
 {
-	gchar *exp;
+	/* If muhome is not set, we use the XDG Base Directory Specification
+	 * locations. */
 
-	if (!MU_CONFIG.muhome)
-		MU_CONFIG.muhome = mu_util_guess_mu_homedir();
-
-	exp = mu_util_dir_expand(MU_CONFIG.muhome);
-	if (exp) {
-		g_free(MU_CONFIG.muhome);
-		MU_CONFIG.muhome = exp;
+	if (MU_CONFIG.muhome) {
+		gchar *exp;
+		exp = mu_util_dir_expand(MU_CONFIG.muhome);
+		if (exp) {
+			g_free(MU_CONFIG.muhome);
+			MU_CONFIG.muhome = exp;
+		}
 	}
 
 	/* check for the MU_NOCOLOR or NO_COLOR env vars; but in any case don't
@@ -130,8 +132,6 @@ config_options_group_mu (void)
 		}						\
 	}
 
-
-
 static void
 set_group_index_defaults (void)
 {
@@ -154,16 +154,10 @@ config_options_group_index (void)
 		 "only check dir-timestamps (false)", NULL},
 		{"my-address", 0, 0, G_OPTION_ARG_STRING_ARRAY,
 		 &MU_CONFIG.my_addresses,
-		 "my e-mail address (regexp); can be used multiple times",
+		 "my e-mail address; can be used multiple times",
 		 "<address>"},
-		{"autoupgrade", 0, 0, G_OPTION_ARG_NONE,
-		 &MU_CONFIG.autoupgrade,
-		 "auto-upgrade the database with new mu versions (false)",
-		 NULL},
 		{"nocleanup", 0, 0, G_OPTION_ARG_NONE, &MU_CONFIG.nocleanup,
 		 "don't clean up the database after indexing (false)", NULL},
-		{"xbatchsize", 0, 0, G_OPTION_ARG_INT, &MU_CONFIG.xbatchsize,
-		 "set transaction batchsize for xapian commits (0)", NULL},
 		{"max-msg-size", 0, 0, G_OPTION_ARG_INT,
 		 &MU_CONFIG.max_msg_size,
 		 "set the maximum size for message files", "<size>"},

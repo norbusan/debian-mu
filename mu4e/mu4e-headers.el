@@ -1,4 +1,4 @@
-;;; mu4e-headers.el -- part of mu4e, the mu mail user agent
+;;; mu4e-headers.el -- part of mu4e, the mu mail user agent -*- lexical-binding: t -*-
 ;;
 ;; Copyright (C) 2011-2017 Dirk-Jan C. Binnema
 
@@ -289,7 +289,7 @@ PREDICATE-FUNC as PARAM. This is useful for getting user-input.")
 
 (defvar mu4e-headers-full-search nil
   "Whether to show all results.
-If this is nil show results up to `mu4e-search-results-limit')")
+If this is nil show results up to `mu4e-headers-results-limit')")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -396,13 +396,13 @@ headers."
 	    (mu4e~headers-highlight docid))
 	  (run-hooks 'mu4e-message-changed-hook))))))
 
-(defun mu4e~headers-remove-handler (docid)
+(defun mu4e~headers-remove-handler (docid &optional skip-hook)
   "Remove handler, will be called when a message with DOCID has
 been removed from the database. This function will hide the removed
 message from the current list of headers. If the message is not
 present, don't do anything.
 
-If SKIP-HOOK is not nil, `mu4e-message-changed-hook' will be invoked."
+If SKIP-HOOK is absent or nil, `mu4e-message-changed-hook' will be invoked."
   (when (buffer-live-p (mu4e-get-headers-buffer))
     (mu4e~headers-remove-header docid t))
   ;; if we were viewing this message, close it now.
@@ -410,9 +410,10 @@ If SKIP-HOOK is not nil, `mu4e-message-changed-hook' will be invoked."
 	     (buffer-live-p (mu4e-get-view-buffer)))
     (unless (eq mu4e-split-view 'single-window)
       (mapc #'delete-window (get-buffer-window-list
-			     (mu4e-get-view-buffer))))
+			     (mu4e-get-view-buffer) nil t)))
     (kill-buffer (mu4e-get-view-buffer)))
-  (run-hooks 'mu4e-message-changed-hook))
+  (unless skip-hook
+    (run-hooks 'mu4e-message-changed-hook)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -742,6 +743,29 @@ after the end of the search results."
 (mu4e~headers-defun-mark-for unread)
 (mu4e~headers-defun-mark-for action)
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defvar mu4e-move-to-trash-patterns '()
+  "List of regexps to match for moving to trash instead of flagging them.
+This is particularly useful for mailboxes that don't use the
+trash flag like Gmail.  See `mu4e-headers-mark-or-move-to-trash'
+and `mu4e-view-mark-or-move-to-trash'.")
+
+(defun mu4e-headers-mark-or-move-to-trash ()
+  "Mark message for \"move\" to the trash folder if the message
+maildir matches any regexp in `mu4e-move-to-trash-patterns'.
+Otherwise mark with the \"trash\" flag.
+Also see `mu4e-view-mark-or-move-to-trash'."
+  (interactive)
+  (let ((msg-dir (mu4e-message-field (mu4e-message-at-point) :maildir)))
+    (if (not (seq-filter (lambda (re)
+                           (string-match re msg-dir))
+                         mu4e-move-to-trash-patterns))
+        (mu4e-headers-mark-for-trash)
+      (mu4e-mark-set 'move (if (functionp mu4e-trash-folder)
+                               (funcall mu4e-trash-folder (mu4e-message-at-point))
+                             mu4e-trash-folder))
+      (mu4e-headers-next))))
+
 ;;; headers-mode and mode-map ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defvar mu4e-headers-mode-map nil
   "Keymap for *mu4e-headers* buffers.")
@@ -801,8 +825,8 @@ after the end of the search results."
       (define-key map "y" 'mu4e-select-other-view)
 
       ;; marking/unmarking ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-      (define-key map (kbd "<backspace>")  'mu4e-headers-mark-for-trash)
-      (define-key map (kbd "d")            'mu4e-headers-mark-for-trash)
+      (define-key map (kbd "<backspace>")  'mu4e-headers-mark-or-move-to-trash)
+      (define-key map (kbd "d")            'mu4e-headers-mark-or-move-to-trash)
       (define-key map (kbd "<delete>")     'mu4e-headers-mark-for-delete)
       (define-key map (kbd "<deletechar>") 'mu4e-headers-mark-for-delete)
       (define-key map (kbd "D")            'mu4e-headers-mark-for-delete)
@@ -1785,10 +1809,10 @@ do nothing."
 	 ;; emacs has weird ideas about what horizontal, vertical means...
 	 (horizontal
 	   (window-resize hwin n nil)
-	   (incf mu4e-headers-visible-lines n))
+	   (cl-incf mu4e-headers-visible-lines n))
 	 (vertical
 	   (window-resize hwin n t)
-	   (incf mu4e-headers-visible-columns n)))))))
+	   (cl-incf mu4e-headers-visible-columns n)))))))
 
 (defun mu4e-headers-split-view-shrink (&optional n)
   "In split-view, shrink the headers window.
