@@ -7,12 +7,13 @@
  man/mu-help.1    |    5 ++---
  man/mu-index.1   |    2 +-
  man/mu-mkdir.1   |    4 ++--
+ man/mu-query.7   |    4 ++--
  man/mu-remove.1  |    4 ++--
  man/mu-script.1  |    4 ++--
  man/mu-server.1  |    2 +-
  man/mu-verify.1  |    4 ++--
  man/mu-view.1    |    4 ++--
- 13 files changed, 23 insertions(+), 26 deletions(-)
+ 14 files changed, 25 insertions(+), 28 deletions(-)
 
 --- maildir-utils.git.orig/man/mu-add.1
 +++ maildir-utils.git/man/mu-add.1
@@ -180,3 +181,16 @@
  
  .SH SYNOPSIS
  
+--- maildir-utils.git.orig/man/mu-query.7
++++ maildir-utils.git/man/mu-query.7
+@@ -1,8 +1,8 @@
+-.TH MU QUERY 7 "28 December 2017" "User Manuals"
++.TH MU-QUERY 7 "28 December 2017" "User Manuals"
+ 
+ .SH NAME
+ 
+-mu query language \- a language for finding messages in \fBmu\fR
++mu_query language \- a language for finding messages in \fBmu\fR
+ databases.
+ 
+ .SH DESCRIPTION
