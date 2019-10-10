@@ -30,8 +30,8 @@
 --- maildir-utils.git.orig/man/mu-cfind.1
 +++ maildir-utils.git/man/mu-cfind.1
 @@ -1,9 +1,8 @@
--.TH MU CFIND 1 "May 2013" "User Manuals"
-+.TH MU-CFIND 1 "May 2013" "User Manuals"
+-.TH MU CFIND 1 "April 2019" "User Manuals"
++.TH MU-CFIND 1 "April 2019" "User Manuals"
  
  .SH NAME
  
