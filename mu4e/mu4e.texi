@@ -12,7 +12,7 @@
 @c %**end of header
 
 @copying
-Copyright @copyright{} 2012-2018 Dirk-Jan C. Binnema
+Copyright @copyright{} 2012-2019 Dirk-Jan C. Binnema
 
 @quotation
 Permission is granted to copy, distribute and/or modify this document
@@ -1120,16 +1120,16 @@ An example message view:
     Date: Mon 19 Jan 2004 09:39:42 AM EET
     Maildir: /inbox
     Attachments(2): [1]DSCN4961.JPG(1.3M), [2]DSCN4962.JPG(1.4M)
-     
+
     Hi Julia,
-     
+
     Some pics from our trip to Cerin Amroth. Enjoy!
-     
+
     All the best,
     Randy.
-     
+
     On Sun 21 Dec 2003 09:06:34 PM EET, Julia wrote:
-     
+
     [....]
 @end verbatim
 @end cartouche
@@ -1571,9 +1571,9 @@ functionality is available, as well some @t{mu4e}-specifics. Its major mode is
     To: Wally the Walrus <wally@example.com>
     Subject: Re: Eau-qui d'eau qui?
     --text follows this line--
-     
+
     On Mon 16 Jan 2012 10:18:47 AM EET, Wally the Walrus wrote:
-     
+
     > Hi Rupert,
     >
     > Dude - how are things?
@@ -2183,6 +2183,7 @@ can happen in both the @ref{Headers view} and the @ref{Message view}.
 * Marking messages::Selecting message do something with them
 * What to mark for::What can we do with them
 * Executing the marks::Do it
+* Trashing messages::Exceptions for mailboxes like Gmail
 * Leaving the headers buffer::Handling marks automatically when leaving
 * Built-in marking functions::Helper functions for dealing with them
 * Custom mark functions::Define your own mark function
@@ -2257,6 +2258,29 @@ After you have marked some messages, you can execute them with @key{x}
 A hook, @code{mu4e-mark-execute-pre-hook}, is available which is run
 right before execution of each mark. The hook is called with two
 arguments, the mark and the message itself.
+
+@node Trashing messages
+@section Trashing messages
+
+For regular mailboxes, trashing works like other marks: when executed,
+the message is flagged as trashed.  Depending on your mailbox provider,
+the trash flag is used to automatically move the message to the trash
+folder (@code{mu4e-trash-folder}) for instance.
+
+Some mailboxes behave differently however and they don't interpret the
+trash flag.  In cases like Gmail, the message must be @emph{moved} to
+the trash folder and the trash flag must not be used.
+
+@code{mu4e} has provisions for non-standard mailboxes: if a message
+maildir matches a regular expression in
+@code{mu4e-move-to-trash-patterns} then the message is moved instead of
+being flagged.  When a context is created with
+@code{make-mu4e-context-account} (see @ref{Account setup helper}), the
+pattern is automatically added for you.
+
+This should work fine for Gmail and similar mailboxes.  Note that in the
+case of Gmail, you might have to configure your mailbox ``expunge''
+settings.
 
 @node Leaving the headers buffer
 @section Leaving the headers buffer
@@ -2415,6 +2439,7 @@ example:
 * Context policies::How to determine the current context
 * Contexts and special folders::Using context variables to determine them
 * Contexts example::How to define contexts
+* Account setup helper::Easy context creation with sane defaults
 * Some context tricks::Other thing to do with contexts
 @end menu
 
@@ -2549,8 +2574,8 @@ when starting; see the discussion in the previous section.
           :leave-func (lambda () (mu4e-message "Leaving Private context"))
 	  ;; we match based on the contact-fields of the message
 	  :match-func (lambda (msg)
-			(when msg 
-			  (mu4e-message-contact-field-matches msg 
+			(when msg
+			  (mu4e-message-contact-field-matches msg
 			    :to "aliced@@home.example.com")))
 	  :vars '( ( user-mail-address	    . "aliced@@home.example.com"  )
 		   ( user-full-name	    . "Alice Derleth" )
@@ -2590,12 +2615,12 @@ when starting; see the discussion in the previous section.
   ;; set `mu4e-context-policy` and `mu4e-compose-policy` to tweak when mu4e should
   ;; guess or ask the correct context, e.g.
 
-  ;; start with the first (default) context; 
+  ;; start with the first (default) context;
   ;; default is to ask-if-none (ask when there's no context yet, and none match)
   ;; (setq mu4e-context-policy 'pick-first)
 
   ;; compose with the current context is no context matches;
-  ;; default is to ask 
+  ;; default is to ask
   ;; (setq mu4e-compose-context-policy nil)
 @end lisp
 
@@ -2604,27 +2629,74 @@ A couple of notes about this example:
 @item You can manually switch the context use @code{M-x mu4e-context-switch},
 by default bound to @kbd{;} in headers, view and main mode.
 The current context appears in the mode-line.
-@item Normally, @code{M-x mu4e-context-switch} does not call the enter or 
+@item Normally, @code{M-x mu4e-context-switch} does not call the enter or
 leave functions if the 'new' context is the same as the old one.
 However, with a prefix-argument (@kbd{C-u}), you can force @t{mu4e} to
 invoke those function even in that case.
-@item The function @code{mu4e-context-current} returns the current-context; 
+@item The function @code{mu4e-context-current} returns the current-context;
 the current context is also visible in the mode-line when in
 headers, view or main mode.
-@item You can set any kind of variable; including settings for mail servers etc. 
-However, settings such as @code{mu4e-maildir} and @code{mu4e-mu-home} are
-not changeable after they have been set without quitting @t{mu4e} first.
-@item @code{leave-func} (if defined) for the context we are leaving, is invoked 
+@item You can set any kind of variable; including settings for mail servers etc.
+However, settings such as @code{mu4e-maildir} and @code{mu4e-mu-home}
+are not changeable after they have been set without quitting @t{mu4e}
+first.
+@item @code{leave-func} (if defined) for the context we are leaving, is invoked
 before the @code{enter-func} (if defined) of the
 context we are entering.
 @item @code{enter-func} (if defined) is invoked before setting the variables.
 @item @code{match-func} (if defined) is invoked just before @code{mu4e-compose-pre-hook}.
 @item See the variables @code{mu4e-context-policy} and
-@code{mu4e-compose-context-policy} to tweak what @t{mu4e} should do when 
+@code{mu4e-compose-context-policy} to tweak what @t{mu4e} should do when
 no context matches (or if you always want to be asked).
-@item Finally, be careful to get the quotations right --- backticks, single quotes 
+@item Finally, be careful to get the quotations right --- backticks, single quotes
 and commas and note the '.' between variable name and its value.
 @end itemize
+
+@node Account setup helper
+@section Account setup helper
+
+Contexts can be cumbersome to set up.  Thankfully @code{mu4e} provides a
+helper function @code{make-mu4e-context-account} to easily get started.
+The function helps initializing the context plus a couple of variables
+with sane defaults.
+Everything should work out of the box in most cases.
+
+A short example for two contexts:
+
+@lisp
+(let ((gandi-smtp-vars '((smtpmail-smtp-server . "mail.gandi.net")
+                         (smtpmail-stream-type . starttls)
+                         (smtpmail-smtp-service . 587))))
+  (make-mu4e-context-account
+   :name "personal"
+   :user-mail-address "john@@doe.xyz"
+   :sent-folder "Sent"
+   :vars gandi-smtp-vars)
+  (make-mu4e-context-account
+   :name "work"
+   :user-mail-address "john@@work.org"
+   :sent-folder "Sent"
+   :predicate (lambda (msg)
+                (mu4e-message-contact-field-matches
+                 msg '(:from :to) "boss@@work.org"))
+   :vars gandi-smtp-vars))
+@end lisp
+
+A couple of things to note:
+
+@itemize
+@item Only the @code{name} slot is mandatory.
+@item The maildir default to the context name.
+@item Folders only need to be given a name, not a relative path.
+They will be automatically stored under the maildir.
+@item When the @code{match-func} is not provided, the context is matched
+against @code{predicate} if provided or the maildir of the current
+message otherwise.
+@end itemize
+
+If the context created by @code{make-mu4e-context-account} is not
+enough, you can display the generated context with e.g. @code{M-x
+describe-variable mu4e-contexts} and tweak the result as needed.
 
 @node Some context tricks
 @section Some context tricks
@@ -3057,41 +3129,42 @@ As a fairly useless example, suppose we insist on reading @t{mu4e} as
 @node Contact functions
 @section Contact functions
 
-It can sometimes be useful to rewrite the contact information that
-@t{mu4e} provides, for example to convert them to some standardized
-format, or to fix spelling errors. And sometimes, you may want to remove
-certain contacts altogether.
+It can sometimes be useful to discard or rewrite the contact
+information that @t{mu4e} provides, for example to fix spelling
+errors, or omit unwanted contacts.
 
-For this, @t{mu4e} provides @code{mu4e-contact-rewrite-function}, which
-passes each contact to a user-provided function, which is expected to
-return either the possibly rewritten contact or @code{nil} to remove the
-contact from the list --- note that the latter can also be achieved using
-@code{mu4e-compose-complete-ignore-address-regexp}.
+To handle this, @t{mu4e} provides
+@code{mu4e-contact-process-function}, which, if defined, is applied to
+each contact. If the result is @t{nil}, the contact is discarded,
+otherwise the (modified or not) contact information is used.
 
-Each of the contacts are property-lists (`plists'), with properties
-@code{:name} (which may be @code{nil}), and @code{:mail}, and a number
-of other properties which you should return unchanged.
+Each contact is a full e-mail address as you would see in a
+contact-field of an e-mail message, e.g.,
+@verbatim
+"Foo Bar" <foo.bar@example.com>
+@end verbatim
+or
+@verbatim
+cuux@example.com
+@end verbatim
 
-Let's look at an example:
+An example @code{mu4e-contact-process-function} might look like:
 
 @lisp
-(defun my-rewrite-function (contact)
-  (let ((name (or (plist-get contact :name) ""))
-	 (mail (plist-get contact :mail)))
-    (cond
-      ;; jonh smiht --> John Smith
-      ((string= "jonh smiht" name) 
-	(plist-put contact :name "John C. Smith")
-	contact) 
-      ;; remove evilspammer from the contacts list
-      ((string= "evilspammer@@example.com" mail) nil)
-      ;; others stay as the are
-      (t contact))))
+(defun my-contact-processor (contact)
+  (cond
+    ;; remove unwanted
+    ((string-match-p "evilspammer@@example.com" contact) nil)
+    ((string-match-p "noreply" contact) nil)
+    ;;
+    ;; jonh smiht --> John Smith
+    ((string-match "jonh smiht" contact)
+       (replace-regexp-in-string "jonh smiht" "John Smith" contact))
+    (t contact)))
 
-(setq mu4e-contact-rewrite-function 'my-rewrite-function)
+(setq mu4e-contact-process-function 'my-contact-processor)
 @end lisp
 
-This function is called for each of your contacts.
 
 @node Utility functions
 @section Utility functions
@@ -3258,7 +3331,7 @@ such as @file{~/.emacs.d/init.el}) the following @emph{after} the
   (setq mu4e-compose-complete-addresses nil)
   (setq bbdb-mua-pop-up t)
   (setq bbdb-mua-pop-up-window-size 5)
-  (setq mu4e-view-show-addresses t)  
+  (setq mu4e-view-show-addresses t)
 @end lisp
 
 @noindent
@@ -3845,7 +3918,7 @@ Use @kbd{M-x mu4e-update-index}
 errors like:}
 @verbatim
 mu: mu_store_new_writable: xapian error
-  'Unable to get write lock on ~/.mu/xapian: already locked
+  'Unable to get write lock on ~/.cache/mu/xapian: already locked
 @end verbatim
 @emph{What to do about this?}  You get this error because the underlying
 Xapian database is locked by some other process; it can be opened only once in
@@ -4664,10 +4737,10 @@ log-buffer is called @t{*mu4e-log*}, and in the @ref{Main view}, @ref{Headers
 view} and @ref{Message view}, there's a keybinding @key{$} that takes you
 there. You can quit it by pressing @key{q}.
 
-Logging can be a bit resource-intensive, so you may not want to leave it on
-all the time. By default, the log only maintains the most recent 1200
-lines. @t{mu} itself keeps a log as well, you can find this it in
-@t{<MUHOME>/log/mu.log}, typically @t{~/.mu/log/mu.log}.
+Logging can be a bit resource-intensive, so you may not want to leave
+it on all the time. By default, the log only maintains the most recent
+1200 lines. @t{mu} itself keeps a log as well, you can find it in
+@t{<MUHOME>/mu.log}, on Unix typically @t{~/.cache/mu/mu.log}.
 
 @node GNU Free Documentation License
 @appendix GNU Free Documentation License

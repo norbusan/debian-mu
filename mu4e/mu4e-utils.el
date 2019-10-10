@@ -1,7 +1,6 @@
-;;; mu4e-utils.el -- part of mu4e, the mu mail user agent
+;;; mu4e-utils.el -- part of mu4e, the mu mail user agent -*- lexical-binding: t -*-
 ;;
-;; Copyright (C) 2011-2017 Dirk-Jan C. Binnema
-;; Copyright (C) 2013 Tibor Simko
+;; Copyright (C) 2011-2019 Dirk-Jan C. Binnema
 
 ;; Author: Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 ;; Maintainer: Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
@@ -27,7 +26,6 @@
 
 ;;; Code:
 (eval-when-compile
-  (require 'cl)
   (require 'org nil 'noerror))
 (require 'cl-lib)
 (require 'mu4e-vars)
@@ -98,7 +96,7 @@ insensitive comparison is used."
 `funcall'."
   (declare (indent 2))
   `(let* ((vars (and ,context (mu4e-context-vars ,context))))
-     (progv ;; XXX: perhaps use eval's lexical environment instead of progv?
+     (cl-progv ;; XXX: perhaps use eval's lexical environment instead of progv?
        (mapcar (lambda(cell) (car cell)) vars)
        (mapcar (lambda(cell) (cdr cell)) vars)
        (eval ,@body))))
@@ -144,9 +142,8 @@ return the result."
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defun mu4e-remove-file-later (filename)
   "Remove FILENAME in a few seconds."
-  (lexical-let ((filename filename))
-    (run-at-time "30 sec" nil
-      (lambda () (ignore-errors (delete-file filename))))))
+  (run-at-time "30 sec" nil
+               (lambda () (ignore-errors (delete-file filename)))))
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -470,11 +467,12 @@ replaces any existing bookmark with KEY."
          (lambda (bm)
 	   (= (mu4e-bookmark-key bm) key))
          (mu4e-bookmarks)))
-  (add-to-list 'mu4e-bookmarks
-               (make-mu4e-bookmark
+  (cl-pushnew (make-mu4e-bookmark
                 :name name
                 :query query
-                :key key) t))
+                :key key)
+              mu4e-bookmarks
+              :test 'equal))
 
 
 ;;; converting flags->string and vice-versa ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -666,7 +664,8 @@ process."
 	      "Indexing completed; processed %d, updated %d, cleaned-up %d"
 	      (plist-get info :processed) (plist-get info :updated)
 	      (plist-get info :cleaned-up))
-	    (unless (zerop (plist-get info :updated))
+	    (unless (and (not (string= mu4e~contacts-tstamp "0"))
+                (zerop (plist-get info :updated)))
 	      (mu4e~request-contacts-maybe)
 	      (run-hooks 'mu4e-index-updated-hook)))))
       ((plist-get info :message)
@@ -680,121 +679,59 @@ process."
     (t (error "Error %d: %s" errcode errmsg))))
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-;;; RFC2822 handling of phrases in mail-addresses
-;;; The optional display-name contains a phrase, it sits before the angle-addr
-;;; as specified in RFC2822 for email-addresses in header fields.
-;;; contributed by jhelberg
+(defvar mu4e~contacts-tstamp "0"
+  "Timestamp for the most recent contacts update." )
 
-(defun mu4e~rfc822-phrase-type (ph)
-  "Return either atom, quoted-string, a corner-case or nil. This
-   checks for empty string first. Then quotes around the phrase
-   (returning 'rfc822-quoted-string). Then whether there is a quote
-   inside the phrase (returning 'rfc822-containing-quote).
-   The reverse of the RFC atext definition is then tested.
-   If it matches, nil is returned, if not, it is an 'rfc822-atom, which
-   is returned."
-  (cond
-    ((= (length ph) 0) 'rfc822-empty)
-    ((= (aref ph 0) ?\")
-      (if (string-match "\"\\([^\"\\\n]\\|\\\\.\\|\\\\\n\\)*\"" ph)
-	'rfc822-quoted-string
-	'rfc822-containing-quote)) ; starts with quote, but doesn't end with one
-    ((string-match-p "[\"]" ph) 'rfc822-containing-quote)
-    ((string-match-p "[\000-\037()\*<>@,;:\\\.]+" ph) nil)
-    (t 'rfc822-atom)))
-
-(defun mu4e~rfc822-quoteit (ph)
-  "Quote RFC822 phrase only if necessary.
-   Atoms and quoted strings don't need quotes. The rest do.  In
-   case a phrase contains a quote, it will be escaped."
-  (let ((type (mu4e~rfc822-phrase-type ph)))
-    (cond
-      ((eq type 'rfc822-atom) ph)
-      ((eq type 'rfc822-quoted-string) ph)
-      ((eq type 'rfc822-containing-quote)
-	(format "\"%s\""
-	  (replace-regexp-in-string "\"" "\\\\\"" ph)))
-      (t (format "\"%s\"" ph)))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defsubst mu4e~process-contact (contact)
-  "Process CONTACT, and either return nil when it should not be included,
-or (rfc822-string . CONTACT) otherwise."
-  (when mu4e-contact-rewrite-function
-    (setq contact (funcall mu4e-contact-rewrite-function contact)))
-  (when contact
-    (let ((name (plist-get contact :name))
-	   (mail (plist-get contact :mail))
-	   (ignore-rx (or mu4e-compose-complete-ignore-address-regexp "$^")))
-      (when (and mail (not (string-match ignore-rx mail)))
-	(cons
-	  (if name (format "%s <%s>" (mu4e~rfc822-quoteit name) mail) mail)
-	  contact)))))
-
-
-(defun mu4e~sort-contacts (contacts)
-  "Destructively sort contacts (only for cycling) in order of
- 'mostly likely contact'.t See the code for the detail"
-  (let* ((now (+ (float-time) 3600)) ;; allow for clock diffs
-	  (recent (- (float-time) (* 15 24 3600))))
-    (cl-sort contacts
-      (lambda (c1 c2)
-	(let* ( (c1 (cdr c1)) (c2 (cdr c2))
-		(personal1 (plist-get c1 :personal))
-		(personal2 (plist-get c2 :personal))
-		;; note: freq, tstamp can only be missing if the rewrite
-		;; function removed them. If the rewrite function changed the
-		;; contact somehow, we guess it's important.
-		(freq1 (or (plist-get c1 :freq) 500))
-		(freq2 (or (plist-get c2 :freq) 500))
-		(tstamp1 (or (plist-get c1 :tstamp) now))
-		(tstamp2 (or (plist-get c2 :tstamp) now)))
-	  ;; only one is personal? if so, that one comes first
-	  (if (not (equal personal1 personal2))
-	    (if personal1 t nil)
-	    ;; only one is recent? that one comes first
-	    (if (not (equal (> tstamp1 recent) (> tstamp2 recent)))
-	      (> tstamp1 tstamp2)
-	      ;; otherwise, use the frequency
-	      (> freq1 freq2))))))))
-
-(defun mu4e~sort-contacts-for-completion (contacts)
-  "Takes CONTACTS, which is a list of RFC-822 addresses, and sort them based
-on the ranking in `mu4e~contacts.'"
-  (cl-sort contacts
-    (lambda (c1 c2)
-      (let ((rank1 (gethash c1 mu4e~contacts))
-	     (rank2 (gethash c2 mu4e~contacts)))
-	(< rank1 rank2)))))
-
-;; start and stopping
-(defun mu4e~fill-contacts (contact-data)
-  "We receive a list of contacts, which each contact of the form
-  (:me NAME :mail EMAIL :tstamp TIMESTAMP :freq FREQUENCY) and
-fill the hash `mu4e~contacts' with it, with each contact mapped
-to an integer for their ranking.
+(defun mu4e~update-contacts (contacts &optional tstamp)
+  "Receive a sorted list of CONTACTS.
+Each of the contacts has the form
+  (FULL_EMAIL_ADDRESS . RANK) and fill the hash
+`mu4e~contacts' with it, with each contact mapped to an integer
+for their ranking.
 
 This is used by the completion function in mu4e-compose."
-  (let ((contacts) (rank 0))
-    (dolist (contact contact-data)
-      (let ((contact-maybe (mu4e~process-contact contact)))
-	;; note, this gives cells (rfc822-address . contact)
-	(when contact-maybe (push contact-maybe contacts))))
-    (setq contacts (mu4e~sort-contacts contacts))
-    ;; now, we have our nicely sorted list, map them to a list
-    ;; of increasing integers. We use that map in the composer
-    ;; to sort them there. It would have been so much easier if emacs
-    ;; allowed us to use the sorted-list as-is, but no such luck.
-    (setq mu4e~contacts (make-hash-table :test 'equal :weakness nil
-			  :size (length contacts)))
+  ;; We have our nicely sorted list, map them to a list
+  ;; of increasing integers. We use that map in the composer
+  ;; to sort them there. It would have been so much easier if emacs
+  ;; allowed us to use the sorted-list as-is, but no such luck.
+  (let ((n 0))
+    (unless mu4e~contacts
+      (setq mu4e~contacts (make-hash-table :test 'equal :weakness nil
+		                        :size (length contacts))))
     (dolist (contact contacts)
-      (puthash (car contact) rank mu4e~contacts)
-      (incf rank))
-    (mu4e-index-message "Contacts received: %d"
-      (hash-table-count mu4e~contacts))))
+      (cl-incf n)
+      (let ((address
+              (if (functionp mu4e-contact-process-function)
+                (funcall mu4e-contact-process-function (car contact))
+                (car contact))))
+        (when address
+          (puthash address (cdr contact) mu4e~contacts))))
+
+    (setq mu4e~contacts-tstamp (or tstamp "0"))
+    (mu4e-index-message "Contacts updated: %d; total %d"
+      n (hash-table-count mu4e~contacts))))
+
+(defun mu4e-contacts-info ()
+  "Display information about the cache used for contacts
+completion; for testing/debugging."
+  (interactive)
+  (with-current-buffer (get-buffer-create "*mu4e-contacts-info*")
+    (erase-buffer)
+    (insert (format "complete addresses:        %s\n"
+              (if mu4e-compose-complete-addresses "yes" "no")))
+    (insert (format "only personal addresses:   %s\n"
+              (if mu4e-compose-complete-only-personal "yes" "no")))
+    (insert (format "only addresses seen after: %s\n"
+              (or mu4e-compose-complete-only-after "no restrictions")))
+
+    (when mu4e~contacts
+      (insert (format "number of contacts cached: %d\n\n"
+                (hash-table-count mu4e~contacts)))
+      (maphash (lambda(key val)
+                 (insert (format "%S\n" key))) mu4e~contacts)))
+  (pop-to-buffer "*mu4e-contacts-info*"))
 
 (defun mu4e~check-requirements ()
   "Check for the settings required for running mu4e."
@@ -855,46 +792,48 @@ Checks whether the server process is live."
 the list of contacts we use for autocompletion; otherwise, do
 nothing."
   (when mu4e-compose-complete-addresses
-    (setq mu4e-contacts-func 'mu4e~fill-contacts)
+    (setq mu4e-contacts-func 'mu4e~update-contacts)
     (mu4e~proc-contacts
       mu4e-compose-complete-only-personal
       (when mu4e-compose-complete-only-after
-	(float-time
-	  (apply 'encode-time
-	    (mu4e-parse-time-string mu4e-compose-complete-only-after)))))))
+	      (float-time
+	        (apply 'encode-time
+	          (mu4e-parse-time-string mu4e-compose-complete-only-after))))
+      mu4e~contacts-tstamp)))
 
 (defun mu4e~start (&optional func)
   "If `mu4e-contexts' have been defined, but we don't have a
 context yet, switch to the matching one, or none matches, the
-first.
-If mu4e is already running, execute function FUNC (if non-nil).
-Otherwise, check various requirements, then start mu4e. When
-successful, call FUNC (if non-nil) afterwards."
+first. If mu4e is already running, execute function FUNC (if
+non-nil). Otherwise, check various requireme`'nts, then start mu4e.
+When successful, call FUNC (if non-nil) afterwards."
   ;; if we're already running, simply go to the main view
-  (if (mu4e-running-p)   ;; already running?
-    (when func (funcall func)) ;; yes! run func if defined
+  (if (mu4e-running-p)         ;; already running?
+      (when func (funcall func)) ;; yes! run func if defined
     (progn
       ;; no! try to set a context, do some checks, set up pong handler and ping
       ;; the server maybe switch the context
       (mu4e~context-autoswitch nil mu4e-context-policy)
-      (lexical-let ((func func))
-	(mu4e~check-requirements)
-	;; set up the 'pong' handler func
-	(setq mu4e-pong-func
-	  (lambda (props)
-	    (setq mu4e~server-props props) ;; save props from the server
-	    (let ((version (plist-get props :version))
-		   (doccount (plist-get props :doccount)))
-	      (mu4e~check-requirements)
-	      (when func (funcall func))
-	      (when (and mu4e-update-interval (null mu4e~update-timer))
-		(setq mu4e~update-timer
-		  (run-at-time
-		    0 mu4e-update-interval
-		    (lambda () (mu4e-update-mail-and-index
-				 mu4e-index-update-in-background)))))
-	      (mu4e-message "Started mu4e with %d message%s in store"
-		doccount (if (= doccount 1) "" "s"))))))
+      (mu4e~check-requirements)
+      ;; set up the 'pong' handler func
+      (setq mu4e-pong-func
+	    (lambda (props)
+	      (setq mu4e~server-props props) ;; save props from the server
+	      (let ((version (plist-get props :version))
+		    (doccount (plist-get props :doccount)))
+	        (mu4e~check-requirements)
+	        (when func (funcall func))
+                (when (zerop doccount)
+                  (mu4e-message "Store is empty; (re)indexing. This can take a while.") ;
+                  (mu4e-update-index))
+	        (when (and mu4e-update-interval (null mu4e~update-timer))
+		  (setq mu4e~update-timer
+		        (run-at-time
+		         0 mu4e-update-interval
+		         (lambda () (mu4e-update-mail-and-index
+				     mu4e-index-update-in-background)))))
+	        (mu4e-message "Started mu4e with %d message%s in store"
+		              doccount (if (= doccount 1) "" "s")))))
       ;; wake up server
       (mu4e~proc-ping)
       ;; maybe request the list of contacts, automatically refresh after
@@ -905,7 +844,8 @@ successful, call FUNC (if non-nil) afterwards."
   "Clear any cached resources."
   (setq
     mu4e-maildir-list nil
-    mu4e~contacts nil))
+    mu4e~contacts nil
+    mu4e~contacts-tstamp "0"))
 
 (defun mu4e~stop ()
   "Stop the mu4e session."
@@ -1162,10 +1102,10 @@ This includes expanding e.g. 3-5 into 3,4,5.  If the letter
 	  (setq beg (string-to-number (match-string 1 elem))
 	    end (string-to-number (match-string 2 elem)))
 	  (while (<= beg end)
-	    (add-to-list 'list beg 'append)
+            (cl-pushnew beg list :test 'equal)
 	    (setq beg (1+ beg))))
 	;; else just a number
-	(add-to-list 'list (string-to-number elem) 'append)))
+        (cl-pushnew (string-to-number elem) list :test 'equal)))
     ;; Check that all numbers are valid.
     (mapc
       #'(lambda (x)
@@ -1245,15 +1185,15 @@ displaying it). Do _not_ bury the current buffer, though."
   (interactive)
   (unless (file-exists-p path)
     (mu4e-error "Cannot find %s" path))
-  (lexical-let ((curbuf (current-buffer)))
+  (let ((curbuf (current-buffer)))
     (find-file path)
     (mu4e-org-mode)
     (setq buffer-read-only t)
     (define-key mu4e-org-mode-map (kbd "q")
-      (lambda ()
-	(interactive)
-	(bury-buffer)
-	(switch-to-buffer curbuf)))))
+      `(lambda ()
+	 (interactive)
+	 (bury-buffer)
+	 (switch-to-buffer ,curbuf)))))
 
 (defun mu4e-about ()
   "Show the mu4e 'about' page."

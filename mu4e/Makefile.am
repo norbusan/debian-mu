@@ -28,6 +28,7 @@ dist_lisp_LISP=			\
 	mu4e-contrib.el		\
 	mu4e-draft.el		\
 	mu4e-headers.el		\
+	mu4e-icalendar.el	\
 	mu4e-lists.el		\
 	mu4e-main.el		\
 	mu4e-mark.el		\
@@ -42,9 +43,12 @@ dist_lisp_LISP=			\
 	org-mu4e.el		\
 	org-old-mu4e.el
 
-EXTRA_DIST=$(elisp_DATA) mu4e-about.org
+EXTRA_DIST=			\
+	mu4e-about.org 		\
+	org-old-mu4e.el
 
-CLEANFILES=*.elc ${BUILT_SOURCES}
+CLEANFILES=			\
+	*.elc
 
 doc_DATA =			\
 	mu4e-about.org

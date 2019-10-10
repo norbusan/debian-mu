@@ -1,4 +1,4 @@
-;;; mu4e-view.el -- part of mu4e, the mu mail user agent
+;;; mu4e-view.el -- part of mu4e, the mu mail user agent -*- lexical-binding: t -*-
 ;;
 ;; Copyright (C) 2011-2018 Dirk-Jan C. Binnema
 
@@ -26,8 +26,6 @@
 ;; viewing e-mail messages
 
 ;;; Code:
-(eval-when-compile
-  (require 'cl))
 (require 'cl-lib)
 (require 'mu4e-utils) ;; utility functions
 (require 'mu4e-vars)
@@ -47,6 +45,8 @@
 (require 'calendar)
 
 (declare-function mu4e-view-mode "mu4e-view")
+(defvar gnus-icalendar-additional-identities)
+(defvar mu4e~headers-view-win)
 
 ;; the message view
 (defgroup mu4e-view nil
@@ -208,6 +208,12 @@ message extracted at some path.")
 (defvar mu4e~view-attach-map nil
   "A mapping of user-visible attachment number to the actual part index.")
 (put 'mu4e~view-attach-map 'permanent-local t)
+
+(defvar mu4e~view-rendering nil)
+
+(defvar mu4e~view-html-text nil
+  "Should we prefer html or text just this once? A symbol `text'
+or `html' or nil.")
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defun mu4e-view-message-with-message-id (msgid)
@@ -316,6 +322,12 @@ Depending on the value of `mu4e-view-use-gnus', either use mu4e's
 internal display mode, or a display mode based on Gnu's
 article-mode."
   (mu4e~view-define-mode)
+
+  ;; XXX(djcb): only called for the side-effect of setting up
+  ;; `mu4e~view-attach-map'. Instead, we should split that function
+  ;; into setting up the map, and actually producing the header.
+  (mu4e~view-construct-attachments-header msg)
+
   ;; When MSG is unread, mu4e~view-mark-as-read-maybe will trigger
   ;; another call to mu4e-view (via mu4e~headers-update-handler as
   ;; the reply handler to mu4e~proc-move)
@@ -372,10 +384,13 @@ article-mode."
                           'prefer-utf-8)))
           (recode-region (point-min) (point-max) coding 'no-conversion)))
       (setq
-	gnus-summary-buffer (get-buffer-create " *appease-gnus*")
-	gnus-original-article-buffer (current-buffer))
+	      gnus-summary-buffer (get-buffer-create " *appease-gnus*")
+	      gnus-original-article-buffer (current-buffer))
       (run-hooks 'gnus-article-decode-hook)
-      (gnus-article-prepare-display)
+      (let ((mu4e~view-rendering t) ; customize gnus in mu4e
+             (max-specpdl-size mu4e-view-max-specpdl-size)
+             (gnus-icalendar-additional-identities mu4e-user-mail-address-list))
+        (gnus-article-prepare-display))
       (mu4e-view-mode)
       (setq mu4e~view-message msg)
       (setq gnus-article-decoded-p gnus-article-decode-hook)
@@ -625,7 +640,7 @@ add text-properties to VAL."
 		(let ((index (mu4e-message-part-field part :index))
 		       (name (mu4e-message-part-field part :name))
 		       (size (mu4e-message-part-field part :size)))
-		  (incf id)
+		  (cl-incf id)
 		  (puthash id index mu4e~view-attach-map)
 
 		  (concat
@@ -656,6 +671,13 @@ FUNC should be a function taking two arguments:
 	  :mime-type \"application/msword\" :attachment t :size 1234)."
   (dolist (part (mu4e-msg-field msg :parts))
     (funcall func msg part)))
+
+(defmacro mu4e~native-def (def)
+  "Definition DEF only available in 'native' mode."
+  `(lambda() (interactive)
+     (if mu4e-view-use-gnus
+       (mu4e-warn "binding not supported with the gnus-based view")
+       (,def))))
 
 (defvar mu4e-view-mode-map nil
   "Keymap for \"*mu4e-view*\" buffers.")
@@ -690,9 +712,9 @@ FUNC should be a function taking two arguments:
 
       (define-key map "j" 'mu4e~headers-jump-to-maildir)
 
-      (define-key map "g" (if mu4e-view-use-gnus 'ignore 'mu4e-view-go-to-url))
-      (define-key map "k" (if mu4e-view-use-gnus 'ignore 'mu4e-view-save-url))
-      (define-key map "f" (if mu4e-view-use-gnus 'ignore 'mu4e-view-fetch-url))
+      (define-key map "g" (mu4e~native-def mu4e-view-go-to-url))
+      (define-key map "k" (mu4e~native-def mu4e-view-save-url))
+      (define-key map "f" (mu4e~native-def mu4e-view-fetch-url))
 
       (define-key map "F" 'mu4e-compose-forward)
       (define-key map "R" 'mu4e-compose-reply)
@@ -738,12 +760,12 @@ FUNC should be a function taking two arguments:
       (define-key map "y" 'mu4e-select-other-view)
 
       ;; attachments
-      (define-key map "e" (if mu4e-view-use-gnus 'ignore 'mu4e-view-save-attachment))
-      (define-key map "o" (if mu4e-view-use-gnus 'ignore 'mu4e-view-open-attachment))
-      (define-key map "A" (if mu4e-view-use-gnus 'ignore 'mu4e-view-attachment-action))
+      (define-key map "e" (mu4e~native-def mu4e-view-save-attachment))
+      (define-key map "o" (mu4e~native-def mu4e-view-open-attachment))
+      (define-key map "A" (mu4e~native-def mu4e-view-attachment-action))
 
       ;; marking/unmarking
-      (define-key map "d" 'mu4e-view-mark-for-trash)
+      (define-key map "d" 'mu4e-view-mark-or-move-to-trash)
       (define-key map (kbd "<delete>") 'mu4e-view-mark-for-delete)
       (define-key map (kbd "<deletechar>") 'mu4e-view-mark-for-delete)
       (define-key map (kbd "D") 'mu4e-view-mark-for-delete)
@@ -767,10 +789,14 @@ FUNC should be a function taking two arguments:
 
       ;; misc
       (define-key map "w" 'visual-line-mode)
-      (define-key map "#" (if mu4e-view-use-gnus 'ignore 'mu4e-view-toggle-hide-cited))
-      (define-key map "h" (if mu4e-view-use-gnus 'ignore 'mu4e-view-toggle-html))
+      (define-key map "#" (mu4e~native-def mu4e-view-toggle-hide-cited))
+      (define-key map "h" (mu4e~native-def mu4e-view-toggle-html))
       (define-key map (kbd "M-q")
-	(if 'mu4e-view-use-gnus 'article-fill-long-lines 'mu4e-view-fill-long-lines))
+        (lambda()
+          (interactive)
+	        (if 'mu4e-view-use-gnus
+            (article-fill-long-lines)
+            (mu4e-view-fill-long-lines))))
 
       ;; next 3 only warn user when attempt in the message view
       (define-key map "u" 'mu4e-view-unmark)
@@ -911,14 +937,12 @@ The browser that is called depends on
 `browse-url-browser-function' and `browse-url-mailto-function'."
   (save-match-data
     (if (string-match "^mailto:" url)
-      (lexical-let ((url url))
 	(lambda ()
 	  (interactive)
-	  (browse-url-mail url)))
-      (lexical-let ((url url))
-	(lambda ()
-	  (interactive)
-	  (browse-url url))))))
+	  (browse-url-mail url))
+      (lambda ()
+        (interactive)
+        (browse-url url)))))
 
 (defun mu4e~view-browse-url-from-binding (&optional url)
   "View in browser the url at point, or click location.
@@ -935,7 +959,7 @@ If the url is mailto link, start writing an email to that address."
   "Show attached images, if `mu4e-show-images' is non-nil."
   (when (and (display-images-p) mu4e-view-show-images)
     (mu4e-view-for-each-part msg
-      (lambda (msg part)
+      (lambda (_msg part)
 	(when (string-match "^image/"
 		(or (mu4e-message-part-field part :mime-type)
 		  "application/object-stream"))
@@ -966,7 +990,7 @@ Also number them so they can be opened using `mu4e-view-go-to-url'."
 	  (when bounds
 	    (let* ((url (thing-at-point-url-at-point))
 		    (ov (make-overlay (car bounds) (cdr bounds))))
-	      (puthash (incf num) url mu4e~view-link-map)
+	      (puthash (cl-incf num) url mu4e~view-link-map)
 	      (add-text-properties
 		(car bounds)
 		(cdr bounds)
@@ -1063,10 +1087,6 @@ the new docid. Otherwise, return nil."
   (if mu4e~view-cited-hidden
     (mu4e-view-refresh)
     (mu4e~view-hide-cited)))
-
-(defvar mu4e~view-html-text nil
-  "Should we prefer html or text just this once? A symbol `text'
-or `html' or nil.")
 
 (defun mu4e-view-toggle-html ()
   "Toggle html-display of the message body (if any)."
@@ -1179,7 +1199,7 @@ Add this function to `mu4e-view-mode-hook' to enable this feature."
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; attachment handling
-(defun mu4e~view-get-attach-num (prompt msg &optional multi)
+(defun mu4e~view-get-attach-num (prompt _msg &optional multi)
   "Ask the user with PROMPT for an attachment number for MSG, and
 ensure it is valid. The number is [1..n] for attachments
 \[0..(n-1)] in the message. If MULTI is nil, return the number for
@@ -1187,7 +1207,7 @@ the attachment; otherwise (MULTI is non-nil), accept ranges of
 attachment numbers, as per `mu4e-split-ranges-to-numbers', and
 return the corresponding string."
   (let* ((count (hash-table-count mu4e~view-attach-map)) (def))
-    (when (zerop count) (mu4e-error "No attachments for this message"))
+    (when (zerop count) (mu4e-warn "No attachments for this message"))
     (if (not multi)
       (if (= count 1)
 	(read-number (mu4e-format "%s: " prompt) 1)
@@ -1487,6 +1507,13 @@ list."
   (mu4e~view-in-headers-context
     (mu4e-mark-execute-all)))
 
+(defun mu4e-view-mark-or-move-to-trash (&optional n)
+  "See `mu4e-headers-mark-or-move-to-trash'."
+  (interactive "P")
+  (mu4e~view-in-headers-context
+   (mu4e-headers-mark-or-move-to-trash)
+   (mu4e~headers-move (or n 1))))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; URL handling
 (defun mu4e~view-get-urls-num (prompt &optional multi)
@@ -1574,7 +1601,7 @@ this is the default, you may not need it."
 
 (defun mu4e-view-for-each-uri (func)
   "Evaluate FUNC(uri) for each uri in the current message."
-  (maphash (lambda (num uri) (funcall func uri)) mu4e~view-link-map))
+  (maphash (lambda (_num uri) (funcall func uri)) mu4e~view-link-map))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 

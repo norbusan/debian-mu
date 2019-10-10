@@ -1,7 +1,7 @@
 /* -*-mode: c++; tab-width: 8; indent-tabs-mode: t; c-basic-offset: 8-*- */
 
 /*
-** Copyright (C) 2008-2015 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+** Copyright (C) 2008-2019 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 **
 ** This program is free software; you can redistribute it and/or modify it
 ** under the terms of the GNU General Public License as published by the
@@ -37,7 +37,7 @@ show_version (void)
 {
 	const char* blurb =
 		"mu (mail indexer/searcher) version " VERSION "\n"
-		"Copyright (C) 2008-2018 Dirk-Jan C. Binnema\n"
+		"Copyright (C) 2008-2019 Dirk-Jan C. Binnema\n"
 		"License GPLv3+: GNU GPL version 3 or later "
 		"<http://gnu.org/licenses/gpl.html>.\n"
 		"This is free software: you are free to change "
@@ -58,14 +58,11 @@ handle_error (MuConfig *conf, MuError merr, GError **err)
 	case MU_ERROR_XAPIAN_CANNOT_GET_WRITELOCK:
 		g_printerr ("maybe mu is already running?\n");
 		break;
-	case MU_ERROR_XAPIAN_CORRUPTION:
-	case MU_ERROR_XAPIAN_VERSION_MISMATCH:
-		g_printerr ("database needs a rebuild; "
-			    "try 'mu index --rebuild'\n");
-		break;
-	case MU_ERROR_XAPIAN_IS_EMPTY:
-		g_printerr ("database is empty; try 'mu index'\n");
-		break;
+	case MU_ERROR_XAPIAN_NEEDS_REINDEX:
+		g_printerr ("database needs (re)indexing.\n"
+			    "try 'mu index' "
+			    "(see mu-index(1) for details)\n");
+		return;
 	case MU_ERROR_IN_PARAMETERS:
 		if (conf && mu_config_cmd_is_valid(conf->cmd))
 			mu_config_show_help (conf->cmd);
@@ -88,15 +85,11 @@ handle_error (MuConfig *conf, MuError merr, GError **err)
 int
 main (int argc, char *argv[])
 {
-	GError *err;
-	MuError rv;
-	MuConfig *conf;
+	GError		*err;
+	MuError		 rv;
+	MuConfig	*conf;
 
 	setlocale (LC_ALL, "");
-
-#ifndef GLIB_VERSION_2_36
-	g_type_init ();
-#endif /*GLIB_VERSION_2_36*/
 
 	err = NULL;
 	rv  = MU_OK;
