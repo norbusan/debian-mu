@@ -298,11 +298,16 @@ If needed, set the Fcc header, and register the handler function."
 (defun mu4e~compose-register-message-save-hooks ()
   "Just before saving, we remove the `mail-header-separator'.
 Just after saving we restore it; thus, the separator should never
-appear on disk."
+appear on disk. Also update the Date and ensure we have a
+Message-ID."
   (add-hook 'before-save-hook
     (lambda()
-      (save-match-data
-        (mu4e~draft-remove-mail-header-separator))) nil t)
+      ;; replace the date
+      (save-excursion
+        (message-remove-header "Date")
+        (message-generate-headers '(Date Message-ID))
+        (save-match-data
+          (mu4e~draft-remove-mail-header-separator)))) nil t)
   (add-hook 'after-save-hook
     (lambda ()
       (save-match-data
@@ -895,11 +900,17 @@ buffer buried."
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(defun mu4e-compose-goto-top ()
+(defun mu4e-compose-goto-top (&optional arg)
   "Go to the beginning of the message or buffer.
 Go to the beginning of the message or, if already there, go to the
-beginning of the buffer."
-  (interactive)
+beginning of the buffer.
+
+Push mark at previous position, unless either a \\[universal-argument] prefix
+is supplied, or Transient Mark mode is enabled and the mark is active."
+  (interactive "P")
+  (or arg
+      (region-active-p)
+      (push-mark))
   (let ((old-position (point)))
     (message-goto-body)
     (when (equal (point) old-position)
@@ -908,11 +919,17 @@ beginning of the buffer."
 (define-key mu4e-compose-mode-map
   (vector 'remap 'beginning-of-buffer) 'mu4e-compose-goto-top)
 
-(defun mu4e-compose-goto-bottom ()
+(defun mu4e-compose-goto-bottom (&optional arg)
   "Go to the end of the message or buffer.
 Go to the end of the message (before signature) or, if already there, go to the
-end of the buffer."
-  (interactive)
+end of the buffer.
+
+Push mark at previous position, unless either a \\[universal-argument] prefix
+is supplied, or Transient Mark mode is enabled and the mark is active."
+  (interactive "P")
+  (or arg
+      (region-active-p)
+      (push-mark))
   (let ((old-position (point))
    (message-position (save-excursion (message-goto-body) (point))))
     (goto-char (point-max))

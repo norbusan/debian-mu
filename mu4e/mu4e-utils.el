@@ -396,18 +396,6 @@ and offer to create it if it does not exist yet."
 	      (mu4e~proc-mkdir fullpath)))
     mdir))
 
-
-(cl-defstruct mu4e-bookmark
-  "A mu4e bookmarl object with the following members:
-- `name': the user-visible name of the bookmark
-- `key': a single key to search for this bookmark
-- `query': the query for this bookmark. Either a literal string or a function
-   that evaluates to a string."
-  name                      ;; name/description of the bookmark
-  query                     ;; a query (a string or a function evaluation to string)
-  key                       ;; key to activate the bookmark
-  )
-
 (defun mu4e-bookmarks ()
   "Get `mu4e-bookmarks' in the (new) format, converting from the old
 format if needed."
@@ -1230,7 +1218,7 @@ used in the view and compose modes."
 
 (defun mu4e~fontify-signature ()
   "Give the message signatures a distinctive color. This is used in
-the view and compose modes and will color each signature in digest messages adhearing to RFC 1153."
+the view and compose modes and will color each signature in digest messages adhering to RFC 1153."
   (let ((inhibit-read-only t))
     (save-excursion
       ;; give the footer a different color...

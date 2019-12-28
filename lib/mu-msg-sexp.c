@@ -19,7 +19,7 @@
 #include <string.h>
 #include <ctype.h>
 
-#include "mu-str.h"
+#include "utils/mu-str.h"
 #include "mu-msg.h"
 #include "mu-msg-iter.h"
 #include "mu-msg-part.h"
@@ -178,7 +178,7 @@ maybe_append_list_post_as_reply_to (GString *gstr, MuMsg *msg)
 	if (!list_post)
 		return;
 
-	rx = g_regex_new ("^(<?mailto:)?([a-z0-9%+@.-]+)>?", G_REGEX_CASELESS, 0, NULL);
+	rx = g_regex_new ("^(<?mailto:)?([a-z0-9%+@._-]+)>?", G_REGEX_CASELESS, 0, NULL);
 	g_return_if_fail(rx);
 
 	if (g_regex_match (rx, list_post, 0, &minfo)) {
@@ -507,7 +507,7 @@ append_message_file_parts (GString *gstr, MuMsg *msg, MuMsgOptions opts)
 
 	if (!mu_msg_load_msg_file (msg, &err)) {
 		g_warning ("failed to load message file: %s",
-			   err ? err->message : "some error occured");
+			   err ? err->message : "some error occurred");
 		g_clear_error (&err);
 		return;
 	}

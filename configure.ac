@@ -15,7 +15,7 @@
 ## Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
 
 AC_PREREQ([2.68])
-AC_INIT([mu],[1.3.5],[https://github.com/djcb/mu/issues],[mu])
+AC_INIT([mu],[1.3.6],[https://github.com/djcb/mu/issues],[mu])
 AC_COPYRIGHT([Copyright (C) 2008-2019 Dirk-Jan C. Binnema])
 AC_CONFIG_HEADERS([config.h])
 AC_CONFIG_SRCDIR([mu/mu.cc])
@@ -90,7 +90,7 @@ AS_IF([test "x$enable_mu4e" != "xno"], [
   ])
   AS_CASE([$emacs_version],
     [*24.4*|*24.5*],[build_mu4e=yes],
-    [*25*|*26*|*27*],[build_mu4e=yes],
+    [*25*|*26*|*27*|*28*],[build_mu4e=yes],
     [AC_WARN([emacs is too old to build mu4e (need emacs >= 24.4)])])
 ])
 AM_CONDITIONAL(BUILD_MU4E, test "x$build_mu4e" = "xyes")
@@ -109,7 +109,7 @@ AS_IF([test "x$ac_cv_member_struct_dirent_d_type" != "xyes"],
 # support for d_ino (inode) in struct dirent is optional; if it's
 # available we can sort direntries by inode and access them in that
 # order; this is much faster on some file systems (such as extfs3).
-# Explicity disabling it is for testing purposes only.
+# Explicitly disabling it is for testing purposes only.
 AC_ARG_ENABLE([dirent-d-ino],
     AC_HELP_STRING([--disable-dirent-d-ino],
             [Don't use dirent->d_ino, even if you have it]),
@@ -255,6 +255,7 @@ mu/Makefile
 mu/tests/Makefile
 lib/Makefile
 lib/doxyfile
+lib/utils/Makefile
 lib/parser/Makefile
 lib/tests/Makefile
 mu4e/Makefile

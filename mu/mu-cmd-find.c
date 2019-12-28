@@ -29,8 +29,6 @@
 #include <signal.h>
 
 #include "mu-msg.h"
-#include "mu-str.h"
-#include "mu-date.h"
 #include "mu-maildir.h"
 #include "mu-index.h"
 #include "mu-query.h"
@@ -38,7 +36,10 @@
 #include "mu-bookmarks.h"
 #include "mu-runtime.h"
 
-#include "mu-util.h"
+#include "utils/mu-util.h"
+#include "utils/mu-str.h"
+#include "utils/mu-date.h"
+
 #include "mu-cmd.h"
 #include "mu-threader.h"
 
@@ -123,7 +124,7 @@ run_query (MuQuery *xapian, const gchar *query, MuConfig *opts,  GError **err)
 	sortid = MU_MSG_FIELD_ID_NONE;
 	if (opts->sortfield) {
 		sortid = sort_field_from_string (opts->sortfield, err);
-		if (sortid == MU_MSG_FIELD_ID_NONE) /* error occured? */
+		if (sortid == MU_MSG_FIELD_ID_NONE) /* error occurred? */
 			return FALSE;
 	}
 

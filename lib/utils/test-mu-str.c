@@ -30,11 +30,7 @@
 
 #include <locale.h>
 
-#include "test-mu-common.h"
 #include "mu-str.h"
-#include "mu-msg-prio.h"
-
-
 
 
 static void
@@ -45,15 +41,13 @@ test_mu_str_size_01 (void)
 
 	lc = localeconv();
 
-	tmp2 = g_strdup_printf ("0%s0 kB", lc->decimal_point);
-	g_assert_cmpstr (mu_str_size_s (0),           ==,  tmp2);
+	g_assert_cmpstr (mu_str_size_s (0), ==, "0 bytes");
+
+	tmp2 = g_strdup_printf ("97%s7 KB", lc->decimal_point);
+	g_assert_cmpstr (mu_str_size_s (100000), ==, tmp2);
 	g_free (tmp2);
 
-	tmp2 = g_strdup_printf ("100%s0 kB", lc->decimal_point);
-	g_assert_cmpstr (mu_str_size_s (100000),      ==,  tmp2);
-	g_free (tmp2);
-
-	tmp2 = g_strdup_printf ("1%s1 MB", lc->decimal_point);
+	tmp2 = g_strdup_printf ("1%s0 MB", lc->decimal_point);
 	g_assert_cmpstr (mu_str_size_s (1100*1000), ==,  tmp2);
 	g_free (tmp2);
 }
@@ -75,34 +69,6 @@ test_mu_str_size_02 (void)
 	g_free (tmp1);
 	g_free (tmp2);
 }
-
-
-
-static void
-test_mu_str_prio_01 (void)
-{
-	g_assert_cmpstr(mu_msg_prio_name(MU_MSG_PRIO_LOW), ==, "low");
-	g_assert_cmpstr(mu_msg_prio_name(MU_MSG_PRIO_NORMAL), ==, "normal");
-	g_assert_cmpstr(mu_msg_prio_name(MU_MSG_PRIO_HIGH), ==, "high");
-}
-
-
-static gboolean
-ignore_error (const char* log_domain, GLogLevelFlags log_level,
-	      const gchar* msg, gpointer user_data)
-{
-	return FALSE; /* don't abort */
-}
-
-
-static void
-test_mu_str_prio_02 (void)
-{
-	/* this must fail */
-	g_test_log_set_fatal_handler ((GTestLogFatalFunc)ignore_error, NULL);
-	g_assert_cmpstr (mu_msg_prio_name(666), ==, NULL);
-}
-
 
 
 
@@ -159,25 +125,6 @@ test_mu_str_esc_to_list (void)
 	}
 }
 
-
-static void
-test_mu_str_display_contact (void)
-{
-	int			i;
-	struct {
-		const char*	word;
-		const char*	disp;
-	} words [] = {
-		{ "\"Foo Bar\" <aap@noot.mies>", "Foo Bar"},
-		{ "Foo Bar <aap@noot.mies>", "Foo Bar" },
-		{ "<aap@noot.mies>", "aap@noot.mies" },
-		{ "foo@bar.nl", "foo@bar.nl" }
-	};
-
-	for (i = 0; i != G_N_ELEMENTS(words); ++i)
-		g_assert_cmpstr (mu_str_display_contact_s (words[i].word), ==,
-				 words[i].disp);
-}
 
 
 static void
@@ -272,28 +219,6 @@ test_mu_str_to_list_strip (void)
 
 
 static void
-test_mu_str_subject_normalize (void)
-{
-	int i;
-
-	struct {
-		const char *src, *exp;
-	} tests[] = {
-		{ "test123", "test123" },
-		{ "Re:test123", "test123" },
-		{ "Re: Fwd: test123", "test123" },
-		{ "Re[3]: Fwd: test123", "test123" },
-		{ "operation: mindcrime", "operation: mindcrime" }, /*...*/
-		{ "", "" }
-	};
-
-	for (i = 0; i != G_N_ELEMENTS(tests); ++i)
-		g_assert_cmpstr (mu_str_subject_normalize (tests[i].src), ==,
-				 tests[i].exp);
-}
-
-
-static void
 test_mu_str_replace (void)
 {
 	unsigned u;
@@ -357,16 +282,6 @@ main (int argc, char *argv[])
 	g_test_add_func ("/mu-str/mu-str-size-02",
 			 test_mu_str_size_02);
 
-	/* mu_str_prio */
-	g_test_add_func ("/mu-str/mu-str-prio-01",
-			 test_mu_str_prio_01);
-	g_test_add_func ("/mu-str/mu-str-prio-02",
-			 test_mu_str_prio_02);
-
-
-	g_test_add_func ("/mu-str/mu-str-display_contact",
-			 test_mu_str_display_contact);
-
 	g_test_add_func ("/mu-str/mu-str-from-list",
 			 test_mu_str_from_list);
 	g_test_add_func ("/mu-str/mu-str-to-list",
@@ -383,19 +298,9 @@ main (int argc, char *argv[])
 	g_test_add_func ("/mu-str/mu-str-esc-to-list",
 			 test_mu_str_esc_to_list);
 
-	g_test_add_func ("/mu-str/mu_str_subject_normalize",
-			 test_mu_str_subject_normalize);
-
 	g_test_add_func ("/mu-str/mu_str_remove_ctrl_in_place",
 			 test_mu_str_remove_ctrl_in_place);
 
-	/* FIXME: add tests for mu_str_flags; but note the
-	 * function simply calls mu_msg_field_str */
-
-	g_log_set_handler (NULL,
-			   G_LOG_LEVEL_MASK | G_LOG_FLAG_FATAL|
-			   G_LOG_FLAG_RECURSION,
-			   (GLogFunc)black_hole, NULL);
 
 	return g_test_run ();
 }
