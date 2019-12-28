@@ -45,7 +45,7 @@ public:
         /**
          * Construct a store for a not-yet-existing document database
          *
-         * @param path path to the detabase
+         * @param path path to the database
          * @param maildir maildir to use for this store
          */
         Store (const std::string& path, const std::string& maildir);
@@ -195,7 +195,7 @@ private:
 #include <glib.h>
 #include <inttypes.h>
 #include <mu-msg.h>
-#include <mu-util.h> /* for MuError, MuError */
+#include <utils/mu-util.h>
 #include <mu-contacts.hh>
 
 G_BEGIN_DECLS

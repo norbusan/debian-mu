@@ -21,10 +21,8 @@
 
 ;; Some user-contributed functions for mu4e
 
+
 ;; Contributed by sabof
-
-(require 'mu4e)
-
 (defvar bookmark-make-record-function)
 
 (defun mu4e-headers-mark-all-unread-read ()
@@ -129,7 +127,7 @@ For example for bogofile, use \"/usr/bin/bogofilter -Sn < %s\"")
   "Mark message as spam."
   (interactive)
   (let* ((path (shell-quote-argument (mu4e-message-field msg :path)))
-         (command (format mu4e-register-as-spam-cmd path))) ;; re-register msg as spam 
+         (command (format mu4e-register-as-spam-cmd path))) ;; re-register msg as spam
     (shell-command command))
 (mu4e-mark-at-point 'delete nil))
 
@@ -140,7 +138,7 @@ For example for bogofile, use \"/usr/bin/bogofilter -Sn < %s\"")
          (command (format mu4e-register-as-ham-cmd path))) ;; re-register msg as ham
     (shell-command command))
 (mu4e-mark-at-point 'something nil))
- 
+
 ;; (add-to-list 'mu4e-view-actions
 ;;              '("sMark as spam" . mu4e-view-register-msg-as-spam) t)
 ;; (add-to-list 'mu4e-view-actions
@@ -165,7 +163,7 @@ For example for bogofile, use \"/usr/bin/bogofilter -Sn < %s\"")
 ;;; end of spam-filtering functions
 
 ;;; eshell functions
-;; Code for 'gnus-dired-attached' modifed to run from eshell, allowing files to
+;; Code for 'gnus-dired-attached' modified to run from eshell, allowing files to
 ;; be attached to an email via mu4e using the eshell. Does not depend on gnus.
 (defun eshell/mu4e-attach (&rest args)
   "Attach files to a mu4e message using eshell. If no mu4e

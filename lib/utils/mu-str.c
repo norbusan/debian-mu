@@ -31,30 +31,17 @@
 
 #include "mu-util.h" /* PATH_MAX */
 #include "mu-str.h"
-#include "mu-msg-fields.h"
-
 
 const char*
 mu_str_size_s  (size_t s)
 {
-	static char buf[32];
-
-#ifdef HAVE_GLIB216
-	char *tmp;
+	static char	 buf[32];
+	char		*tmp;
 
 	tmp = g_format_size_for_display ((goffset)s);
 	strncpy (buf, tmp, sizeof(buf));
 	buf[sizeof(buf) -1] = '\0'; /* just in case */
 	g_free (tmp);
-
-#else
-	if (s >= 1000 * 1000)
-		g_snprintf(buf, sizeof(buf), "%.1f MB",
-			   (double)s/(1000*1000));
-	else
-		g_snprintf(buf, sizeof(buf), "%.1f kB", (double)s/(1000));
-#endif /*HAVE_GLIB216*/
-
 
 	return buf;
 }
@@ -65,17 +52,6 @@ mu_str_size (size_t s)
 	return g_strdup (mu_str_size_s(s));
 }
 
-const char*
-mu_str_flags_s  (MuFlags flags)
-{
-	return mu_flags_to_str_s (flags, MU_FLAG_TYPE_ANY);
-}
-
-char*
-mu_str_flags  (MuFlags flags)
-{
-	return g_strdup (mu_str_flags_s(flags));
-}
 
 char*
 mu_str_summarize (const char* str, size_t max_lines)
@@ -119,60 +95,6 @@ mu_str_summarize (const char* str, size_t max_lines)
 }
 
 
-static void
-cleanup_contact (char *contact)
-{
-	char *c, *c2;
-
-	/* replace "'<> with space */
-	for (c2 = contact; *c2; ++c2)
-		if (*c2 == '"' || *c2 == '\'' || *c2 == '<' || *c2 == '>')
-			*c2 = ' ';
-
-	/* remove everything between '()' if it's after the 5th pos;
-	 * good to cleanup corporate contact address spam... */
-	c = g_strstr_len (contact, -1, "(");
-	if (c && c - contact > 5)
-		*c = '\0';
-
-	g_strstrip (contact);
-}
-
-
-/* this is still somewhat simplistic... */
-const char*
-mu_str_display_contact_s (const char *str)
-{
-	static gchar contact[255];
-	gchar *c, *c2;
-
-	str = str ? str : "";
-	g_strlcpy (contact, str, sizeof(contact));
-
-	/* we check for '<', so we can strip out the address stuff in
-	 * e.g. 'Hello World <hello@world.xx>, but only if there is
-	 * something alphanumeric before the <
-	 */
-	c = g_strstr_len (contact, -1, "<");
-	if (c != NULL) {
-		for (c2 = contact; c2 < c && !(isalnum(*c2)); ++c2);
-		if (c2 != c) /* apparently, there was something,
-			      * so we can remove the <... part*/
-			*c = '\0';
-	}
-
-	cleanup_contact (contact);
-
-	return contact;
-}
-
-char*
-mu_str_display_contact (const char *str)
-{
-	g_return_val_if_fail (str, NULL);
-
-	return g_strdup (mu_str_display_contact_s (str));
-}
 
 
 char*

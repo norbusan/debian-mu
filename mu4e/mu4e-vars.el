@@ -29,6 +29,7 @@
 (require 'mu4e-meta)
 (require 'message)
 
+
 (defgroup mu4e nil
   "mu4e - mu for emacs"
   :group 'mail)
@@ -57,18 +58,30 @@ change until after quitting."
   :safe 'stringp
   :group 'mu4e)
 
+(defcustom mu4e-org-support t
+  "Support org-mode links."
+  :type 'boolean
+  :group 'mu4e)
+
+(defcustom mu4e-speedbar-support nil
+  "Support having a speedbar to navigate folders/bookmarks."
+  :type 'boolean
+  :group 'mu4e)
+
 (defcustom mu4e-get-mail-command "true"
   "Shell command to run to retrieve new mail.
 Common values are \"offlineimap\", \"fetchmail\" or \"mbsync\", but
 arbitrary shell-commands can be used.
 
 When set to the literal string \"true\" (the default), the
-command simply finishes succesfully (running the 'true' command)
+command simply finishes successfully (running the 'true' command)
 without retrieving any mail. This can be useful when mail is
 already retrieved in another way."
   :type 'string
   :group 'mu4e
   :safe 'stringp)
+
+
 
 (defcustom mu4e-index-update-error-warning t
   "Whether to display warnings during the retrieval process.
@@ -94,7 +107,7 @@ This depends on the `mu4e-get-mail-command' exit code."
 That is, validate that each message in the message store has a
 corresponding message file in the filesystem.
 
-Having this option as t ensures that no non-existing mesages are
+Having this option as t ensures that no non-existing messages are
 shown but can also be quite slow with large message stores."
 :type 'boolean :group 'mu4e :safe 'booleanp)
 
@@ -181,18 +194,41 @@ Follows the format of `format-time-string'."
 
 (defcustom mu4e-modeline-max-width 30
   "Determines the maximum length of the modeline string.
-If the string exeeds this limit, it will be truncated to fit."
+If the string exceeds this limit, it will be truncated to fit."
   :type 'integer
   :group 'mu4e)
 
 (defvar mu4e-debug nil
   "When set to non-nil, log debug information to the *mu4e-log* buffer.")
 
+(cl-defstruct mu4e-bookmark
+  "A mu4e bookmarl object with the following members:
+- `name': the user-visible name of the bookmark
+- `key': a single key to search for this bookmark
+- `query': the query for this bookmark. Either a literal string or a function
+   that evaluates to a string."
+  name                      ;; name/description of the bookmark
+  query                     ;; a query (a string or a function evaluation to string)
+  key                       ;; key to activate the bookmark
+  )
+
 (defcustom mu4e-bookmarks
-  '( ("flag:unread AND NOT flag:trashed" "Unread messages"      ?u)
-     ("date:today..now"                  "Today's messages"     ?t)
-     ("date:7d..now"                     "Last 7 days"          ?w)
-     ("mime:image/*"                     "Messages with images" ?p))
+  `( ,(make-mu4e-bookmark
+        :name  "Unread messages"
+        :query "flag:unread AND NOT flag:trashed"
+        :key ?u)
+     ,(make-mu4e-bookmark
+        :name "Today's messages"
+        :query "date:today..now"
+        :key ?t)
+     ,(make-mu4e-bookmark
+        :name "Last 7 days"
+        :query "date:7d..now"
+        :key ?w)
+     ,(make-mu4e-bookmark
+        :name "Messages with images"
+        :query "mime:image/*"
+        :key ?p))
   "A list of pre-defined queries.
 These will show up in the main screen. Each of the list elements
 is a three-element list of the form (QUERY DESCRIPTION KEY),
@@ -200,36 +236,9 @@ where QUERY is a string with a mu query, DESCRIPTION is a short
 description of the query (this will show up in the UI), and KEY
 is a shortcut key for the query."
   :type '(repeat (list (string :tag "Query")
-       (string :tag "Description")
-       character))
+                       (string :tag "Description")
+                       character))
   :group 'mu4e)
-
-(defvar mu4e-bookmarks
-  `( ,(make-mu4e-bookmark
-  :name  "Unread messages"
-  :query "flag:unread AND NOT flag:trashed"
-  :key ?u)
-     ,(make-mu4e-bookmark
-  :name "Today's messages"
-  :query "date:today..now"
-  :key ?t)
-     ,(make-mu4e-bookmark
-  :name "Last 7 days"
-  :query "date:7d..now"
-  :key ?w)
-     ,(make-mu4e-bookmark
-  :name "Messages with images"
-  :query "mime:image/*"
-  :key ?p))
-  "A list of pre-defined queries.
-Each query is represented by a mu4e-bookmark structure with
-parameters @t{:name} with the name of the bookmark, @t{:query}
-with the query expression (a query string or an s-expression that
-evaluates to query string) and a @t{:key}, which is the
-shortcut-key for the query.
-
-An older form of bookmark, a 3-item list with (QUERY DESCRIPTION
-KEY) is still recognized as well, for backward-compatibility.")
 
 (defcustom mu4e-split-view 'horizontal
   "How to show messages / headers.
@@ -591,7 +600,7 @@ I.e. a message with the draft flag set."
   :group 'mu4e-faces)
 
 (defface mu4e-header-highlight-face
-  '((t :inherit region :weight bold :underline t))
+  '((t :inherit hl-line :weight bold :underline t))
   "Face for the header at point."
   :group 'mu4e-faces)
 

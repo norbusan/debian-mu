@@ -25,7 +25,7 @@
 #include <gdk/gdkkeysyms.h>
 #include <string.h>		/* for memset */
 
-#include <mu-util.h>
+#include <utils/mu-util.h>
 #include <mu-store.hh>
 #include <mu-runtime.h>
 #include <mu-index.h>
@@ -247,7 +247,7 @@ on_list_view_error (MugMsgListView * mlist, MugError err, MugData * mugdata)
 		msg = "Error in query";
 		break;
 	default:
-		msg = "Some error occured";
+		msg = "Some error occurred";
 		break;
 	}
 

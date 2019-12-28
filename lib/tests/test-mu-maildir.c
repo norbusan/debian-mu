@@ -30,7 +30,7 @@
 
 #include "test-mu-common.h"
 #include "mu-maildir.h"
-#include "mu-util.h"
+#include "utils/mu-util.h"
 
 static void
 test_mu_maildir_mkdir_01 (void)
@@ -484,7 +484,7 @@ test_mu_maildir_get_new_path_new (void)
 		assert_matches_regexp (newbase,
 				       "\\d+\\."
 				       "[[:xdigit:]]{16}\\."
-				       "[[:alpha:]]+(:2,.*)?");
+				       "[[:alnum:]][[:alnum:]-]+(:2,.*)?");
 		g_free (newbase);
 		g_free(str);
 	}

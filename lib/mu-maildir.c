@@ -33,9 +33,8 @@
 #include <errno.h>
 #include <glib/gprintf.h>
 
-#include "mu-util.h"
 #include "mu-maildir.h"
-#include "mu-str.h"
+#include "utils/mu-str.h"
 
 #define MU_MAILDIR_NOINDEX_FILE       ".noindex"
 #define MU_MAILDIR_NOUPDATE_FILE      ".noupdate"
@@ -714,7 +713,7 @@ mu_maildir_get_flags_from_path (const char *path)
 
 
 /*
- * take an exising message path, and return a new path, based on
+ * take an existing message path, and return a new path, based on
  * whether it should be in 'new' or 'cur'; ie.
  *
  * /home/user/Maildir/foo/bar/cur/abc:2,F  and flags == MU_FLAG_NEW

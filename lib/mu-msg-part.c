@@ -25,8 +25,8 @@
 #include <string.h>
 #include <unistd.h>
 
-#include "mu-util.h"
-#include "mu-str.h"
+#include "utils/mu-util.h"
+#include "utils/mu-str.h"
 #include "mu-msg-priv.h"
 #include "mu-msg-part.h"
 
@@ -465,6 +465,7 @@ looks_like_text_body_part (GMimeContentType *ctype)
 		const char *subtype;
 	} types[] = {
 		{ "text", "plain" },
+		{ "text", "x-markdown" },
 		{ "text", "x-diff"  },
 		{ "text", "x-patch" },
 		{ "application", "x-patch"}
