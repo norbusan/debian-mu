@@ -3,7 +3,7 @@
  man/mu-cfind.1   |    5 ++---
  man/mu-easy.1    |    2 +-
  man/mu-extract.1 |    5 ++---
- man/mu-find.1    |    4 ++--
+ man/mu-find.1    |    6 +++---
  man/mu-help.1    |    5 ++---
  man/mu-index.1   |    2 +-
  man/mu-mkdir.1   |    4 ++--
@@ -13,7 +13,7 @@
  man/mu-server.1  |    2 +-
  man/mu-verify.1  |    4 ++--
  man/mu-view.1    |    4 ++--
- 14 files changed, 25 insertions(+), 28 deletions(-)
+ 14 files changed, 26 insertions(+), 29 deletions(-)
 
 --- maildir-utils.git.orig/man/mu-add.1
 +++ maildir-utils.git/man/mu-add.1
@@ -69,7 +69,7 @@
  
 --- maildir-utils.git.orig/man/mu-find.1
 +++ maildir-utils.git/man/mu-find.1
-@@ -1,8 +1,8 @@
+@@ -1,10 +1,10 @@
 -.TH MU FIND 1 "19 April 2015" "User Manuals"
 +.TH MU-FIND 1 "19 April 2015" "User Manuals"
  
@@ -77,6 +77,9 @@
  
 -mu find \- find e-mail messages in the \fBmu\fR database.
 +mu_find \- find e-mail messages in the \fBmu\fR database.
+ 
+-mu mfind \- find e-mail messages in the \fBmu\fR database with mu4e defaults.
++mu_mfind \- find e-mail messages in the \fBmu\fR database with mu4e defaults.
  
  .SH SYNOPSIS
  
