@@ -1,7 +1,5 @@
-/* -*-mode: c++; tab-width: 8; indent-tabs-mode: t; c-basic-offset: 8-*- */
-
 /*
-** Copyright (C) 2008-2019 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+** Copyright (C) 2008-2020 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 **
 ** This program is free software; you can redistribute it and/or modify it
 ** under the terms of the GNU General Public License as published by the
@@ -37,7 +35,7 @@ show_version (void)
 {
 	const char* blurb =
 		"mu (mail indexer/searcher) version " VERSION "\n"
-		"Copyright (C) 2008-2019 Dirk-Jan C. Binnema\n"
+		"Copyright (C) 2008-2020 Dirk-Jan C. Binnema\n"
 		"License GPLv3+: GNU GPL version 3 or later "
 		"<http://gnu.org/licenses/gpl.html>.\n"
 		"This is free software: you are free to change "
@@ -53,6 +51,11 @@ handle_error (MuConfig *conf, MuError merr, GError **err)
 {
 	if (!(err && *err))
 		return;
+
+	if (*err)
+		g_printerr ("error: %s (%u)\n",
+			    (*err)->message,
+			    (*err)->code);
 
 	switch ((*err)->code) {
 	case MU_ERROR_XAPIAN_CANNOT_GET_WRITELOCK:
@@ -71,14 +74,17 @@ handle_error (MuConfig *conf, MuError merr, GError **err)
 		g_printerr ("see the mu manpage for commands, or "
 			    "'mu script' for the scripts\n");
 		break;
+	case MU_ERROR_XAPIAN_CANNOT_OPEN:
+		g_printerr("Please (re)initialize mu with 'mu init' "
+			   "see mu-init(1) for details\n");
+		return;
+	case MU_ERROR_XAPIAN_SCHEMA_MISMATCH:
+		g_printerr("Please (re)initialize mu with 'mu init' "
+			   "see mu-init(1) for details\n");
+		return;
 	default:
 		break; /* nothing to do */
 	}
-
-	if (*err)
-		g_printerr ("mu: %s (%u)\n",
-			    (*err)->message,
-			    (*err)->code);
 }
 
 

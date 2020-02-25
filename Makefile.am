@@ -1,4 +1,4 @@
-## Copyright (C) 2008-2018 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+## Copyright (C) 2008-2020 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 ##
 ## This program is free software; you can redistribute it and/or modify
 ## it under the terms of the GNU General Public License as published by
@@ -28,13 +28,7 @@ else
 mu4e=
 endif
 
-# if BUILD_PERL
-# perl=perl
-# else
-# perl=
-# endif
-
-SUBDIRS=m4 man lib $(guile) mu $(mu4e) contrib toys # $(perl)
+SUBDIRS=m4 man lib $(guile) mu $(mu4e) contrib toys
 
 ACLOCAL_AMFLAGS=-I m4
 
@@ -48,45 +42,10 @@ cleanupnote:
 tags:
 	gtags
 
-# this warns about function that have a cyclomatic complexity of > 10,
-# which is a sign that it needs some refactoring. requires the pmccabe
-# tool. If all is fine, it outputs nothing
-cc10:
-	@$(PMCCABE) `find . -name '*.c' -o -name '*.cc'`	\
-	| grep -v mu-str-normalize.c				\
-	| grep -v mu_str_subject_normalize			\
-	| grep -v tests						\
-	| sort -nr | awk '($$1 > 10)'
-
-# this warns about functions that are over 35 non-comment lines long, which is a
-# sign that they need some refactoring. requires the pmccabe tool. if
-# all is fine, it outputs nothing
-# note, some functions are  exempted from this rule.
-line35:
-	@$(PMCCABE) -c `find . -name '*.c' -o -name '*.cc'`	\
-	 | grep -v mu-str-normalize.c				\
-	 | grep -v mu_str_subject_normalize			\
-	 | grep -v config_options_group_find			\
-	 | grep -v SCM_DEFINE					\
-	 | grep -v tests					\
-	 | awk '($$5 > 35)'
-
-# get all todo/fixme messages
-fixme:
-	@grep -i 'FIXME\|TODO' `find src -type f`
-
-# check whether we can run make distcheck from the repo version
-gitcheck:
-	cd `mktemp -d`;						\
-	git clone git://github.com/djcb/mu.git ;		\
-	cd mu;							\
-	autoreconf -i ;						\
-	./configure ;						\
-	make distcheck
-
 EXTRA_DIST=							\
 	TODO							\
 	HACKING							\
+	README							\
 	gtest.mk						\
 	NEWS							\
 	NEWS.org						\
@@ -94,3 +53,9 @@ EXTRA_DIST=							\
 
 doc_DATA =							\
 	NEWS.org
+
+include $(top_srcdir)/aminclude_static.am
+
+CODE_COVERAGE_IGNORE_PATTERN=					\
+	'/usr/*'						\
+	'*test-*'

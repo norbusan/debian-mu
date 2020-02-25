@@ -181,20 +181,28 @@ Mu::quote (const std::string& str)
 	 va_list args;
 
 	 va_start (args, frm);
-
-	 char *s = {};
-	 const auto res = g_vasprintf (&s, frm, args);
+         auto str = format(frm, args);
 	 va_end (args);
-	 if (res == -1) {
-		 std::cerr << "string format failed" << std::endl;
-		 return {};
-	 }
-
-	 std::string str = s;
-	 free (s);
 
 	 return str;
  }
+
+std::string
+Mu::format (const char *frm, va_list args)
+{
+        char *s{};
+        const auto res = g_vasprintf (&s, frm, args);
+        if (res == -1) {
+                std::cerr << "string format failed" << std::endl;
+                return {};
+        }
+
+	 std::string str{s};
+	 g_free (s);
+
+	 return str;
+}
+
 
 constexpr const auto InternalDateFormat = "%010" G_GINT64_FORMAT;
 constexpr const char InternalDateMin[] = "0000000000";
@@ -212,7 +220,7 @@ std::string
 Mu::date_to_time_t_string (int64_t t)
 {
 	char buf[sizeof(InternalDateMax)];
-	snprintf (buf, sizeof(buf), InternalDateFormat, t);
+	g_snprintf (buf, sizeof(buf), InternalDateFormat, t);
 
 	return buf;
 }
@@ -390,7 +398,7 @@ std::string
 Mu::size_to_string (int64_t size)
 {
 	char buf[sizeof(SizeMax)];
-	snprintf (buf, sizeof(buf), SizeFormat, size);
+	g_snprintf (buf, sizeof(buf), SizeFormat, size);
 
 	return buf;
 }
@@ -434,4 +442,30 @@ Mu::size_to_string (const std::string& val, bool is_first)
 	g_match_info_unref (minfo);
 
 	return str;
+}
+
+void
+Mu::assert_equal(const std::string& s1, const std::string& s2)
+{
+        g_assert_cmpstr (s1.c_str(), ==, s2.c_str());
+}
+
+void
+Mu::assert_equal (const Mu::StringVec& v1, const Mu::StringVec& v2)
+{
+        g_assert_cmpuint(v1.size(), ==, v2.size());
+
+        for (auto i = 0U; i != v1.size(); ++i)
+                assert_equal(v1[i], v2[i]);
+}
+
+
+void
+Mu::allow_warnings()
+{
+        g_test_log_set_fatal_handler(
+                [](const char*, GLogLevelFlags, const char*, gpointer) {
+                        return FALSE;
+                },{});
+
 }

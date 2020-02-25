@@ -91,32 +91,6 @@ check_params (MuConfig *opts, GError **err)
 	return TRUE;
 }
 
-static gboolean
-check_maildir (const char *maildir, GError **err)
-{
-	if (!maildir) {
-		mu_util_g_set_error (err, MU_ERROR_IN_PARAMETERS,
-				     "no maildir to work on; use --maildir=");
-		return FALSE;
-	}
-
-	if (!g_path_is_absolute (maildir)) {
-		mu_util_g_set_error (err, MU_ERROR_IN_PARAMETERS,
-				     "maildir path '%s' is not absolute",
-				     maildir);
-		return FALSE;
-	}
-
-	if (!mu_util_check_dir (maildir, TRUE, FALSE)) {
-		mu_util_g_set_error (err, MU_ERROR_IN_PARAMETERS,
-				     "not a valid Maildir: %s", maildir);
-		return FALSE;
-	}
-
-	return TRUE;
-}
-
-
 static MuError
 index_msg_silent_cb (MuIndexStats* stats, void *user_data)
 {
@@ -137,7 +111,7 @@ print_stats (MuIndexStats* stats, gboolean clear, gboolean color)
 		fputs ("\r", stdout);
 
 	if (color)
-		snprintf
+		g_snprintf
 			(output, sizeof(output),
 			 MU_COLOR_YELLOW "%c " MU_COLOR_DEFAULT
 			 "processing mail; "
@@ -149,7 +123,7 @@ print_stats (MuIndexStats* stats, gboolean clear, gboolean color)
 			 (unsigned)stats->_updated,
 			 (unsigned)stats->_cleaned_up);
 	else
-		snprintf
+		g_snprintf
 			(output, sizeof(output),
 			 "%c processing mail; processed: %u; "
 			 "updated/new: %u, cleaned-up: %u",
@@ -251,49 +225,6 @@ cleanup_missing (MuIndex *midx, MuConfig *opts, MuIndexStats *stats,
 	return (rv == MU_OK || rv == MU_STOP) ? MU_OK: MU_G_ERROR_CODE(err);
 }
 
-
-static void
-index_title (MuStore *store, MuConfig *opts)
-{
-	const char	 *blue, *green, *def;
-	char		**addrs;
-	int		  i;
-	time_t            created;
-	struct tm	  *tstamp;
-	char		  tbuf[40];
-
-	blue  = opts->nocolor ? "" : MU_COLOR_BLUE;
-	green = opts->nocolor ? "" : MU_COLOR_GREEN;
-	def   = opts->nocolor ? "" : MU_COLOR_DEFAULT;
-
-	g_print ("database           : %s%s%s\n",
-		 green, mu_store_database_path (store), def);
-	g_print ("schema-version     : %s%s%s\n",
-		 green, mu_store_schema_version(store), def);
-
-	created = mu_store_created (store);
-	tstamp = localtime (&created);
-	strftime (tbuf, sizeof(tbuf), "%c", tstamp);
-
-	g_print ("created            : %s%s%s\n", green, tbuf, def);
-	g_print ("maildir            : %s%s%s\n",
-		 green, mu_store_maildir (store), def);
-
-	g_print ("personal-addresses : ");
-
-	addrs = mu_store_personal_addresses (store);
-	for (i = 0; addrs[i]; ++i) {
-		if (i != 0)
-			g_print ("                     ");
-		g_print ("%s%s%s\n", green, addrs[i], def);
-	}
-
-	g_strfreev(addrs);
-
-	g_print ("\n");
-}
-
-
 static MuError
 cmd_index (MuIndex *midx, MuConfig *opts, MuIndexStats *stats, GError **err)
 {
@@ -306,7 +237,8 @@ cmd_index (MuIndex *midx, MuConfig *opts, MuIndexStats *stats, GError **err)
 
 	newline_before_on();
 
-	rv = mu_index_run (midx, opts->maildir, opts->rebuild,
+	rv = mu_index_run (midx,
+			   opts->rebuild,
 			   opts->lazycheck, stats,
 			   show_progress ?
 			   (MuIndexMsgCallback)index_msg_cb :
@@ -332,9 +264,6 @@ init_mu_index (MuStore *store, MuConfig *opts, GError **err)
 	if (!check_params (opts, err))
 		return NULL;
 
-	if (!check_maildir (opts->maildir, err))
-		return NULL;
-
 	midx = mu_index_new (store, err);
 	if (!midx)
 		return NULL;
@@ -343,7 +272,6 @@ init_mu_index (MuStore *store, MuConfig *opts, GError **err)
 
 	return midx;
 }
-
 
 MuError
 mu_cmd_index (MuStore *store, MuConfig *opts, GError **err)
@@ -366,7 +294,7 @@ mu_cmd_index (MuStore *store, MuConfig *opts, GError **err)
 	install_sig_handler ();
 
 	if (!opts->quiet)
-		index_title (store, opts);
+		mu_store_print_info (store, opts->nocolor);
 
 	t = time (NULL);
 	rv = cmd_index (midx, opts, &stats, err);

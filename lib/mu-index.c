@@ -112,8 +112,8 @@ needs_index (MuIndexCallbackData *data, const char *fullpath,
 	if (data->_reindex)
 		return TRUE;
 
-	/* it's not in the database yet (FIXME: GError)*/
-	if (!mu_store_contains_message (data->_store, fullpath, NULL))
+	/* it's not in the database yet */
+	if (!mu_store_contains_message (data->_store, fullpath))
 		return TRUE;
 
 	/* it's there, but it's not up to date */
@@ -242,7 +242,7 @@ on_run_maildir_dir (const char* fullpath, gboolean enter,
 	 */
 	if (enter) {
 		data->_dirstamp =
-			mu_store_get_timestamp (data->_store, fullpath, &err);
+			mu_store_get_dirstamp (data->_store, fullpath, &err);
 		/* in 'lazy' mode, we only check the dir timestamp, and if it's
 		 * up to date, we don't bother with this dir. This fails to
 		 * account for messages below this dir that have merely
@@ -257,7 +257,7 @@ on_run_maildir_dir (const char* fullpath, gboolean enter,
 		}
 		g_debug ("entering %s", fullpath);
 	} else {
-		mu_store_set_timestamp (data->_store, fullpath,
+		mu_store_set_dirstamp (data->_store, fullpath,
 					time(NULL), &err);
 		g_debug ("leaving %s", fullpath);
 	}
@@ -280,8 +280,7 @@ check_path (const char *path)
 	g_return_val_if_fail (path, FALSE);
 
 	if (!g_path_is_absolute (path)) {
-		g_warning ("%s: not an absolute path: %s",
-			   __func__, path);
+		g_warning ("%s: not an absolute path: '%s'", __func__, path);
 		return FALSE;
 	}
 
@@ -331,18 +330,19 @@ mu_index_set_max_msg_size (MuIndex *index, guint max_size)
 
 
 MuError
-mu_index_run (MuIndex *index, const char *path,
-	      gboolean reindex, gboolean lazycheck,
+mu_index_run (MuIndex *index,  gboolean reindex, gboolean lazycheck,
 	      MuIndexStats *stats,
 	      MuIndexMsgCallback msg_cb, MuIndexDirCallback dir_cb,
 	      void *user_data)
 {
-	MuIndexCallbackData	cb_data;
-	MuError			rv;
+	MuIndexCallbackData	 cb_data;
+	MuError			 rv;
+	const char		*path;
 
 	g_return_val_if_fail (index && index->_store, MU_ERROR);
 	g_return_val_if_fail (msg_cb, MU_ERROR);
 
+	path = mu_store_root_maildir (index->_store);
 	if (!check_path (path))
 		return MU_ERROR;
 
@@ -390,15 +390,17 @@ on_stats_maildir_file (const char *fullpath, const char *mdir,
 
 
 MuError
-mu_index_stats (MuIndex *index, const char *path,
+mu_index_stats (MuIndex *index,
 		MuIndexStats *stats, MuIndexMsgCallback cb_msg,
 		MuIndexDirCallback cb_dir, void *user_data)
 {
-	MuIndexCallbackData cb_data;
+	const char		*path;
+	MuIndexCallbackData	 cb_data;
 
 	g_return_val_if_fail (index, MU_ERROR);
 	g_return_val_if_fail (cb_msg, MU_ERROR);
 
+	path = mu_store_root_maildir (index->_store);
 	if (!check_path (path))
 		return MU_ERROR;
 

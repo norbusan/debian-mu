@@ -247,6 +247,8 @@ get_mailing_list (MuMsgFile *self)
 	else
 		res = g_strdup (dechdr);
 
+	g_free (dechdr);
+
 	return res;
 }
 
@@ -652,7 +654,7 @@ get_msgid (MuMsgFile *self, gboolean *do_free)
 		return (char*)msgid;
 	} else { /* if there is none, fake it */
 		*do_free = TRUE;
-		return g_strdup_printf ("%016 " PRIx64  "@fake-msgid",
+		return g_strdup_printf ("%016" PRIx64  "@fake-msgid",
 					mu_util_get_hash (self->_path));
 	}
 }

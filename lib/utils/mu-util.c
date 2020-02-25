@@ -135,7 +135,7 @@ mu_util_cache_dir (void)
 {
 	static char cachedir [PATH_MAX];
 
-	snprintf (cachedir, sizeof(cachedir), "%s%cmu-%u",
+	g_snprintf (cachedir, sizeof(cachedir), "%s%cmu-%u",
 		  g_get_tmp_dir(), G_DIR_SEPARATOR,
 		  getuid());
 
@@ -428,7 +428,7 @@ mu_util_g_set_error (GError **err, MuError errcode, const char *frm, ...)
 
 
 
-static gboolean
+__attribute__((format(printf, 2, 0))) static gboolean
 print_args (FILE *stream, const char *frm, va_list args)
 {
 	gchar *str;

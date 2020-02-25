@@ -1,5 +1,5 @@
 ;;; mu4e.el --- part of mu4e, the mu mail user agent -*- lexical-binding: t -*-
-;;
+
 ;; Copyright (C) 2011-2019 Dirk-Jan C. Binnema
 
 ;; Author: Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
@@ -8,7 +8,7 @@
 ;; Version: 0.0
 
 ;; This file is not part of GNU Emacs.
-;;
+
 ;; GNU Emacs is free software: you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
 ;; the Free Software Foundation, either version 3 of the License, or
@@ -25,6 +25,7 @@
 ;;; Commentary:
 
 ;;; Code:
+
 (require 'mu4e-vars)
 (require 'mu4e-headers)  ;; headers view
 (require 'mu4e-view)     ;; message view
@@ -39,15 +40,12 @@
 (when mu4e-org-support
   (require 'mu4e-org))      ;; support for org-mode links
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; we can't properly use compose buffers that are revived using
-;; desktop-save-mode; so let's turn that off
+;; We can't properly use compose buffers that are revived using
+;; desktop-save-mode; so let's turn that off.
 (require 'desktop)
 (add-to-list 'desktop-modes-not-to-save 'mu4e-compose-mode)
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;###autoload
 (defun mu4e (&optional background)
   "If mu4e is not running yet, start it. Then, show the main
@@ -60,11 +58,10 @@ window, unless BACKGROUND (prefix-argument) is non-nil."
   "Quit the mu4e session."
   (interactive)
   (if mu4e-confirm-quit
-	  (when (y-or-n-p (mu4e-format "Are you sure you want to quit?"))
-		(mu4e~stop))
-	(mu4e~stop)))
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+      (when (y-or-n-p (mu4e-format "Are you sure you want to quit?"))
+        (mu4e~stop))
+    (mu4e~stop)))
 
+;;; _
 (provide 'mu4e)
-
 ;;; mu4e.el ends here
