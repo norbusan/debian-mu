@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2019 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+** Copyright (C) 2020 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 **
 ** This program is free software; you can redistribute it and/or modify it
 ** under the terms of the GNU General Public License as published by the
@@ -20,6 +20,8 @@
 #ifndef __MU_STORE_HH__
 #define __MU_STORE_HH__
 
+#include <mu-msg.h>
+
 #ifdef __cplusplus
 
 #include "mu-contacts.hh"
@@ -29,6 +31,8 @@
 #include <string>
 #include <vector>
 #include <ctime>
+
+#include <utils/mu-utils.hh>
 
 namespace Mu {
 
@@ -47,8 +51,11 @@ public:
          *
          * @param path path to the database
          * @param maildir maildir to use for this store
+         * @param personal_addressesaddresses that should be recognized as
+         * 'personal' for identifying personal messages.
          */
-        Store (const std::string& path, const std::string& maildir);
+        Store (const std::string& path, const std::string& maildir,
+               const StringVec& personal_addresses);
 
         /**
          * DTOR
@@ -75,7 +82,7 @@ public:
          *
          * @return the maildir
          */
-        const std::string& maildir() const;
+        const std::string& root_maildir() const;
 
         /**
          * Version of the database-schema
@@ -92,23 +99,12 @@ public:
          */
         std::time_t created() const;
 
-        using Addresses = std::vector<std::string>;
-        /**< A vec of email addresses (of the type foo@example.com, RFC-5322)*/
-
-        /**
-         * Set addresses that should be recognized as 'personal'
-         *
-         * @param addresses
-         */
-        void set_personal_addresses (const Addresses& addresses);
-
-
         /**
          * Get a vec with the personal addresses
          *
          * @return personal addresses
          */
-        const Addresses& personal_addresses() const;
+        const StringVec& personal_addresses() const;
 
         /**
          * Get the Contacts object for this store
@@ -116,6 +112,59 @@ public:
          * @return the Contacts object
          */
         const Contacts& contacts() const;
+
+        /**
+         * Add a message to the store.
+         *
+         * @param path the message path.
+         *
+         * @return the doc id of the added message
+         */
+        unsigned add_message (const std::string& path);
+
+        /**
+         * Add a message to the store.
+         *
+         * @param path the message path.
+         *
+         * @return true if removing happened; false otherwise.
+         */
+        bool remove_message (const std::string& path);
+
+        /**
+         * Fina  message in the store.
+         *
+         * @param docid doc id for the message to find
+         *
+         * @return a message (owned by caller), or nullptr
+         */
+        MuMsg* find_message (unsigned docid) const;
+
+        /**
+         * does a certain message exist in the store already?
+         *
+         * @param path the message path
+         *
+         * @return true if the message exists in the store, false otherwise
+         */
+        bool contains_message (const std::string& path) const;
+
+        /**
+         * Get the timestamp for some directory
+         *
+         * @param path the path
+         *
+         * @return the timestamp, or 0 if not found
+         */
+        time_t dirstamp (const std::string& path) const;
+
+        /**
+         * Set the timestamp for some directory
+         *
+         * @param path a filesystem path
+         * @param tstamp the timestamp for that path
+         */
+        void set_dirstamp (const std::string& path, time_t tstamp);
 
         /**
          * Get the number of documents in the document database
@@ -130,24 +179,6 @@ public:
          * @return true or false
          */
         bool empty() const;
-
-        /**
-         * Get the timestamp for a given path.
-         *
-         * @param path the path
-         *
-         * @return the timestamp, or 0 if not found
-         */
-        time_t path_tstamp (const std::string& path) const;
-
-        /**
-         * Set the timestamp for some path
-         *
-         * @param path a filesystem path
-         * @param tstamp the timestamp for that path
-         */
-        void set_path_tstamp (const std::string& path, time_t tstamp);
-
 
         /**
          * Begin a database transaction
@@ -194,7 +225,6 @@ private:
 
 #include <glib.h>
 #include <inttypes.h>
-#include <mu-msg.h>
 #include <utils/mu-util.h>
 #include <mu-contacts.hh>
 
@@ -236,13 +266,15 @@ MuStore*  mu_store_new_writable (const char *xpath, GError **err)
  *
  * @param path the path to the database
  * @param path to the maildir
+ * @param personal_addressesaddresses that should be recognized as
+ * 'personal' for identifying personal messages.
  * @param err to receive error info or NULL. err->code is MuError value
  *
  * @return a new MuStore object with ref count == 1, or NULL in case
  * of error; free with mu_store_unref
  */
 MuStore*  mu_store_new_create (const char *xpath, const char *maildir,
-                               GError **err)
+                               const char **personal_addresses, GError **err)
         G_GNUC_MALLOC G_GNUC_WARN_UNUSED_RESULT;
 
 /**
@@ -319,13 +351,13 @@ const char *mu_store_database_path (const MuStore *store);
 
 
 /**
- * Get the maildir for this message store.
+ * Get the root-maildir for this message store.
  *
  * @param store the store
  *
  * @return the maildir.
  */
-const char *mu_store_maildir(const MuStore *store);
+const char *mu_store_root_maildir(const MuStore *store);
 
 
 /**
@@ -336,20 +368,6 @@ const char *mu_store_maildir(const MuStore *store);
  * @return the maildir.
  */
 time_t mu_store_created(const MuStore *store);
-
-
-/**
- * register a char** of email addresses as 'my' addresses, ie. mark
- * message that have these addresses in one of the address fields as
- * 'personal' (e.g., in mu-contacts). calling this function overrides
- * any 'my addresses' that were set before, using this function or
- * through mu_store_new_writable
- *
- * @param store a valid store object
- * @param my_addresses a char** of email addresses
- */
-void mu_store_set_personal_addresses (MuStore *store,
-                                      const char **my_addresses);
 
 /**
  * Get the list of personal addresses from the store
@@ -428,15 +446,12 @@ unsigned mu_store_update_msg (MuStore *store, unsigned docid, MuMsg *msg,
  *
  * @param store a valid store
  * @param path full filesystem path to a valid message
- * @param maildir set the maildir (e.g. "/drafts") for this message, or NULL
- *    note that you cannot mu_msg_move_msg_to_maildir unless maildir is set.
  * @param err receives error information, if any, or NULL
  *
  * @return the docid of the stored message, or 0
  * (MU_STORE_INVALID_DOCID) in case of error
  */
-unsigned mu_store_add_path (MuStore *store, const char *path,
-			    const char* maildir, GError **err);
+unsigned mu_store_add_path (MuStore *store, const char *path, GError **err);
 
 /**
  * remove a message from the database based on its path
@@ -451,18 +466,15 @@ unsigned mu_store_add_path (MuStore *store, const char *path,
  */
 gboolean mu_store_remove_path (MuStore *store, const char* msgpath);
 
-
 /**
  * does a certain message exist in the database already?
  *
  * @param store a store
  * @param path the message path
- * @param err to receive error info or NULL. err->code is MuError value
  *
  * @return TRUE if the message exists, FALSE otherwise
  */
-gboolean mu_store_contains_message (const MuStore *store,  const char* path,
-				    GError **err);
+gboolean mu_store_contains_message (const MuStore *store,  const char* path);
 
 /**
  * get the docid for message at path
@@ -480,25 +492,25 @@ unsigned mu_store_get_docid_for_path (const MuStore *store, const char* path,
  * store a timestamp for a directory
  *
  * @param store a valid store
- * @param msgpath path to a maildir
+ * @param dirpath path to some directory
  * @param stamp a timestamp
  * @param err to receive error info or NULL. err->code is MuError value
  *
  * @return TRUE if setting the timestamp succeeded, FALSE otherwise
  */
-gboolean mu_store_set_timestamp (MuStore *store, const char* msgpath,
+gboolean mu_store_set_dirstamp (MuStore *store, const char* dirpath,
 				 time_t stamp, GError **err);
 
 /**
  * get the timestamp for a directory
  *
  * @param store a valid store
- * @param msgpath path to a maildir
+ * @param msgpath path to some directory
  * @param err to receive error info or NULL. err->code is MuError value
  *
  * @return the timestamp, or 0 in case of error
  */
-time_t mu_store_get_timestamp (const MuStore *store, const char* msgpath,
+time_t mu_store_get_dirstamp (const MuStore *store, const char* dirpath,
 			       GError **err);
 
 /**
@@ -560,6 +572,14 @@ gboolean mu_store_database_is_locked (const gchar *xpath);
  */
 MuMsg* mu_store_get_msg (const MuStore *self, unsigned docid, GError **err)
 	G_GNUC_WARN_UNUSED_RESULT;
+
+/**
+ * Print some information about the store
+ *
+ * @param store a store
+ * @param nocolor whether to _not_ show color
+ */
+void mu_store_print_info  (const MuStore *store, gboolean nocolor);
 
 
 G_END_DECLS

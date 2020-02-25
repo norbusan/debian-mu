@@ -53,16 +53,6 @@ MuQuery* mu_query_new  (MuStore *store, GError **err)
  */
 void mu_query_destroy  (MuQuery *self);
 
-/**
- * get a version string for the database
- *
- * @param store a valid MuQuery
- *
- * @return the version string (free with g_free), or NULL in case of error
- */
-char* mu_query_version (MuQuery *store)
-    G_GNUC_MALLOC G_GNUC_WARN_UNUSED_RESULT;
-
 
 typedef enum {
 	MU_QUERY_FLAG_NONE            = 0 << 0, /**< no flags */
@@ -75,8 +65,8 @@ typedef enum {
 } MuQueryFlags;
 
 /**
- * run a Xapian query; for the syntax, please refer to the mu-find
- * manpage, or http://xapian.org/docs/queryparser.html
+ * run a Xapian query; for the syntax, please refer to the mu-query
+ * manpage
  *
  * @param self a valid MuQuery instance
  * @param expr the search expression; use "" to match all messages
@@ -96,6 +86,18 @@ MuMsgIter* mu_query_run (MuQuery *self, const char* expr,
 			 MuMsgFieldId sortfieldid, int maxnum,
 			 MuQueryFlags flags, GError **err)
     G_GNUC_MALLOC G_GNUC_WARN_UNUSED_RESULT;
+
+
+/**
+ * run a Xapian query to count the number of matches; for the syntax, please
+ * refer to the mu-query manpage
+ *
+ * @param self a valid MuQuery instance
+ * @param expr the search expression; use "" to match all messages
+ *
+ * @return the number of matches
+ */
+size_t mu_query_count_run (MuQuery *self, const char *searchexpr);
 
 
 /**

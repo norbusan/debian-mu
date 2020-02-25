@@ -1,7 +1,5 @@
-/* -*-mode: c; tab-width: 8; indent-tabs-mode: t; c-basic-offset: 8 -*-*/
-
 /*
-** Copyright (C) 2008-2017 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+** Copyright (C) 2008-2020 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 **
 ** This program is free software; you can redistribute it and/or modify it
 ** under the terms of the GNU General Public License as published by the
@@ -71,7 +69,8 @@ typedef enum {
 	MU_CONFIG_CMD_FIND,
 	MU_CONFIG_CMD_HELP,
 	MU_CONFIG_CMD_INDEX,
-	MU_CONFIG_CMD_MFIND,
+        MU_CONFIG_CMD_INFO,
+        MU_CONFIG_CMD_INIT,
 	MU_CONFIG_CMD_MKDIR,
 	MU_CONFIG_CMD_REMOVE,
 	MU_CONFIG_CMD_SCRIPT,
@@ -108,16 +107,18 @@ struct _MuConfig {
 					 * in some output */
 	gboolean	 verbose;	/* verbose output */
 
+        /* options for init */
+        gchar	        *maildir;	/* where the mails are */
+        char**          my_addresses;   /* 'my e-mail address', for mu
+                                         * cfind; can be use multiple
+                                         * times */
 	/* options for indexing */
-	gchar	        *maildir;	/* where the mails are */
+
 	gboolean        nocleanup;	/* don't cleanup del'd mails from db */
 	gboolean        rebuild;	/* empty the database before indexing */
 	gboolean        lazycheck;      /* don't check dirs with up-to-date
 					 * timestamps */
 	int		max_msg_size;   /* maximum size for message files */
-	char**          my_addresses;   /* 'my e-mail address', for mu
-					 * cfind; can be use multiple
-					 * times */
 
 	/* options for querying 'find' (and view-> 'summary') */
 	gchar		*fields;	/* fields to show in output */
@@ -180,6 +181,10 @@ struct _MuConfig {
 	gboolean	 overwrite;	/* should we overwrite same-named files */
 	gboolean         play;          /* after saving, try to 'play'
 					 * (open) the attmnt using xdgopen */
+	/* for server */
+	gboolean        commands;        /* dump documentations for server
+					  * commands */
+
 	/* options for mu-script */
 	gchar           *script;         /* script to run */
 	const char      **script_params; /* parameters for scripts */

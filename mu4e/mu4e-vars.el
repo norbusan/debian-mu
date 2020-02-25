@@ -1,12 +1,12 @@
 ;;; mu4e-vars.el -- part of mu4e, the mu mail user agent -*- lexical-binding: t -*-
-;;
-;; Copyright (C) 2011-2019 Dirk-Jan C. Binnema
+
+;; Copyright (C) 2011-2020 Dirk-Jan C. Binnema
 
 ;; Author: Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 ;; Maintainer: Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 
 ;; This file is not part of GNU Emacs.
-;;
+
 ;; GNU Emacs is free software: you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
 ;; the Free Software Foundation, either version 3 of the License, or
@@ -24,11 +24,12 @@
 
 ;;; Code:
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Customization
 (require 'mu4e-meta)
 (require 'message)
 
+(declare-function mu4e-error "mu4e-utils")
+
+;;; Customization
 
 (defgroup mu4e nil
   "mu4e - mu for emacs"
@@ -39,7 +40,7 @@
 defaults, based on the XDG Base Directory Specification."
   :group 'mu4e
   :type '(choice (const :tag "Default location" nil)
-     (directory :tag "Specify location"))
+                 (directory :tag "Specify location"))
   :safe 'stringp)
 
 (defcustom mu4e-mu-binary (executable-find "mu")
@@ -50,13 +51,8 @@ path."
   :group 'mu4e
   :safe 'stringp)
 
-(defcustom mu4e-maildir (expand-file-name "~/Maildir")
-  "The absolute file system path to your Maildir.
-Must not be a symbolic link, and after starting mu4e, cannot
-change until after quitting."
-  :type 'directory
-  :safe 'stringp
-  :group 'mu4e)
+(make-obsolete-variable 'mu4e-maildir
+                        "determined by server; see `mu4e-root-maildir'." "1.3.8")
 
 (defcustom mu4e-org-support t
   "Support org-mode links."
@@ -80,8 +76,6 @@ already retrieved in another way."
   :type 'string
   :group 'mu4e
   :safe 'stringp)
-
-
 
 (defcustom mu4e-index-update-error-warning t
   "Whether to display warnings during the retrieval process.
@@ -109,7 +103,7 @@ corresponding message file in the filesystem.
 
 Having this option as t ensures that no non-existing messages are
 shown but can also be quite slow with large message stores."
-:type 'boolean :group 'mu4e :safe 'booleanp)
+  :type 'boolean :group 'mu4e :safe 'booleanp)
 
 (defcustom mu4e-index-lazy-check nil
   "Whether to only use a 'lazy check' during reindexing.
@@ -125,7 +119,7 @@ faster." :type 'boolean :group 'mu4e :safe 'booleanp)
 If nil, don't update automatically. Note, changes in
 `mu4e-update-interval' only take effect after restarting mu4e."
   :type '(choice (const :tag "No automatic update" nil)
-     (integer :tag "Seconds"))
+                 (integer :tag "Seconds"))
   :group 'mu4e
   :safe 'integerp)
 
@@ -160,23 +154,13 @@ the attachment dir. See Info node `(mu4e) Attachments' for details."
   :group 'mu4e
   :safe 'stringp)
 
-(defcustom mu4e-user-mail-address-list `(,user-mail-address)
-  "List of e-mail addresses to consider 'my email addresses'.
-I.e. addresses whose presence in an email imply that it is a
-personal message. Note that the local part (the part before '@')
-of e-mail addresses is case-sensitive, as per RFC531.  In
-practice however, most of the mail systems do not distinguish
-addresses based on the case, so the emails in this list will be
-matched case-insensitively."
-  :type '(repeat (string :tag "Address"))
-  :group 'mu4e)
-
 ;; don't use the older vars anymore
 (make-obsolete-variable 'mu4e-user-mail-address-regexp
-  'mu4e-user-mail-address-list "0.9.9.x")
-
+                        'mu4e-user-mail-address-list "0.9.9.x")
 (make-obsolete-variable 'mu4e-my-email-addresses
-  'mu4e-user-mail-address-list "0.9.9.x")
+                        'mu4e-user-mail-address-list "0.9.9.x")
+(make-obsolete-variable 'mu4e-user-mail-address-list
+                        "determined by server; see `mu4e-personal-addresses'." "1.3.8")
 
 (defcustom mu4e-use-fancy-chars nil
   "When set, allow fancy (Unicode) characters for marks/threads.
@@ -201,43 +185,52 @@ If the string exceeds this limit, it will be truncated to fit."
 (defvar mu4e-debug nil
   "When set to non-nil, log debug information to the *mu4e-log* buffer.")
 
-(cl-defstruct mu4e-bookmark
-  "A mu4e bookmarl object with the following members:
+;; for backward compatibility, when a bookmark was defined with defstruct.
+(cl-defun make-mu4e-bookmark (&key name query key)
+  "Create a mu4e proplist with the following elements:
 - `name': the user-visible name of the bookmark
 - `key': a single key to search for this bookmark
 - `query': the query for this bookmark. Either a literal string or a function
    that evaluates to a string."
-  name                      ;; name/description of the bookmark
-  query                     ;; a query (a string or a function evaluation to string)
-  key                       ;; key to activate the bookmark
-  )
+  `(:name ,name :query ,query :key ,key))
+(make-obsolete 'make-mu4e-bookmark "`unneeded; `mu4e-bookmarks'
+are plists" "1.3.7")
 
 (defcustom mu4e-bookmarks
-  `( ,(make-mu4e-bookmark
-        :name  "Unread messages"
-        :query "flag:unread AND NOT flag:trashed"
-        :key ?u)
-     ,(make-mu4e-bookmark
-        :name "Today's messages"
-        :query "date:today..now"
-        :key ?t)
-     ,(make-mu4e-bookmark
-        :name "Last 7 days"
-        :query "date:7d..now"
-        :key ?w)
-     ,(make-mu4e-bookmark
-        :name "Messages with images"
-        :query "mime:image/*"
-        :key ?p))
-  "A list of pre-defined queries.
-These will show up in the main screen. Each of the list elements
-is a three-element list of the form (QUERY DESCRIPTION KEY),
-where QUERY is a string with a mu query, DESCRIPTION is a short
-description of the query (this will show up in the UI), and KEY
-is a shortcut key for the query."
-  :type '(repeat (list (string :tag "Query")
-                       (string :tag "Description")
-                       character))
+  '(( :name  "Unread messages"
+             :query "flag:unread AND NOT flag:trashed"
+             :key ?u)
+    ( :name "Today's messages"
+            :query "date:today..now"
+            :key ?t)
+    ( :name "Last 7 days"
+            :query "date:7d..now"
+            :show-unread t
+            :key ?w)
+    ( :name "Messages with images"
+            :query "mime:image/*"
+            :key ?p))
+  "List of pre-defined queries that are shown on the main screen.
+
+Each of the list elements is a plist with at least:
+`:name'  - the name of the query
+`:query' - the query expression or function
+`:key'   - the shortcut key.
+
+Note that the :query parameter can be a function/lambda.
+
+Optionally, you can add the following:
+`:hide'  - if t, bookmark is hdden from the main-view and speedbar.
+`:hide-unread' - do not show the counts of unread/total number
+ of matches for the query in the main-view. This can be useful
+if a bookmark uses  a very slow query. :hide-unread
+is implied from :hide. Furthermore, it is implied from the query
+not being a string.
+
+Note that the queries used to determine the unread/all counts do
+current not apply `mu4e-query-rewrite-function', so if your
+bookmarks depend on that, the results may differ."
+  :type '(repeat (plist))
   :group 'mu4e)
 
 (defcustom mu4e-split-view 'horizontal
@@ -252,9 +245,9 @@ A symbol which is either:
 Also see `mu4e-headers-visible-lines'
 and `mu4e-headers-visible-columns'."
   :type '(choice (const :tag "Split horizontally" horizontal)
-     (const :tag "Split vertically" vertical)
-     (const :tag "Single window" single-window)
-     (const :tag "Don't split" nil))
+                 (const :tag "Split vertically" vertical)
+                 (const :tag "Single window" single-window)
+                 (const :tag "Don't split" nil))
   :group 'mu4e-headers)
 
 (defcustom mu4e-view-max-specpdl-size 4096
@@ -268,7 +261,7 @@ and `mu4e-headers-visible-columns'."
   :group 'mu4e-view)
 
 (make-obsolete-variable 'mu4e-show-images
-  'mu4e-view-show-images "0.9.9.x")
+                        'mu4e-view-show-images "0.9.9.x")
 
 (defcustom mu4e-confirm-quit t
   "Whether to confirm to quit mu4e."
@@ -311,15 +304,16 @@ contexts match, we have the following choices:
 
 Also see `mu4e-compose-context-policy'."
   :type '(choice
-     (const :tag "Always ask what context to use, even if one matches"
-       always-ask)
-     (const :tag "Ask if none of the contexts match" ask)
-     (const :tag "Ask when there's no context yet" ask-if-none)
-     (const :tag "Pick the first context if none match" pick-first)
-     (const :tag "Don't change the context when none match" nil))
+          (const :tag "Always ask what context to use, even if one matches"
+                 always-ask)
+          (const :tag "Ask if none of the contexts match" ask)
+          (const :tag "Ask when there's no context yet" ask-if-none)
+          (const :tag "Pick the first context if none match" pick-first)
+          (const :tag "Don't change the context when none match" nil))
   :group 'mu4e)
 
-;; crypto
+;;;; Crypto
+
 (defgroup mu4e-crypto nil
   "Crypto-related settings."
   :group 'mu4e)
@@ -336,18 +330,19 @@ The setting is a symbol:
  * `ask': ask before decrypting anything
  * nil:   don't try to decrypt anything."
   :type '(choice (const :tag "Try to decrypt automatically" t)
-     (const :tag "Ask before decrypting anything" ask)
-     (const :tag "Don't try to decrypt anything" nil))
+                 (const :tag "Ask before decrypting anything" ask)
+                 (const :tag "Don't try to decrypt anything" nil))
   :group 'mu4e-crypto)
 
-;; completion; we put them here rather than in mu4e-compose, as mu4e-utils needs
-;; the variables.
+;;;; Address completion
+;;
+;; We put these options here rather than in mu4e-compose, because
+;; mu4e-utils needs them.
 
 (defgroup mu4e-compose nil
   "Message-composition related settings."
   :group 'mu4e)
 
-;; address completion
 (defcustom mu4e-compose-complete-addresses t
   "Whether to do auto-completion of e-mail addresses."
   :type 'boolean
@@ -356,37 +351,39 @@ The setting is a symbol:
 (defcustom mu4e-compose-complete-only-personal nil
   "Whether to consider only 'personal' e-mail addresses for completion.
 That is, addresses from messages where user was explicitly in one
-of the address fields (this excludes mailing list messages). See
-`mu4e-user-mail-address-list' and the mu-index manpage for
-details for details (in particular, how to define your own e-mail
-addresses)."
+of the address fields (this excludes mailing list messages).
+These addresses are the ones specified with `mu init'."
   :type 'boolean
   :group 'mu4e-compose)
 
 (defcustom mu4e-compose-complete-only-after "2014-01-01"
   "Consider only contacts last seen after this date.
-Date must be a string, in a format parseable by
-`org-parse-time-string'. This excludes really old contacts.
-Set to nil to not have any time-based restriction."
+
+Date must be a string of the form YYY-MM-DD.
+
+This is useful for limiting a potentially enormous set of
+contacts for auto-completion to just those that are present in
+the e-mail corpus in recent timses. Set to nil to not have any
+time-based restriction."
   :type 'string
   :group 'mu4e-compose)
 
-;;; names and mail-addresses can be mapped onto their canonical
-;;; counterpart.  use the customizeable function
-;;; mu4e-canonical-contact-function to do that.  below the identity
-;;; function for mapping a contact onto the canonical one.
+;; names and mail-addresses can be mapped onto their canonical
+;; counterpart.  use the customizeable function
+;; mu4e-canonical-contact-function to do that.  below the identity
+;; function for mapping a contact onto the canonical one.
 (defun mu4e-contact-identity (contact)
   "Return the name and the mail-address of a CONTACT.
 It is used as the identity function for converting contacts to
 their canonical counterpart; useful as an example."
-    (let ((name (plist-get contact :name))
-           (mail (plist-get contact :mail)))
-      (list :name name :mail mail)))
+  (let ((name (plist-get contact :name))
+        (mail (plist-get contact :mail)))
+    (list :name name :mail mail)))
 
 (make-obsolete-variable 'mu4e-contacts-rewrite-function
-  "mu4e-contact-process-function (see docstring)" "mu4e 1.3.2")
+                        "mu4e-contact-process-function (see docstring)" "mu4e 1.3.2")
 (make-obsolete-variable 'mu4e-compose-complete-ignore-address-regexp
-  "mu4e-contact-process-function (see docstring)" "mu4e 1.3.2")
+                        "mu4e-contact-process-function (see docstring)" "mu4e 1.3.2")
 
 (defcustom mu4e-contact-process-function nil
   "Function for processing contact information for use in auto-completion.
@@ -403,24 +400,25 @@ an RFC-2822-compatible e-mail address."
   :group 'mu4e-compose)
 
 (defcustom mu4e-compose-reply-ignore-address
-message-dont-reply-to-names
+  '("no-?reply")
   "Addresses to prune when doing wide replies.
 
 This can be a regexp matching the address, a list of regexps or a
 predicate function. A value of nil keeps all the addresses."
   :type '(choice
-     (const nil)
-     function
-     string
-     (repeat string))
+          (const nil)
+          function
+          string
+          (repeat string))
   :group 'mu4e-compose)
 
 (defcustom mu4e-compose-reply-recipients 'ask
   "Which recipients to use when replying to a message.
-May be 'ask, 'all, 'sender."
+May be 'ask, 'all, 'sender. Note that that only applies to
+non-mailing-list message; for those, mu4e always asks."
   :type '(choice ask
                  all
-	         sender)
+                 sender)
   :group 'mu4e-compose)
 
 (defcustom mu4e-compose-reply-to-address nil
@@ -436,8 +434,8 @@ Useful when this is not equal to the From: address."
 
 ;; backward compatibility
 (make-obsolete-variable 'mu4e-reply-to-address
-'mu4e-compose-reply-to-address
-  "v0.9.9")
+                        'mu4e-compose-reply-to-address
+                        "v0.9.9")
 
 (defcustom mu4e-compose-keep-self-cc nil
   "When non-nil. keep your e-mail address in Cc: when replying."
@@ -448,6 +446,8 @@ Useful when this is not equal to the From: address."
   "The parent message plist.
 This is the message being replied to, forwarded or edited; used
 in `mu4e-compose-pre-hook'. For new messages, it is nil.")
+
+;;;; Calendar
 
 (defgroup mu4e-icalendar nil
   "Icalendar related settings."
@@ -465,7 +465,8 @@ in `mu4e-compose-pre-hook'. For new messages, it is nil.")
   :group 'mu4e-icalendar)
 
 
-;; Folders
+;;;; Folders
+
 (defgroup mu4e-folders nil
   "Special folders."
   :group 'mu4e)
@@ -479,8 +480,8 @@ parameter refers to the original message being replied to / being
 forwarded / re-edited and is nil otherwise. `mu4e-drafts-folder'
 is only evaluated once."
   :type '(choice
-     (string :tag "Folder name")
-     (function :tag "Function return folder name"))
+          (string :tag "Folder name")
+          (function :tag "Function return folder name"))
   :group 'mu4e-folders)
 
 (defcustom mu4e-refile-folder "/archive"
@@ -490,8 +491,8 @@ function that takes a message (a msg plist, see
 `mu4e-message-field'), and returns a folder. Note that the
 message parameter refers to the message-at-point."
   :type '(choice
-     (string :tag "Folder name")
-     (function :tag "Function return folder name"))
+          (string :tag "Folder name")
+          (function :tag "Function return folder name"))
   :group 'mu4e-folders)
 
 (defcustom mu4e-sent-folder "/sent"
@@ -502,8 +503,8 @@ function that takes a message (a msg plist, see
 message parameter refers to the original message being replied to
 / being forwarded / re-edited, and is nil otherwise."
   :type '(choice
-     (string :tag "Folder name")
-     (function :tag "Function return folder name"))
+          (string :tag "Folder name")
+          (function :tag "Function return folder name"))
   :group 'mu4e-folders)
 
 (defcustom mu4e-trash-folder "/trash"
@@ -518,8 +519,8 @@ message-at-point. When using it when composing a message (see
 message being replied to / being forwarded / re-edited, and is
 nil otherwise."
   :type '(choice
-     (string :tag "Folder name")
-     (function :tag "Function return folder name"))
+          (string :tag "Folder name")
+          (function :tag "Function return folder name"))
   :group 'mu4e-folders)
 
 (defcustom mu4e-maildir-shortcuts nil
@@ -545,7 +546,8 @@ be quoted, since mu4e does this automatically for you."
   :group 'mu4e
   :type 'boolean)
 
-;; Faces
+;;; Faces
+
 (defgroup mu4e-faces nil
   "Type faces (fonts) used in mu4e."
   :group 'mu4e
@@ -741,117 +743,118 @@ mu4e-compose-mode."
   "Face for highlighting marked region in mu4e-view buffer."
   :group 'mu4e-faces)
 
-;; headers info
+;;; Header information
+
 (defconst mu4e-header-info
-  '( (:attachments .
-       ( :name "Attachments"
-   :shortname "Atts"
-   :help "Message attachments"
-   :require-full t
-   :sortable nil))
-     (:bcc .
-       ( :name "Bcc"
-   :shortname "Bcc"
-   :help "Blind Carbon-Copy recipients for the message"
-   :sortable t))
-     (:cc .
-       ( :name "Cc"
-   :shortname "Cc"
-   :help "Carbon-Copy recipients for the message"
-   :sortable t))
-     (:date .
-       ( :name "Date"
-   :shortname "Date"
-   :help "Date/time when the message was written"
-   :sortable t))
-     (:human-date .
-       ( :name "Date"
-   :shortname "Date"
-   :help "Date/time when the message was written."
-   :sortable :date))
-     (:flags .
-       ( :name "Flags"
-   :shortname "Flgs"
-   :help "Flags for the message"
-   :sortable nil))
-     (:from .
-       ( :name "From"
-   :shortname "From"
-   :help "The sender of the message"
-   :sortable t))
-     (:from-or-to .
-       ( :name "From/To"
-   :shortname "From/To"
-   :help "Sender of the message if it's not me; otherwise the recipient"
-   :sortable nil))
-     (:maildir .
-       ( :name "Maildir"
-   :shortname "Maildir"
-   :help "Maildir for this message"
-   :sortable t))
-     (:list .
-       ( :name "List-Id"
-   :shortname "List"
-   :help "Mailing list id for this message"
-   :sortable t))
-     (:mailing-list .
-       ( :name "List"
-   :shortname "List"
-   :help "Mailing list friendly name for this message"
-   :sortable :list))
-     (:message-id .
-       ( :name "Message-Id"
-   :shortname "MsgID"
-   :help "Message-Id for this message"
-   :sortable nil))
-     (:path .
-       ( :name "Path"
-   :shortname "Path"
-   :help "Full filesystem path to the message"
-   :sortable t))
-     (:signature .
-       ( :name "Signature"
-   :shortname "Sgn"
-   :help "Check for the cryptographic signature"
-   :require-full t
-   :sortable nil))
-     (:decryption .
-       ( :name "Decryption"
-   :shortname "Dec"
-   :help "Check the cryptographic decryption status"
-   :require-full t
-   :sortable nil))
-     (:size .
-       ( :name "Size"
-   :shortname "Size"
-   :help "Size of the message"
-   :sortable t))
-     (:subject .
-       ( :name "Subject"
-   :shortname "Subject"
-   :help "Subject of the message"
-   :sortable t))
-     (:tags .
-       ( :name "Tags"
-   :shortname "Tags"
-   :help "Tags for the message"
-   :sortable nil))
-     (:thread-subject .
-       ( :name "Subject"
-   :shortname "Subject"
-   :help "Subject of the thread"
-   :sortable :subject))
-     (:to .
-       ( :name "To"
-   :shortname "To"
-   :help "Recipient of the message"
-   :sortable t))
-     (:user-agent .
-       ( :name "User-Agent"
-   :shortname "UA"
-   :help "Program used for writing this message"
-   :require-full t
-   :sortable t)))
+  '((:attachments
+     . (:name "Attachments"
+        :shortname "Atts"
+        :help "Message attachments"
+        :require-full t
+        :sortable nil))
+    (:bcc
+     . (:name "Bcc"
+        :shortname "Bcc"
+        :help "Blind Carbon-Copy recipients for the message"
+        :sortable t))
+    (:cc
+     . (:name "Cc"
+        :shortname "Cc"
+        :help "Carbon-Copy recipients for the message"
+        :sortable t))
+    (:date
+     . (:name "Date"
+        :shortname "Date"
+        :help "Date/time when the message was written"
+        :sortable t))
+    (:human-date
+     . (:name "Date"
+        :shortname "Date"
+        :help "Date/time when the message was written."
+        :sortable :date))
+    (:flags
+     . (:name "Flags"
+        :shortname "Flgs"
+        :help "Flags for the message"
+        :sortable nil))
+    (:from
+     . (:name "From"
+        :shortname "From"
+        :help "The sender of the message"
+        :sortable t))
+    (:from-or-to
+     . (:name "From/To"
+        :shortname "From/To"
+        :help "Sender of the message if it's not me; otherwise the recipient"
+        :sortable nil))
+    (:maildir
+     . (:name "Maildir"
+        :shortname "Maildir"
+        :help "Maildir for this message"
+        :sortable t))
+    (:list
+     . (:name "List-Id"
+        :shortname "List"
+        :help "Mailing list id for this message"
+        :sortable t))
+    (:mailing-list
+     . (:name "List"
+        :shortname "List"
+        :help "Mailing list friendly name for this message"
+        :sortable :list))
+    (:message-id
+     . (:name "Message-Id"
+        :shortname "MsgID"
+        :help "Message-Id for this message"
+        :sortable nil))
+    (:path
+     . (:name "Path"
+        :shortname "Path"
+        :help "Full filesystem path to the message"
+        :sortable t))
+    (:signature
+     . (:name "Signature"
+        :shortname "Sgn"
+        :help "Check for the cryptographic signature"
+        :require-full t
+        :sortable nil))
+    (:decryption
+     . (:name "Decryption"
+        :shortname "Dec"
+        :help "Check the cryptographic decryption status"
+        :require-full t
+        :sortable nil))
+    (:size
+     . (:name "Size"
+        :shortname "Size"
+        :help "Size of the message"
+        :sortable t))
+    (:subject
+     . (:name "Subject"
+        :shortname "Subject"
+        :help "Subject of the message"
+        :sortable t))
+    (:tags
+     . (:name "Tags"
+        :shortname "Tags"
+        :help "Tags for the message"
+        :sortable nil))
+    (:thread-subject
+     . (:name "Subject"
+        :shortname "Subject"
+        :help "Subject of the thread"
+        :sortable :subject))
+    (:to
+     . (:name "To"
+        :shortname "To"
+        :help "Recipient of the message"
+        :sortable t))
+    (:user-agent
+     . (:name "User-Agent"
+        :shortname "UA"
+        :help "Program used for writing this message"
+        :require-full t
+        :sortable t)))
   "An alist of all possible header fields and information about them.
 This is used in the user-interface (the column headers in the header list, and
 the fields the message view).
@@ -875,36 +878,43 @@ Note, `:sortable' is not supported for custom header fields.")
 
 (defvar mu4e-header-info-custom
   '( (:recipnum .
-       ( :name "Number of recipients"
-   :shortname "Recip#"
-   :help "Number of recipients for this message"
-   :function
-   (lambda (msg)
-     (format "%d"
-       (+ (length (mu4e-message-field msg :to))
-         (length (mu4e-message-field msg :cc))))))))
-"A list of custom (user-defined) headers.
-The format is similar
-to `mu4e-header-info', but adds a :function property, which
-should point to a function that takes a message p-list as
-argument, and returns a string. See the default value of
-`mu4e-header-info-custom for an example.")
+                ( :name "Number of recipients"
+                        :shortname "Recip#"
+                        :help "Number of recipients for this message"
+                        :function
+                        (lambda (msg)
+                          (format "%d"
+                                  (+ (length (mu4e-message-field msg :to))
+                                     (length (mu4e-message-field msg :cc))))))))
+  "A list of custom (user-defined) headers.
+The format is similar to `mu4e-header-info', but adds a :function
+property, which should point to a function that takes a message
+plist as argument, and returns a string. See the default value of
+`mu4e-header-info-custom for an example.
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+Note that when using the gnus-based view (see
+`mu4e-view-use-gnus'), you only have access to a limited set of
+message fields: only the ones used in the header-view, not
+including, for instance, the message body.")
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; run-time vars used in multiple places
+;;; Run-time variables
+;;;; Headers
 
-;; headers
 (defconst mu4e~headers-buffer-name "*mu4e-headers*"
   "Name of the buffer for message headers.")
 
-; view
+(defvar mu4e~headers-last-query nil
+  "The present (most recent) query.")
+
+;;;; View
+
 (defconst mu4e~view-buffer-name "*mu4e-view*"
   "Name for the message view buffer.")
 
 (defconst mu4e~view-embedded-buffer-name " *mu4e-embedded-view*"
   "Name for the embedded message view buffer.")
+
+;;;; Other
 
 (defvar mu4e~contacts nil
   "Hash that maps contacts (ie. 'name <e-mail>') to an integer for sorting.
@@ -913,26 +923,52 @@ subsets of the contacts in the completions function in
 mu4e-compose.")
 
 (defvar mu4e~server-props nil
-  "Properties we receive from the mu4e server process.
-\(in the 'pong-handler').")
+  "Information  we receive from the mu4e server process \(in the 'pong-handler').")
 
-(defvar mu4e~headers-last-query nil
-  "The present (most recent) query.")
+(defun mu4e-root-maildir()
+  "Get the root maildir."
+  (let ((root-maildir (and mu4e~server-props
+                           (plist-get mu4e~server-props :root-maildir))))
+    (unless root-maildir
+      (mu4e-error "root maildir unknown; did you start mu4e?"))
+    root-maildir))
+
+(defun mu4e-database-path()
+  "Get the mu4e database path"
+  (let ((path (and mu4e~server-props
+                   (plist-get mu4e~server-props :database-path))))
+    (unless path
+      (mu4e-error "database-path unknown; did you start mu4e?"))
+    path))
+
+(defun mu4e-personal-addresses()
+  "Get the user's personal addresses, if any. If none are set on the server-side,
+fall back to the obsolete `mu4e-user-mail-address-list'."
+  (let ((addrs (and mu4e~server-props
+                    (plist-get mu4e~server-props :personal-addresses))))
+    (if addrs addrs mu4e-user-mail-address-list)))
+
+(defun mu4e-server-version()
+  "Get the server version, which should match mu4e's."
+  (let ((version (and mu4e~server-props (plist-get mu4e~server-props :version))))
+    (unless version
+      (mu4e-error "version unknown; did you start mu4e?"))
+    version))
 
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; our handlers funcs these handler funcs define what happens when we receive a
-;; certain message from the server
+;;; Handler functions
+;;
+;; The handler funcions define what happens when we receive a certain
+;; message from the server.  Here we register our handler functions;
+;; these connect server messages to functions to handle them.
+;;
+;; These bindings form mu4e's central nervous system so it's not
+;; really recommended to override them (they reference various
+;; internal bits, which could change).
+
 (defun mu4e~default-handler (&rest args)
   "Dummy handler function with arbitrary ARGS."
   (error "Not handled: %S" args))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; register our handler functions; these connect server messages to functions
-;; to handle them.
-;;
-;; these form mu4e's central nervous system so it's not really recommended
-;; to override them (they reference various internal bits which could change)
 
 (defvar mu4e-error-func 'mu4e-error-handler
   "Function called for each error received.
@@ -994,8 +1030,7 @@ sexp received from the server process.")
 
 (defvar mu4e-temp-func 'mu4e~view-temp-handler
   "A function called for each (:temp <file> <cookie>) sexp.")
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; _
 (provide 'mu4e-vars)
 ;;; mu4e-vars.el ends here

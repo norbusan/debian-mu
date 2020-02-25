@@ -1,7 +1,5 @@
-/* -*-Mode: c; tab-width: 8; indent-tabs-mode: t; c-basic-offset: 8 -*-*/
-
 /*
-** Copyright (C) 2008-2013 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+** Copyright (C) 2008-2020 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 **
 ** This program is free software; you can redistribute it and/or modify it
 ** under the terms of the GNU General Public License as published by the
@@ -31,7 +29,11 @@
 #include "mu-config.h"
 #include "mu-cmd.h"
 
+
 static MuConfig MU_CONFIG;
+
+#define color_maybe(C) (MU_CONFIG.nocolor ? "" : (C))
+
 
 static MuConfigFormat
 get_output_format (const char *formatstr)
@@ -65,20 +67,25 @@ get_output_format (const char *formatstr)
 }
 
 
+#define expand_dir(D)			                     	\
+	if ((D)) {						\
+		char *exp;					\
+		exp = mu_util_dir_expand((D));			\
+		if (exp) {					\
+			g_free((D));				\
+			(D) = exp;				\
+		}						\
+	}
+
+
 static void
 set_group_mu_defaults (void)
 {
 	/* If muhome is not set, we use the XDG Base Directory Specification
 	 * locations. */
 
-	if (MU_CONFIG.muhome) {
-		gchar *exp;
-		exp = mu_util_dir_expand(MU_CONFIG.muhome);
-		if (exp) {
-			g_free(MU_CONFIG.muhome);
-			MU_CONFIG.muhome = exp;
-		}
-	}
+	if (MU_CONFIG.muhome)
+                expand_dir(MU_CONFIG.muhome);
 
 	/* check for the MU_NOCOLOR or NO_COLOR env vars; but in any case don't
 	 * use colors unless we're writing to a tty */
@@ -120,35 +127,63 @@ config_options_group_mu (void)
 	return og;
 }
 
-
-#define expand_dir(D)			                     	\
-	if ((D)) {						\
-		char *exp;					\
-		exp = mu_util_dir_expand((D));			\
-		if (exp) {					\
-			g_free((D));				\
-			(D) = exp;				\
-		}						\
-	}
-
 static void
-set_group_index_defaults (void)
+set_group_init_defaults (void)
 {
 	if (!MU_CONFIG.maildir)
-		MU_CONFIG.maildir = mu_util_guess_maildir ();
+		MU_CONFIG.maildir = mu_util_guess_maildir();
 
 	expand_dir (MU_CONFIG.maildir);
 }
+
+static GOptionGroup*
+config_options_group_init (void)
+{
+	GOptionGroup *og;
+	GOptionEntry entries[] = {
+		{"maildir", 'm', 0, G_OPTION_ARG_FILENAME, &MU_CONFIG.maildir,
+		 "top of the maildir", "<maildir>"},
+		{"my-address", 0, 0, G_OPTION_ARG_STRING_ARRAY,
+		 &MU_CONFIG.my_addresses, "my e-mail address; can be used multiple times",
+		 "<address>"},
+	};
+
+	og = g_option_group_new("init", "Options for the 'index' command",
+				"", NULL, NULL);
+	g_option_group_add_entries(og, entries);
+
+	return og;
+}
+
+static gboolean
+index_post_parse_func (GOptionContext *context, GOptionGroup *group,
+                       gpointer data, GError **error)
+{
+        if (!MU_CONFIG.maildir && !MU_CONFIG.my_addresses)
+                return TRUE;
+
+        g_printerr ("%sNOTE%s: as of mu 1.3.8, 'mu index' no longer uses the\n"
+                    "--maildir/-m or --my-address options.\n\n",
+                    color_maybe(MU_COLOR_RED), color_maybe(MU_COLOR_DEFAULT));
+        g_printerr ("Instead, these options should be passed to 'mu init'.\n");
+        g_printerr ("See the mu-init(1) or the mu4e reference manual,\n'Initializing the message store' for details.\n\n");
+
+        return TRUE;
+}
+
 
 static GOptionGroup*
 config_options_group_index (void)
 {
 	GOptionGroup *og;
 	GOptionEntry entries[] = {
-		{"maildir", 'm', 0, G_OPTION_ARG_FILENAME, &MU_CONFIG.maildir,
-		 "top of the maildir", "<maildir>"},
-		{"rebuild", 0, 0, G_OPTION_ARG_NONE, &MU_CONFIG.rebuild,
-		 "rebuild the database from scratch (false)", NULL},
+                /* only here so we can tell users they are deprecated */
+                {"maildir", 'm', G_OPTION_FLAG_HIDDEN, G_OPTION_ARG_FILENAME,
+                 &MU_CONFIG.maildir, "top of the maildir", "<maildir>"},
+		{"my-address", 0, G_OPTION_FLAG_HIDDEN, G_OPTION_ARG_STRING_ARRAY,
+		 &MU_CONFIG.my_addresses, "my e-mail address; can be used multiple times",
+		 "<address>"},
+
 		{"lazy-check", 0, 0, G_OPTION_ARG_NONE, &MU_CONFIG.lazycheck,
 		 "only check dir-timestamps (false)", NULL},
 		{"my-address", 0, 0, G_OPTION_ARG_STRING_ARRAY,
@@ -157,22 +192,19 @@ config_options_group_index (void)
 		 "<address>"},
 		{"nocleanup", 0, 0, G_OPTION_ARG_NONE, &MU_CONFIG.nocleanup,
 		 "don't clean up the database after indexing (false)", NULL},
-		{"max-msg-size", 0, 0, G_OPTION_ARG_INT,
-		 &MU_CONFIG.max_msg_size,
-		 "set the maximum size for message files", "<size>"},
 		{NULL, 0, 0, 0, NULL, NULL, NULL}
 	};
 
-	og = g_option_group_new("index",
-				"Options for the 'index' command",
+	og = g_option_group_new("index", "Options for the 'index' command",
 				"", NULL, NULL);
 	g_option_group_add_entries(og, entries);
+        g_option_group_set_parse_hooks(og, NULL, (GOptionParseFunc)index_post_parse_func);
 
 	return og;
 }
 
 static void
-set_group_find_defaults ()
+set_group_find_defaults (void)
 {
 	/* note, when no fields are specified, we use
 	 * date-from-subject, and sort descending by date. If fields
@@ -190,13 +222,6 @@ set_group_find_defaults ()
 			get_output_format (MU_CONFIG.formatstr);
 
 	expand_dir (MU_CONFIG.linksdir);
-
-	if (MU_CONFIG.cmd == MU_CONFIG_CMD_MFIND) {
-		/* 'mfind' --> find with mu4e defaults */
-		MU_CONFIG.include_related = TRUE;
-		MU_CONFIG.skip_dups	  = TRUE;
-		MU_CONFIG.cmd		  = MU_CONFIG_CMD_FIND;
-	}
 }
 
 static GOptionGroup*
@@ -269,7 +294,6 @@ config_options_group_mkdir (void)
 	return og;
 }
 
-
 static void
 set_group_cfind_defaults (void)
 {
@@ -278,7 +302,6 @@ set_group_cfind_defaults (void)
 	else
 		MU_CONFIG.format  = get_output_format (MU_CONFIG.formatstr);
 }
-
 
 static GOptionGroup *
 config_options_group_cfind (void)
@@ -302,8 +325,6 @@ config_options_group_cfind (void)
 	return og;
 }
 
-
-
 static GOptionGroup *
 config_options_group_script (void)
 {
@@ -321,9 +342,6 @@ config_options_group_script (void)
 
 	return og;
 }
-
-
-
 
 static void
 set_group_view_defaults (void)
@@ -353,7 +371,6 @@ crypto_option_entries (void)
 	return entries;
 }
 
-
 static GOptionGroup *
 config_options_group_view (void)
 {
@@ -379,8 +396,6 @@ config_options_group_view (void)
 	return og;
 }
 
-
-
 static void
 set_group_extract_defaults (void)
 {
@@ -389,7 +404,6 @@ set_group_extract_defaults (void)
 
 	expand_dir (MU_CONFIG.targetdir);
 }
-
 
 
 static GOptionGroup*
@@ -441,8 +455,8 @@ config_options_group_server (void)
 {
 	GOptionGroup *og;
 	GOptionEntry entries[] = {
-		{"maildir", 'm', 0, G_OPTION_ARG_FILENAME, &MU_CONFIG.maildir,
-		 "top of the maildir", "<maildir>"},
+                {"commands", 0, 0, G_OPTION_ARG_NONE, &MU_CONFIG.commands,
+		 "list the available command and their parameters, then exit", NULL},
 		{NULL, 0, 0, 0, NULL, NULL, NULL}
 	};
 
@@ -469,7 +483,8 @@ cmd_from_string (const char *str)
 		{ "find",    MU_CONFIG_CMD_FIND    },
 		{ "help",    MU_CONFIG_CMD_HELP    },
 		{ "index",   MU_CONFIG_CMD_INDEX   },
-		{ "mfind",   MU_CONFIG_CMD_MFIND   },
+                { "info",    MU_CONFIG_CMD_INFO    },
+                { "init",    MU_CONFIG_CMD_INIT    },
 		{ "mkdir",   MU_CONFIG_CMD_MKDIR   },
 		{ "remove",  MU_CONFIG_CMD_REMOVE  },
 		{ "script",  MU_CONFIG_CMD_SCRIPT  },
@@ -543,10 +558,11 @@ get_option_group (MuConfigCmd cmd)
 	case MU_CONFIG_CMD_EXTRACT:
 		return config_options_group_extract();
 	case MU_CONFIG_CMD_FIND:
-	case MU_CONFIG_CMD_MFIND:
 		return config_options_group_find();
 	case MU_CONFIG_CMD_INDEX:
 		return config_options_group_index();
+        case MU_CONFIG_CMD_INIT:
+		return config_options_group_init();
 	case MU_CONFIG_CMD_MKDIR:
 		return config_options_group_mkdir();
 	case MU_CONFIG_CMD_SERVER:
@@ -721,7 +737,7 @@ mu_config_init (int *argcp, char ***argvp, GError **err)
 
 	/* fill in the defaults if user did not specify */
 	set_group_mu_defaults();
-	set_group_index_defaults();
+	set_group_init_defaults();
 	set_group_find_defaults();
 	set_group_cfind_defaults();
 	set_group_view_defaults();
@@ -759,7 +775,6 @@ mu_config_uninit (MuConfig *opts)
 
 	memset (opts, 0, sizeof(MU_CONFIG));
 }
-
 
 size_t
 mu_config_param_num (MuConfig *opts)

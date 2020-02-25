@@ -1,12 +1,12 @@
 ;;; mu4e-lists.el -- part of mu4e, the mu mail user agent -*- lexical-binding: t -*-
-;;
+
 ;; Copyright (C) 2011-2016 Dirk-Jan C. Binnema
 
 ;; Author: Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 ;; Maintainer: Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 
 ;; This file is not part of GNU Emacs.
-;;
+
 ;; GNU Emacs is free software: you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
 ;; the Free Software Foundation, either version 3 of the License, or
@@ -25,6 +25,7 @@
 ;; In this file, we create a table of list-id -> shortname for mailing lists.
 ;; The shortname (friendly) should a at most 8 characters, camel-case
 
+;;; Code:
 
 (defvar mu4e~mailing-lists
   '( ("bbdb-info.lists.sourceforge.net"                       . "BBDB")
@@ -96,4 +97,6 @@ be used as the shortname."
   :group 'mu4e-headers
   :type '(repeat (regexp)))
 
+;;; _
 (provide 'mu4e-lists)
+;;; mu4e-lists.el ends here

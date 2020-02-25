@@ -1,5 +1,5 @@
 ;;; mu4e-icalendar.el --- reply to iCalendar meeting requests (part of mu4e)  -*- lexical-binding: t; -*- -*- lexical-binding: t -*-
-;;
+
 ;; Copyright (C) 2019- Christophe Troestler
 
 ;; Author: Christophe Troestler <Christophe.Troestler@umons.ac.be>
@@ -8,7 +8,7 @@
 ;; Version: 0.0
 
 ;; This file is not part of GNU Emacs.
-;;
+
 ;; GNU Emacs is free software: you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
 ;; the Free Software Foundation, either version 3 of the License, or
@@ -42,6 +42,9 @@
 (require 'gnus-icalendar)
 (require 'cl-lib)
 
+(eval-when-compile (require 'mu4e-mark))
+(eval-when-compile (require 'mu4e-vars))
+
 ;;;###autoload
 (defun mu4e-icalendar-setup ()
   "Perform the necessary initialization to use mu4e-icalendar."
@@ -63,20 +66,20 @@
   (let* ((handle (car data))
          (status (cadr data))
          (event (caddr data))
-         (gnus-icalendar-additional-identities mu4e-user-mail-address-list)
+         (gnus-icalendar-additional-identities (mu4e-personal-addresses))
          (reply (gnus-icalendar-with-decoded-handle handle
-                  (gnus-icalendar-event-reply-from-buffer
-                   (current-buffer) status (gnus-icalendar-identities))))
+                                                    (gnus-icalendar-event-reply-from-buffer
+                                                     (current-buffer) status (gnus-icalendar-identities))))
          (msg (mu4e-message-at-point 'noerror))
          (charset (cdr (assoc 'charset (mm-handle-type handle)))))
     (when reply
       (cl-labels
-	  ((fold-icalendar-buffer
-	    ()
-	    (goto-char (point-min))
-	    (while (re-search-forward "^\\(.\\{72\\}\\)\\(.+\\)$" nil t)
-	      (replace-match "\\1\n \\2")
-	      (goto-char (line-beginning-position)))))
+          ((fold-icalendar-buffer
+            ()
+            (goto-char (point-min))
+            (while (re-search-forward "^\\(.\\{72\\}\\)\\(.+\\)$" nil t)
+              (replace-match "\\1\n \\2")
+              (goto-char (line-beginning-position)))))
 
         (with-current-buffer (get-buffer-create gnus-icalendar-reply-bufname)
           (delete-region (point-min) (point-max))
@@ -132,11 +135,13 @@ response in icalendar format."
         (message-remove-header "To")
         (message-goto-to)
         (insert organizer)))
-    (message-goto-body)
+    ;; Not (message-goto-body) to possibly skip mll sign directive
+    ;; inserted by `mu4e-compose-mode-hook':
+    (goto-char (point-max))
     (mml-insert-multipart "alternative")
     (mml-insert-part "text/plain")
     (let ((reply-event (gnus-icalendar-event-from-buffer
-                        buffer-name mu4e-user-mail-address-list)))
+                        buffer-name (mu4e-personal-addresses))))
       (insert (gnus-icalendar-event->gnus-calendar reply-event status)))
     (forward-line 1); move past closing tag
     (mml-attach-buffer buffer-name "text/calendar; method=REPLY; charset=utf-8")
@@ -150,8 +155,8 @@ response in icalendar format."
       ;; also trash the message (thus must be appended to hooks).
       (add-hook
        'message-sent-hook
-       #'(lambda () (setq mu4e-sent-func
-                          (mu4e~icalendar-trash-message original-msg)))
+       (lambda () (setq mu4e-sent-func
+                   (mu4e~icalendar-trash-message original-msg)))
        t t))))
 
 
@@ -179,6 +184,6 @@ given in the doc of `gnus-icalendar-event-reply-from-buffer'."
         (insert beg-date " " end-time " End of: " txt "\n"))
       (write-region (point-min) (point-max) filename t))))
 
-
+;;; _
 (provide 'mu4e-icalendar)
 ;;; mu4e-icalendar.el ends here

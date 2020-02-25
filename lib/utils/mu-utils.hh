@@ -21,10 +21,15 @@
 #define __MU_UTILS_HH__
 
 #include <string>
+#include <sstream>
 #include <vector>
 #include <cstdarg>
+#include <glib.h>
+#include <ostream>
 
 namespace Mu {
+
+using StringVec = std::vector<std::string>;
 
 /**
  * Flatten a string -- downcase and fold diacritics etc.
@@ -89,15 +94,16 @@ std::string format (const char *frm, ...) __attribute__((format(printf, 1, 2)));
 std::string format (const char *frm, va_list args) __attribute__((format(printf, 1, 0)));
 
 
-
 /**
- * Convert an ISO date to the corresponding time expressed as a string
- * with a 10-digit time_t
+ * Convert an date to the corresponding time expressed as a string with a
+ * 10-digit time_t
  *
- * @param date
- * @param first
+ * @param date the date expressed a YYYYMMDDHHMMSS or any n... of the first
+ * characters.
+ * @param first whether to fill out incomplete dates to the start or the end;
+ * ie. either 1972 -> 197201010000 or 1972 -> 197212312359
  *
- * @return
+ * @return the corresponding time_t expressed as a strng
  */
 std::string date_to_time_t_string (const std::string& date, bool first);
 
@@ -133,6 +139,133 @@ std::string size_to_string (const std::string& sizestr, bool first);
  */
 std::string size_to_string (int64_t size);
 
+
+/**
+ * Convert any ostreamable<< value to a string
+ *
+ * @param t the value
+ *
+ * @return a std::string
+ */
+template <typename T>
+static inline std::string to_string (const T& val)
+{
+        std::stringstream sstr;
+        sstr << val;
+
+        return sstr.str();
+}
+
+
+/**
+ *
+ * don't repeat these catch blocks everywhere...
+ *
+ */
+
+#define MU_XAPIAN_CATCH_BLOCK						\
+	catch (const Xapian::Error &xerr) {				\
+		g_critical ("%s: xapian error '%s'",			\
+			    __func__, xerr.get_msg().c_str());		\
+	} catch (const std::runtime_error& re) {			\
+		g_critical ("%s: error: %s", __func__, re.what());	\
+	} catch (...) {							\
+		g_critical ("%s: caught exception", __func__);		\
+        }
+
+#define MU_XAPIAN_CATCH_BLOCK_G_ERROR(GE,E)					\
+	catch (const Xapian::DatabaseLockError &xerr) {				\
+		mu_util_g_set_error ((GE),					\
+				     MU_ERROR_XAPIAN_CANNOT_GET_WRITELOCK,	\
+				     "%s: xapian error '%s'",			\
+				     __func__, xerr.get_msg().c_str());		\
+	} catch (const Xapian::DatabaseError &xerr) {				\
+		 mu_util_g_set_error ((GE),MU_ERROR_XAPIAN,			\
+				       "%s: xapian error '%s'",			\
+				       __func__, xerr.get_msg().c_str());	\
+	} catch (const Xapian::Error &xerr) {					\
+		mu_util_g_set_error ((GE),(E),					\
+					 "%s: xapian error '%s'",		\
+					 __func__, xerr.get_msg().c_str());	\
+	} catch (const std::runtime_error& ex) {				\
+		mu_util_g_set_error ((GE),(MU_ERROR_INTERNAL),			\
+				     "%s: error: %s", __func__, ex.what());	\
+										\
+	} catch (...) {								\
+		mu_util_g_set_error ((GE),(MU_ERROR_INTERNAL),			\
+				     "%s: caught exception", __func__);		\
+	}
+
+
+#define MU_XAPIAN_CATCH_BLOCK_RETURN(R)						\
+	catch (const Xapian::Error &xerr) {					\
+		g_critical ("%s: xapian error '%s'",				\
+			    __func__, xerr.get_msg().c_str());			\
+		return (R);							\
+	} catch (const std::runtime_error& ex) {				\
+		g_critical("%s: error: %s", __func__, ex.what());	        \
+		return (R);							\
+	} catch (...) {								\
+		g_critical ("%s: caught exception", __func__);			\
+		return (R);							\
+	}
+
+#define MU_XAPIAN_CATCH_BLOCK_G_ERROR_RETURN(GE,E,R)				\
+	catch (const Xapian::Error &xerr) {					\
+		mu_util_g_set_error ((GE),(E),					\
+				     "%s: xapian error '%s'",			\
+				     __func__, xerr.get_msg().c_str());		\
+		return (R);							\
+	} catch (const std::runtime_error& ex) {			        \
+		mu_util_g_set_error ((GE),(MU_ERROR_INTERNAL),			\
+				     "%s: error: %s", __func__, ex.what());	\
+		return (R);							\
+	} catch (...) {								\
+		if ((GE)&&!(*(GE)))						\
+			mu_util_g_set_error ((GE),				\
+					     (MU_ERROR_INTERNAL),		\
+					     "%s: caught exception", __func__);	\
+		return (R);							\
+	  }
+
+
+
+
+/// Allow using enum structs as bitflags
+#define MU_TO_NUM(ET,ELM) std::underlying_type_t<ET>(ELM)
+#define MU_TO_ENUM(ET,NUM) static_cast<ET>(NUM)
+#define MU_ENABLE_BITOPS(ET)                                                                                     \
+        constexpr ET operator& (ET e1, ET e2)       { return MU_TO_ENUM(ET,MU_TO_NUM(ET,e1)&MU_TO_NUM(ET,e2)); } \
+        constexpr ET operator| (ET e1, ET e2)       { return MU_TO_ENUM(ET,MU_TO_NUM(ET,e1)|MU_TO_NUM(ET,e2)); } \
+        constexpr ET operator~ (ET e)               { return MU_TO_ENUM(ET,~(MU_TO_NUM(ET, e))); }               \
+        constexpr bool any_of(ET e)                 { return MU_TO_NUM(ET,e) != 0; }                             \
+        constexpr bool none_of(ET e)                { return MU_TO_NUM(ET,e) == 0; }                             \
+        static inline ET& operator&=(ET& e1, ET e2) { return e1 = e1 & e2;}                                      \
+        static inline ET& operator|=(ET& e1, ET e2) { return e1 = e1 | e2;}
+
+
+/**
+ * For unit tests, assert two std::string's are equal.
+ *
+ * @param s1 string1
+ * @param s2 string2
+ */
+void assert_equal(const std::string& s1, const std::string& s2);
+/**
+ * For unit tests, assert that to containers are the same.
+ *
+ * @param c1 container1
+ * @param c2 container2
+ */
+void assert_equal (const StringVec& v1, const StringVec& v2);
+
+/**
+ * For unit-tests, allow warnings in the current function.
+ *
+ */
+void allow_warnings();
+
 } // namespace Mu
+
 
 #endif /* __MU_UTILS_HH__ */
