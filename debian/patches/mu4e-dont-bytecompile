@@ -16,7 +16,7 @@
  	mu4e-context.el		\
 --- maildir-utils.git.orig/configure.ac
 +++ maildir-utils.git/configure.ac
-@@ -79,19 +79,10 @@ AM_CONDITIONAL(HAVE_MAKEINFO,test "x$hav
+@@ -82,19 +82,10 @@ AM_CONDITIONAL(HAVE_MAKEINFO,test "x$hav
  
  # we need emacs for byte-compiling mu4e
  

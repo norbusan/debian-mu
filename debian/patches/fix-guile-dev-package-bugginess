@@ -4,7 +4,7 @@
 
 --- maildir-utils.git.orig/configure.ac
 +++ maildir-utils.git/configure.ac
-@@ -210,6 +210,8 @@ AS_IF([test "x$enable_guile" != "xno"],[
+@@ -213,6 +213,8 @@ AS_IF([test "x$enable_guile" != "xno"],[
      GUILE_PKG([2.2])
      GUILE_PROGS
      GUILE_FLAGS

@@ -8,10 +8,10 @@ See bug #760598
 
 --- maildir-utils.git.orig/mu4e/mu4e-actions.el
 +++ maildir-utils.git/mu4e/mu4e-actions.el
-@@ -55,9 +55,7 @@ Works for headers view and message-view.
+@@ -54,9 +54,7 @@ Works for headers view and message-view.
  
- 
- ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+ ;;; To PDF
+ 
 -(defvar mu4e-msg2pdf
 -  (let ((exec-path (cons (concat mu4e-builddir "/toys/msg2pdf/") exec-path)))
 -    (locate-file "msg2pdf" exec-path exec-suffixes))
