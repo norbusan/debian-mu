@@ -12,4 +12,4 @@
 +    GUILE_TOOLS=guile-tools
      AC_DEFINE_UNQUOTED([GUILE_BINARY],"$GUILE",[guile binary])
      AC_DEFINE(BUILD_GUILE,[1], [Do we support Guile?])
-   ])
+     AC_SUBST(GUILE_SNARF, [guile-snarf])
