@@ -25,25 +25,36 @@
 #include <string>
 #include <algorithm>
 #include <atomic>
-
+#include <cstring>
 #include <glib.h>
 #include <glib/gprintf.h>
 
 #ifdef HAVE_LIBREADLINE
-#if defined(HAVE_READLINE_READLINE_H)
-#include <readline/readline.h>
-#elif defined(HAVE_READLINE_H)
-#include <readline.h>
-# endif /* !defined(HAVE_READLINE_H) */
+#  if defined(HAVE_READLINE_READLINE_H)
+#    include <readline/readline.h>
+#  elif defined(HAVE_READLINE_H)
+#    include <readline.h>
+#  else /* !defined(HAVE_READLINE_H) */
+extern char *readline ();
+#  endif /* !defined(HAVE_READLINE_H) */
+char *cmdline = NULL;
+#else /* !defined(HAVE_READLINE_READLINE_H) */
+   /* no readline */
 #endif /* HAVE_LIBREADLINE */
 
 #ifdef HAVE_READLINE_HISTORY
-#if defined(HAVE_READLINE_HISTORY_H)
-#include <readline/history.h>
-#elif defined(HAVE_HISTORY_H)
-#include <history.h>
-#endif
-#endif
+#  if defined(HAVE_READLINE_HISTORY_H)
+#    include <readline/history.h>
+#  elif defined(HAVE_HISTORY_H)
+#    include <history.h>
+#  else /* !defined(HAVE_HISTORY_H) */
+extern void add_history ();
+extern int write_history ();
+extern int read_history ();
+#  endif /* defined(HAVE_READLINE_HISTORY_H) */
+   /* no history */
+#endif /* HAVE_READLINE_HISTORY */
+
 
 #include "mu-runtime.h"
 #include "mu-cmd.h"
@@ -87,7 +98,7 @@ install_sig_handler (void)
         for (i = 0; i != G_N_ELEMENTS(sigs); ++i)
                 if (sigaction (sigs[i], &action, NULL) != 0)
                         g_critical ("set sigaction for %d failed: %s",
-                                    sigs[i], strerror (errno));;
+                                    sigs[i], g_strerror (errno));;
 }
 
 
@@ -155,7 +166,7 @@ print_expr (const char* frm, ...)
                 rv = write (outfd, "\n", 1);
         if (rv == -1) {
                 g_critical ("%s: write() failed: %s",
-                           __func__, strerror(errno));
+                           __func__, g_strerror(errno));
                 /* terminate ourselves */
                 raise (SIGTERM);
         }
@@ -266,13 +277,16 @@ static MuMsgOptions
 message_options (const Parameters& params)
 {
         const auto extract_images{get_bool_or(params, "extract-images", false)};
-        const auto extract_encrypted{get_bool_or(params, "extract-encrypted", false)};
+        const auto decrypt{get_bool_or(params, "decrypt", false)};
+        const auto verify{get_bool_or(params, "verify", false)};
 
-        int opts{MU_MSG_OPTION_VERIFY | MU_MSG_OPTION_USE_AGENT};
+        int opts{MU_MSG_OPTION_NONE};
         if (extract_images)
                 opts |= MU_MSG_OPTION_EXTRACT_IMAGES;
-        if (extract_encrypted)
-                opts |= MU_MSG_OPTION_DECRYPT;
+        if (verify)
+                opts |= MU_MSG_OPTION_VERIFY  | MU_MSG_OPTION_USE_AGENT;
+        if (decrypt)
+                opts |= MU_MSG_OPTION_DECRYPT | MU_MSG_OPTION_USE_AGENT;
 
         return (MuMsgOptions)opts;
 }
@@ -721,7 +735,7 @@ find_handler (Context& context, const Parameters& params)
         const auto threads{get_bool_or(params, "threads", false)};
         const auto sortfieldstr{get_symbol_or(params, "sortfield")};
         const auto descending{get_bool_or(params, "descending", false)};
-        const auto maxnum{get_int_or(params, "maxnum", 500)};
+        const auto maxnum{get_int_or(params, "maxnum", -1/*unlimited*/)};
         const auto skip_dups{get_bool_or(params, "skip-dups", false)};
         const auto include_related{get_bool_or(params, "include-related", false)};
 
@@ -1031,16 +1045,17 @@ ping_handler (Context& context, const Parameters& params)
                 throw Error{Error::Code::Store, &gerr, "failed to read store"};
 
         const auto queries  = get_string_vec (params, "queries");
-        const auto qresults= [&]() -> std::string {
+        const auto qresults = [&]() -> std::string {
                 if (queries.empty())
                         return {};
 
                 std::string res{":queries ("};
                 for (auto&& q: queries) {
                         const auto count{mu_query_count_run (context.query, q.c_str())};
-                        const auto unreadq{format("(%s) AND flag:unread", q.c_str())};
+                        const auto unreadq{format("flag:unread AND (%s)", q.c_str())};
                         const auto unread{mu_query_count_run (context.query, unreadq.c_str())};
-                        res += format("(:query %s :count %zu :unread %zu)", quote(q).c_str(), count, unread);
+                        res += format("(:query %s :count %zu :unread %zu)", quote(q).c_str(),
+                                      count, unread);
                 }
                 return res + ")";
         }();
@@ -1154,8 +1169,7 @@ make_command_map (Context& context)
                            ArgMap{{"type", ArgInfo{Type::Symbol, true,
                                             "type of composition: reply/forward/edit/resend/new"}},
                                    {"docid", ArgInfo{Type::Integer, false,"document id of parent-message, if any"}},
-                                   {"extract-encrypted", ArgInfo{Type::Symbol, false,
-                                                           "whether to decrypt encrypted parts (if any)" }}},
+                                   {"decrypt", ArgInfo{Type::Symbol, false, "whether to decrypt encrypted parts (if any)" }}},
                            "get contact information",
                            [&](const auto& params){compose_handler(context, params);}});
 
@@ -1175,7 +1189,7 @@ make_command_map (Context& context)
                            ArgMap{{"docid", ArgInfo{Type::Integer, true,  "document for the message" }},
                                    {"index", ArgInfo{Type::Integer, true,  "index for the part to operate on" }},
                                    {"action", ArgInfo{Type::Symbol, true, "what to do with the part" }},
-                                   {"extract-encrypted", ArgInfo{Type::Symbol, false,
+                                   {"decrypt", ArgInfo{Type::Symbol, false,
                                             "whether to decrypt encrypted parts (if any)" }},
                                    {"path",    ArgInfo{Type::String, false, "part for saving (for action: save)" }},
                                    {"what",    ArgInfo{Type::Symbol, false, "what to do with the part (feedback)" }},
@@ -1239,7 +1253,9 @@ make_command_map (Context& context)
       cmap.emplace("ping",
                    CommandInfo{
                            ArgMap{ {"queries",  ArgInfo{Type::List, false,
-                                                   "queries for which to get read/unread numbers"}}},
+                                                   "queries for which to get read/unread numbers"}},
+                                   {"skip-dups",  ArgInfo{Type::Symbol, false,
+                                            "whether to exclude messages with duplicate message-ids"}},},
                            "ping the mu-server and get information in response",
                           [&](const auto& params){ping_handler(context, params);}});
 
@@ -1271,8 +1287,12 @@ make_command_map (Context& context)
 
                                    {"extract-images", ArgInfo{Type::Symbol, false,
                                                            "whether to extract images for this messages (if any)"}},
-                                   {"extract-encrypted", ArgInfo{Type::Symbol, false,
-                                                           "whether to decrypt encrypted parts (if any)" }}},
+                                   {"decrypt", ArgInfo{Type::Symbol, false,
+                                                           "whether to decrypt encrypted parts (if any)" }},
+                                   {"verify", ArgInfo{Type::Symbol, false,
+                                                           "whether to verify signatures (if any)" }}
+
+                           },
                            "view a message. exactly one of docid/msgid/path must be specified",
                            [&](const auto& params){view_handler(context, params);}});
       return cmap;
