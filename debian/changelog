@@ -3,8 +3,9 @@ maildir-utils (1.3.10-1) experimental; urgency=medium
   * bump standards version
   * New upstream version 1.3.10
   * update patches
+  * bump debhelper compat to 12
 
- -- Norbert Preining <norbert@preining.info>  Sun, 29 Mar 2020 07:32:25 +0900
+ -- Norbert Preining <norbert@preining.info>  Sun, 29 Mar 2020 07:33:33 +0900
 
 maildir-utils (1.3.9-1) experimental; urgency=medium
 
