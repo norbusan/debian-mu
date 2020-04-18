@@ -98,21 +98,26 @@ This depends on the `mu4e-get-mail-command' exit code."
 
 (defcustom mu4e-index-cleanup t
   "Whether to run a cleanup phase after indexing.
+
 That is, validate that each message in the message store has a
 corresponding message file in the filesystem.
 
 Having this option as t ensures that no non-existing messages are
-shown but can also be quite slow with large message stores."
-  :type 'boolean :group 'mu4e :safe 'booleanp)
+shown but can slow with large message stores on slow file-systems."
+  :type 'boolean
+  :group 'mu4e
+  :safe 'booleanp)
 
 (defcustom mu4e-index-lazy-check nil
   "Whether to only use a 'lazy check' during reindexing.
 This influences how we decide whether a message
 needs (re)indexing or not. When this is set to t, mu only uses
-the directory timestamps to decide on whether it needs to check
-the messages beneath it, which would miss messages that are
-modified outside mu. On the other hand, it's significantly
-faster." :type 'boolean :group 'mu4e :safe 'booleanp)
+the directory timestamps to decide whether it needs to check the
+messages beneath it, which would miss messages that are modified
+outside mu. On the other hand, it's significantly faster."
+  :type 'boolean
+  :group 'mu4e
+  :safe 'booleanp)
 
 (defcustom mu4e-update-interval nil
   "Number of seconds between mail retrieval/indexing.
@@ -133,6 +138,22 @@ some specific setting.")
   :type 'boolean
   :group 'mu4e)
 
+(defcustom mu4e-headers-include-related t
+  "With this option set to non-nil, not just return the matches for
+a searches, but also messages that are related (through their
+references) to these messages. This can be useful e.g. to include
+sent messages into message threads."
+  :type 'boolean
+  :group 'mu4e-headers)
+
+(defcustom mu4e-headers-skip-duplicates t
+  "With this option set to non-nil, show only one of duplicate
+messages. This is useful when you have multiple copies of the same
+message, which is a common occurrence for example when using Gmail
+and offlineimap."
+  :type 'boolean
+  :group 'mu4e-headers)
+
 (defcustom mu4e-change-filenames-when-moving nil
   "Change message file names when moving them.
 When moving messages to different folders, normally mu/mu4e keep
@@ -146,10 +167,15 @@ better with e.g. offlineimap."
   :safe 'booleanp)
 
 (defcustom mu4e-attachment-dir (expand-file-name "~/")
-  "Default directory for saving attachments.
+  "Default directory for attaching and saving attachments.
+
 This can be either a string (a file system path), or a function
 that takes a filename and the mime-type as arguments, and returns
-the attachment dir. See Info node `(mu4e) Attachments' for details."
+the attachment dir. See Info node `(mu4e) Attachments' for
+details.
+
+When this called for composing a message, both filename and
+mime-type are nill."
   :type 'directory
   :group 'mu4e
   :safe 'stringp)
@@ -231,7 +257,22 @@ Note that the queries used to determine the unread/all counts do
 current not apply `mu4e-query-rewrite-function', so if your
 bookmarks depend on that, the results may differ."
   :type '(repeat (plist))
+  :version "1.3.9"
   :group 'mu4e)
+
+
+(defun mu4e-bookmarks ()
+  "Get `mu4e-bookmarks' in the (new) format, converting from the
+old format if needed."
+  (cl-map 'list
+          (lambda (item)
+            (if (and (listp item) (= (length item) 3))
+                `(:name  ,(nth 1 item)
+                         :query ,(nth 0 item)
+                         :key   ,(nth 2 item))
+              item))
+          mu4e-bookmarks))
+
 
 (defcustom mu4e-split-view 'horizontal
   "How to show messages / headers.
@@ -318,17 +359,16 @@ Also see `mu4e-compose-context-policy'."
   "Crypto-related settings."
   :group 'mu4e)
 
-(defcustom mu4e-auto-retrieve-keys nil
-  "Attempt to automatically retrieve public keys when needed."
-  :type 'boolean
-  :group 'mu4e-crypto)
+(make-obsolete-variable 'mu4e-auto-retrieve-keys  "no longer used." "1.3.1")
 
 (defcustom mu4e-decryption-policy t
   "Policy for dealing with encrypted parts.
 The setting is a symbol:
  * t:     try to decrypt automatically
  * `ask': ask before decrypting anything
- * nil:   don't try to decrypt anything."
+ * nil:   don't try to decrypt anything.
+
+Note that this is not used when `mu4e-view-use-gnus' is enabled."
   :type '(choice (const :tag "Try to decrypt automatically" t)
                  (const :tag "Ask before decrypting anything" ask)
                  (const :tag "Don't try to decrypt anything" nil))
@@ -472,7 +512,7 @@ in `mu4e-compose-pre-hook'. For new messages, it is nil.")
   :group 'mu4e)
 
 (defcustom mu4e-drafts-folder "/drafts"
-  "Your folder for draft messages, relative to `mu4e-maildir'.
+  "Your folder for draft messages, relative to the root maildir.
 For instance, \"/drafts\". Instead of a string, may also be a
 function that takes a message (a msg plist, see
 `mu4e-message-field'), and returns a folder. Note, the message
@@ -485,7 +525,7 @@ is only evaluated once."
   :group 'mu4e-folders)
 
 (defcustom mu4e-refile-folder "/archive"
-  "Your folder for refiling messages, relative to `mu4e-maildir'.
+  "Your folder for refiling messages, relative to the root maildir.
 For instance \"/Archive\". Instead of a string, may also be a
 function that takes a message (a msg plist, see
 `mu4e-message-field'), and returns a folder. Note that the
@@ -496,7 +536,7 @@ message parameter refers to the message-at-point."
   :group 'mu4e-folders)
 
 (defcustom mu4e-sent-folder "/sent"
-  "Your folder for sent messages, relative to `mu4e-maildir'.
+  "Your folder for sent messages, relative to the root maildir.
 For instance, \"/Sent Items\". Instead of a string, may also be a
 function that takes a message (a msg plist, see
 `mu4e-message-field'), and returns a folder. Note that the
@@ -508,7 +548,7 @@ message parameter refers to the original message being replied to
   :group 'mu4e-folders)
 
 (defcustom mu4e-trash-folder "/trash"
-  "Your folder for trashed messages, relative to `mu4e-maildir'.
+  "Your folder for trashed messages, relative to the root maildir.
 For instance, \"/trash\". Instead of a string, may also be a
 function that takes a message (a msg plist, see
 `mu4e-message-field'), and returns a folder. When using
@@ -527,19 +567,43 @@ nil otherwise."
   "A list of maildir shortcuts.
 This makes it possible to quickly go to a particular
 maildir (folder), or quickly moving messages to them (e.g., for
-archiving or refiling). The list contains elements of the
-form (maildir . shortcut), where MAILDIR is a maildir (such as
-\"/archive/\"), and shortcut is a single character.
+archiving or refiling).
+
+Each of the list elements is a plist with at least:
+`:maildir'  - the maildir for the shortcut (e.g. \"/archive\")
+`:key'      - the shortcut key.
+
+Optionally, you can add the following:
+`:hide'  - if t, maildir is hdden from the main-view and speedbar.
+`:hide-unread' - do not show the counts of unread/total number
+ of messages for the maildir in the main-view.
+
+For backward compatibility, an older form is recognized as well:
+
+   (maildir . key), where MAILDIR is a maildir (such as
+\"/archive/\"), and key is a single character.
 
 You can use these shortcuts in the headers and view buffers, for
 example with `mu4e-mark-for-move-quick' (or 'm', by default) or
 `mu4e-jump-to-maildir' (or 'j', by default), followed by the
 designated shortcut character for the maildir.
 
-Unlike in search queries, folder names with spaces in them must NOT
-be quoted, since mu4e does this automatically for you."
+Unlike in search queries, folder names with spaces in them must
+NOT be quoted, since mu4e does this for you."
   :type '(repeat (cons (string :tag "Maildir") character))
+  :version "1.3.9"
   :group 'mu4e-folders)
+
+
+(defun mu4e-maildir-shortcuts ()
+  "Get `mu4e-maildir-shortcuts' in the (new) format, converting
+from the old format if needed."
+  (cl-map 'list
+          (lambda (item) ;; convert from old format?
+            (if (and (consp item) (not (consp (cdr item))))
+                `(:maildir  ,(car item) :key ,(cdr item))
+              item))
+          mu4e-maildir-shortcuts))
 
 (defcustom mu4e-display-update-status-in-modeline nil
   "Non-nil value will display the update status in the modeline."
@@ -602,7 +666,8 @@ I.e. a message with the draft flag set."
   :group 'mu4e-faces)
 
 (defface mu4e-header-highlight-face
-  '((t :inherit hl-line :weight bold :underline t))
+  `((t :inherit hl-line :weight bold :underline t
+       ,@(and (>= emacs-major-version 27) '(:extend t))))
   "Face for the header at point."
   :group 'mu4e-faces)
 
@@ -860,9 +925,9 @@ This is used in the user-interface (the column headers in the header list, and
 the fields the message view).
 
 Most fields should be self-explanatory. A special one is
-`:from-or-to', which is equal to `:from' unless `:from' matches one
-of the addresses in `mu4e-user-mail-address-list', in which case it
-will be equal to `:to'.
+`:from-or-to', which is equal to `:from' unless `:from' matches
+one of the addresses in `(mu4e-personal-addresses)', in which
+case it will be equal to `:to'.
 
 Furthermore, the property `:sortable' determines whether we can
 sort by this field.  This can be either a boolean (nil or t), or a
@@ -942,11 +1007,8 @@ mu4e-compose.")
     path))
 
 (defun mu4e-personal-addresses()
-  "Get the user's personal addresses, if any. If none are set on the server-side,
-fall back to the obsolete `mu4e-user-mail-address-list'."
-  (let ((addrs (and mu4e~server-props
-                    (plist-get mu4e~server-props :personal-addresses))))
-    (if addrs addrs mu4e-user-mail-address-list)))
+  "Get the user's personal addresses, if any."
+  (when mu4e~server-props (plist-get mu4e~server-props :personal-addresses)))
 
 (defun mu4e-server-version()
   "Get the server version, which should match mu4e's."

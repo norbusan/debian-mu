@@ -132,27 +132,12 @@ messages that were found in the first set (the \"leaders\").
 (make-obsolete-variable 'mu4e-search-results-limit
                         'mu4e-headers-results-limit "0.9.9.5-dev6")
 
-(defcustom mu4e-headers-skip-duplicates t
-  "With this option set to non-nil, show only one of duplicate
-messages. This is useful when you have multiple copies of the same
-message, which is a common occurrence for example when using Gmail
-and offlineimap."
-  :type 'boolean
-  :group 'mu4e-headers)
-
 (defcustom mu4e-headers-advance-after-mark t
   "With this option set to non-nil, automatically advance to the
 next mail after marking a message in header view."
   :type 'boolean
   :group 'mu4e-headers)
 
-(defcustom mu4e-headers-include-related t
-  "With this option set to non-nil, not just return the matches for
-a searches, but also messages that are related (through their
-references) to these messages. This can be useful e.g. to include
-sent messages into message threads."
-  :type 'boolean
-  :group 'mu4e-headers)
 
 (defvar mu4e-headers-hide-predicate nil
   "Predicate function applied to headers before they are shown;
@@ -611,7 +596,7 @@ cdr element the To: prefix.")
 
 (defun mu4e~headers-from-or-to (msg)
   "When the from address for message MSG is one of the the user's addresses,
-\(as per `mu4e-user-mail-address-list'), show the To address;
+\(as per `mu4e-personal-addresses'), show the To address;
 otherwise ; show the from address; prefixed with the appropriate
 `mu4e-headers-from-or-to-prefix'."
   (let ((addr (cdr-safe (car-safe (mu4e-message-field msg :from)))))
@@ -953,9 +938,9 @@ Also see `mu4e-view-mark-or-move-to-trash'."
           (define-key map "H" 'mu4e-display-manual)
 
           ;; menu
-          (define-key map [menu-bar] (make-sparse-keymap))
-          (let ((menumap (make-sparse-keymap "Headers")))
-            (define-key map [menu-bar headers] (cons "Headers" menumap))
+          ;;(define-key map [menu-bar] (make-sparse-keymap))
+          (let ((menumap (make-sparse-keymap)))
+            (define-key map [menu-bar headers] (cons "Mu4e" menumap))
 
             (define-key menumap [mu4e~headers-quit-buffer]
               '("Quit view" . mu4e~headers-quit-buffer))
@@ -1659,37 +1644,21 @@ _not_ refresh the last search with the new setting for threading."
 (defvar mu4e~headers-loading-buf nil
   "A buffer for loading a message view.")
 
-(defun mu4e~headers-get-loading-buf ()
-  "Get a buffer to give feedback while loading a message view."
-  (unless (buffer-live-p mu4e~headers-loading-buf)
-    (setq mu4e~headers-loading-buf
-          (get-buffer-create " *mu4e-loading*")))
-  (with-current-buffer mu4e~headers-loading-buf
-    (read-only-mode)
-    (let ((inhibit-read-only t))
-      (erase-buffer)
-      (local-set-key (kbd "q")
-                     (if (eq mu4e-split-view 'single-window)
-                         'kill-buffer
-                       'kill-buffer-and-window))
-      (insert (propertize "Waiting for message..."
-                          'face 'mu4e-system-face 'intangible t))))
-  mu4e~headers-loading-buf)
-
 (defun mu4e~decrypt-p (msg)
   "Should we decrypt this message?"
-  (and (member 'encrypted (mu4e-message-field msg :flags))
-       (if (eq mu4e-decryption-policy 'ask)
-           (yes-or-no-p (mu4e-format "Decrypt message?"))
-         mu4e-decryption-policy)))
+  (unless mu4e-view-use-gnus ;; we don't decrypt in the gnus-view case
+    (and (member 'encrypted (mu4e-message-field msg :flags))
+         (if (eq mu4e-decryption-policy 'ask)
+             (yes-or-no-p (mu4e-format "Decrypt message?"))
+           mu4e-decryption-policy))))
 
 (defun mu4e-headers-view-message ()
-  "View message at point.
-If there's an existing window for the view, re-use that one. If
+  "View message at point                                    .
+If there's an existing window for the view, re-use that one . If
 not, create a new one, depending on the value of
 `mu4e-split-view': if it's a symbol `horizontal' or `vertical',
 split the window accordingly; if it is nil, replace the current
-window. "
+window                                                      . "
   (interactive)
   (unless (eq major-mode 'mu4e-headers-mode)
     (mu4e-error "Must be in mu4e-headers-mode (%S)" major-mode))
@@ -1697,11 +1666,19 @@ window. "
          (docid (or (mu4e-message-field msg :docid)
                     (mu4e-warn "No message at point")))
          (decrypt (mu4e~decrypt-p msg))
+         (verify  (not mu4e-view-use-gnus))
          (viewwin (mu4e~headers-redraw-get-view-window)))
     (unless (window-live-p viewwin)
       (mu4e-error "Cannot get a message view"))
     (select-window viewwin)
-    (switch-to-buffer (mu4e~headers-get-loading-buf))
+
+    ;; show some 'loading...' buffer
+    (unless (buffer-live-p mu4e~headers-loading-buf)
+      (setq mu4e~headers-loading-buf (get-buffer-create " *mu4e-loading*"))
+      (with-current-buffer mu4e~headers-loading-buf
+        (mu4e-loading-mode)))
+
+    (switch-to-buffer mu4e~headers-loading-buf)
     ;; Note, ideally in the 'gnus' case, we don't need to call the server to get
     ;; the body etc., we only need the path which we already have.
     ;;
@@ -1711,7 +1688,7 @@ window. "
     ;; (if mu4e-view-use-gnus
     ;;     (mu4e-view msg)
     ;;   (mu4e~proc-view docid mu4e-view-show-images decrypt))
-    (mu4e~proc-view docid mu4e-view-show-images decrypt)))
+    (mu4e~proc-view docid mu4e-view-show-images decrypt verify)))
 
 (defun mu4e-headers-rerun-search ()
   "Rerun the search for the last search expression."

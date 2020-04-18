@@ -314,8 +314,8 @@ Message-ID."
                 (mu4e~compose-set-friendly-buffer-name)
                 (mu4e~draft-insert-mail-header-separator)
                 ;; hide some headers again
-                (mu4e~compose-hide-headers)
                 (widen)
+                (mu4e~compose-hide-headers)
                 (set-buffer-modified-p nil)
                 (mu4e-message "Saved (%d lines)" (count-lines (point-min) (point-max)))
                 ;; update the file on disk -- ie., without the separator
@@ -462,10 +462,6 @@ buffers; lets remap its faces so it uses the ones for mu4e."
     (unless (mu4e-running-p)
       (mu4e~start)) ;; start mu4e in background, if needed
     (mu4e~compose-register-message-save-hooks)
-    ;; set the default directory to the user's home dir; this is probably more
-    ;; useful e.g. when finding an attachment file the directory the current
-    ;; mail files lives in...
-    (setq default-directory (expand-file-name "~/"))
     ;; offer completion for e-mail addresses
     (when mu4e-compose-complete-addresses
       (unless mu4e~contacts   ;; work-around for https://github.com/djcb/mu/issues/1016
@@ -480,6 +476,11 @@ buffers; lets remap its faces so it uses the ones for mu4e."
                 use-hard-newlines t)
           (visual-line-mode t))
       (setq mml-enable-flowed nil))
+
+    ;; set the attachment dir to something more reasonable than the draft
+    ;; directory.
+    (setq default-directory (mu4e~get-attachment-dir))
+
 
     (let ((keymap (lookup-key message-mode-map [menu-bar text])))
       (when keymap
@@ -650,16 +651,17 @@ tempfile)."
   ;; bind to `mu4e-compose-parent-message' of compose buffer
   (set (make-local-variable 'mu4e-compose-parent-message) original-msg)
   (put 'mu4e-compose-parent-message 'permanent-local t)
+  ;; set mu4e-compose-type once more for this buffer,
+  (set (make-local-variable 'mu4e-compose-type) compose-type)
+  (put 'mu4e-compose-type 'permanent-local t)
 
   ;; hide some headers
   (mu4e~compose-hide-headers)
   ;; switch on the mode
   (mu4e-compose-mode)
+  ;; don't allow undoing anything before this.
+  (setq buffer-undo-list nil)
 
-  ;; set mu4e-compose-type once more for this buffer,
-  ;; we loose it after the mode-change, it seems
-  (set (make-local-variable 'mu4e-compose-type) compose-type)
-  (put 'mu4e-compose-type 'permanent-local t)
 
   (when mu4e-compose-in-new-frame
     ;; make sure to close the frame when we're done with the message these are

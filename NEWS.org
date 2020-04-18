@@ -1,35 +1,56 @@
 #+STARTUP:showall
 * NEWS (user visible changes)
 
-* 1.3.x (unreleased, experimental/development version)
+* 1.4 (released, as of April 18 2020)
 
 *** mu
-
-    - There's a new subcommand ~mu init~ to initialize the mu database, which
-      takes the ~--maildir~ and ~--my-address~ parameters that ~index~ used to take.
-      These parameters are persistent so ~index~ does not need them anymore.
-
-      ~init~ only needs to be run once or when changing these parameters.
-
-    - There is another new subcommand ~mu info~ to get information about the mu
-      database.
-
-    - The contacts cache (as uses in ~mu cfind~ and mu4e contact-completion) is
-      now stored as part of the Xapian database rather than as a separate file.
 
     - mu now defaults to the [[https://standards.freedesktop.org/basedir-spec/basedir-spec-latest.html][XDG Base Directory Specification]] for the default
       locations for various files. E.g. on Unix the mu database now lives under
       ~~/.cache/mu/~ rather than ~~/.mu~. You can still use the old location by
       passing ~--muhome=~/.mu~ to various ~mu~ commands, or setting ~(setq
-      mu4e-mu-home "~/.mu")~ for mu4e.
+      mu4e-mu-home "~/.mu")~ for ~mu4e~.
 
-      Otherwise, after upgrading, you may wish to delete the old location to
+      If your ~~/.cache~ is volatile (e.g., is cleared on reboot), you may want
+      use ~--muhome~. Some mailing-list dicussion suggest that's fairly rare
+      though.
+
+      After upgrading, you may wish to delete the files in the old location to
       recover some diskspace.
+
+
+    - There's a new subcommand ~mu init~ to initialize the mu database, which
+      takes the ~--maildir~ and ~--my-address~ parameters that ~index~ used to take.
+      These parameters are persistent so ~index~ does not need (or accept) them
+      anymore. ~mu4e~ now depends on those parameters.
+
+      ~init~ only needs to be run once or when changing these parameters. That
+      implies that you need to re-index after changing these parameters.
+
+    - There is another new subcommand ~mu info~ to get information about the mu
+      database, the personal addresses etc.
+
+    - The contacts cache (which is used by ~mu cfind~ and ~mu4e~'s
+      contact-completion) is now stored as part of the Xapian database rather
+      than as a separate file.
 
     - The ~--xbatchsize~ and ~--autoupgrade~ options for indexing are gone now; both
       are determined implicitly now.
 
 *** mu4e
+
+    - ~mu4e~ no longer uses the ~mu4e-maildir~ and ~mu4e-user-mail-address-list~
+      variables; instead it uses the information it gets from ~mu~ (see the ~mu~
+      section above).
+
+      It is strongly recommended that you run ~mu init~ with the appropriate
+      parameters to (re)initialize the Xapian database, as mentioned in the
+      mu-section above.
+
+      The main screen shows your address(es), and issues a warning if
+      ~user-email-address~ is not part of that (and refer you to ~mu init~). You can
+      avoid the addresses in the main screen and the warning by setting
+      ~mu4e-main-view-hide-addresses~ to non-nil.
 
     - In many cases, ~mu4e~ used to receive /all/ contacts after each indexing
       operation; this was slow for some users, so we have updated this to /only/
@@ -41,46 +62,53 @@
       of those should migrate to ~mu4e-contact-process-function~; see its
       docstring for details.
 
-    - ~mu4e~ no longer uses the ~mu4e-maildir~ and ~mu4e-user-mail-address-list~
-      variables, instead getting the information from ~mu~ (see above).
-
     - Christophe Troestler contributed support for Gnus' calender-invitation
       handling in mu4e (i.e., you should be able to accept/reject invitations
       etc.). It's very fresh code, and likely it'll be tweaked in the future.
       But it's available now for testing. Note that this requires the gnus-based
-      viewer, ie ~(setq mu4e-view-use-gnus t)~
+      viewer, as per ~(setq mu4e-view-use-gnus t)~
 
     - In addition, he added support for custom headers, so the ones for for the
       non-gnus-view should work just as well.
 
-    - Pierre Neidhardt contributed an "Account Setup Helper" which wraps the
-      existing context setup with some niceties for accounts. See the manual for
-      details.
-
-    - When the mu store (database) is not present or not up to date, mu4e will
-      attempt to re-index it automatically.
+    - Pierre Neidhardt contributed an experimental "Account Setup Helper" which
+      wraps the existing context setup with some niceties for accounts. See the
+      manual for details.
 
     - ~org-mode~ support is enabled by default now. ~speedbar~ support is disabled
       by default.
 
-   - Add message-id's to messages when saving drafts, so we can find them even
-     with ~mu4e-headers-skip-duplicates~.
+    - ~mu4e~ now adds message-ids to messages when saving drafts, so we can find
+      them even with ~mu4e-headers-skip-duplicates~.
 
-   - Improved handling of replies to mailing-lists.
+    - Bookmarks (as in ~mu4e-bookmarks~) are now simple plists (instead of cl
+      structs). ~make-mu4e-bookmark~ has been updated to produce such plists (for
+      backward compatibility). A bookmark now looks like a list of e.g. ~(:name
+      "My bookmark" :query "banana OR pear" :key ?f)~ this format is a bit easier
+      extensible.
 
-   - Bookmarks (as in ~mu4e-bookmarks~) are now simple plists (instead of cl
-     structs). ~make-mu4e-bookmark~ has been updated to produce such plists (for
-     backward compatibility). A bookmark now looks like a list of e.g.
-        ~(:name "My bookmark" :query "banana OR pear" :key ?f)~
-    this format is a bit easier extensible.
+    - ~mu4e~ recognizes an attribute ~:hide t~, which will hide the bookmark item
+      from the main-screen (and speedbar), but keep it avilable through the
+      completion UI.
 
-   - For instance, we now recognize an attribute ~:hide t~, which will hide the
-     bookmark item from the main-screen (and speedbar), but keep it avilable
-     through the completion UI.
+    - ~mu4e-maildir-shortcuts~ have also become plists. The older format is still
+      recognized for backward compatibility, but you are encouraged to upgrade.
 
-   - Furthermore, mu4e now shows unread/all counts for bookmarks in
-     the main screen. This is on by default, but can be disabled by setting
-     ~:hide-unread~ in the bookmark ~plist~ to ~t~.
+    - Replying to mailing-lists has been improved, allowing for choosing for
+      replying to all, sender, list-only.
+
+    - A very visible change, ~mu4e~ now shows unread/all counts for bookmarks in
+      the main screen. This is on by default, but can be disabled by setting
+      ~:hide-unread~ in the bookmark ~plist~ to ~t~. For speed-reasons, these counts
+      do _not_ filter out duplicates or messages that have been removed from the
+      filesystem behind mu4e's back.
+
+    - ~mu4e-attachment-dir~ now also applies to composing messages; it determines
+      the default directory for inclusion.
+
+    - The mu4e <-> mu interaction has been rewritten to communicate using
+      s-expressions, with a repl for testing. If you have readline installed,
+      you also get history.
 
 *** toys
 
