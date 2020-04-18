@@ -124,10 +124,10 @@ Let's get started!
 @node Why another e-mail client
 @section Why another e-mail client?
 
-I (the author) spend a @emph{lot} of time dealing with e-mail, both
-professionally and privately. Having an efficient e-mail client is
-essential. Since none of the existing ones worked the way I wanted, I
-thought about creating my own.
+I (@t{mu4e}'s author) spend a @emph{lot} of time dealing with e-mail,
+both professionally and privately. Having an efficient e-mail client
+is essential. Since none of the existing ones worked the way I wanted,
+I thought about creating my own.
 
 Emacs is an integral part of my workflow, so it made a lot of
 sense to use it for e-mail as well. And as I had already written an
@@ -137,20 +137,22 @@ basis.
 @node Other mail clients
 @section Other mail clients
 
-Under the hood, @t{mu4e} is fully search-based, similar to programs like
-@t{notmuch}@footnote{@url{https://notmuchmail.org/}} and
+Under the hood, @t{mu4e} is fully search-based, similar to programs
+like @t{notmuch}@footnote{@url{https://notmuchmail.org/}} and
 @t{sup}@footnote{@url{https://sup-heliotrope.github.io/}}.
 
 However, @t{mu4e}'s user-interface is quite different. @t{mu4e}'s mail
 handling (deleting, moving etc.) is inspired by
 Wanderlust@footnote{@url{http://www.gohome.org/wl/}} (another
-@t{emacs}-based e-mail client),
+Emacs-based e-mail client),
 @t{mutt}@footnote{@url{http://www.mutt.org/}} and the @t{dired}
 file-manager for emacs.
 
-@t{mu4e} tries to keep all the `state' in your maildirs, so you can easily
-switch between clients, synchronize over @abbr{IMAP}, backup with @t{rsync}
-and so on. If you delete the database, you won't lose any information.
+@t{mu4e} keeps all the `state' in your maildirs, so you can easily
+switch between clients, synchronize over @abbr{IMAP}, backup with
+@t{rsync} and so on. The Xapian-database that @t{mu} maintains is
+mererly a @emph{cache}; if you delete it, you won't lose any
+information.
 
 @node What mu4e does not do
 @section What @t{mu4e} does not do
@@ -158,12 +160,13 @@ and so on. If you delete the database, you won't lose any information.
 There are a number of things that @t{mu4e} does @b{not} do, by design:
 @itemize
 @item @t{mu}/@t{mu4e} do @emph{not} get your e-mail messages from
-a mail server. That task is delegated to other tools, such as
+a mail server. Nor does it sync-back any changes. Those tasks are
+delegated to other tools, such as
 @t{offlineimap}@footnote{@url{https://www.offlineimap.org/}},
 @t{isync/mbsync}@footnote{@url{http://isync.sourceforge.net/}} or
-@t{fetchmail}@footnote{@url{http://www.fetchmail.info/}}. As long as the
-messages end up in a maildir, @t{mu4e} and @t{mu} are happy to deal with
-them.
+@t{fetchmail}@footnote{@url{http://www.fetchmail.info/}}; As long as
+the messages end up in a maildir, @t{mu4e} and @t{mu} are happy to
+deal with them.
 @item @t{mu4e} also does @emph{not} implement sending of messages; instead, it
 depends on @t{smtpmail} (@inforef{Top,,smtpmail}), which is part of
 Emacs. In addition, @t{mu4e} piggybacks on Gnus' message editor;
@@ -237,7 +240,7 @@ higher is required, as well as
 Xapian@footnote{@url{https://xapian.org/}} and
 GMime@footnote{@url{http://spruce.sourceforge.net/gmime/}}.
 
-@t{mu} has optional support for the Guile 2.x (Scheme) programming
+@t{mu} has optional support for the Guile 2.2 (Scheme) programming
 language. There are also some GUI-toys, which require GTK+ 3.x and
 Webkit.
 
@@ -275,7 +278,7 @@ $ sudo apt-get install libgmime-3.0-dev libxapian-dev
 $ sudo apt-get install emacs
 
 # optional
-$ sudo apt-get install guile-2.0-dev html2text xdg-utils
+$ sudo apt-get install guile-2.2-dev html2text xdg-utils
 
 # optional: only needed for msg2pdf and mug (toy gtk+ frontend)
 $ sudo apt-get install libwebkitgtk-3.0-dev
@@ -290,10 +293,38 @@ $ sudo yum install gmime30-devel xapian-core-devel
 $ sudo yum install emacs
 
 # optional
-$ sudo yum install html2text xdg-utils
+$ sudo yum install html2text xdg-utils guile22-devel
 
 # optional: only needed for msg2pdf and mug (toy gtk+ frontend)
 $ sudo yum install webkitgtk3-devel
+@end example
+
+@subsection Building on Msys2
+@example
+# 1) install makepkg tool
+
+pacman -S base-devel msys-devel gcc git
+
+# 2) clone packages repo
+
+cd ~
+git clone https://github.com/msys2-unofficial/MSYS2-packages.git --depth=1
+
+# make and install dependencies
+
+cd ~/MSYS2-packages/xapian-core
+makepkg -s
+pacman -U xapian-core-1.4.15-1-x86_64.pkg.tar.xz
+
+cd ~/MSYS2-packages/gmime3
+makepkg -s
+pacman -U gmime3-devel-3.2.6-1-x86_64.pkg.tar.xz
+
+# 4) make and install mu from git (changes versions as needed)
+
+cd ~/MSYS2-packages/mu
+makepkg -sfp PKGBUILD-git
+pacman -U mu-git-2020-03-01-r4854.17f38dc4-1-x86_64.pkg.tar.xz
 @end example
 
 @subsection Building from a release tarball
@@ -363,9 +394,10 @@ have your e-mail messages stored in a
 @emph{maildir}@footnote{@url{https://en.wikipedia.org/wiki/Maildir};
 in this manual we use the term `maildir' for both the standard and the
 hierarchy of maildirs that store your messages} --- a specific
-directory structure with one-file-per-message. If you are already
-using a maildir, you are lucky. If not, some setup is required:
+directory structure with one-file-per-message.
 
+If you are already using a maildir, you are lucky. If not, some setup
+is required:
 @itemize
 @item @emph{Using an external IMAP or POP server} --- if you are using an
 @abbr{IMAP} or @abbr{POP} server, you can use tools like @t{getmail},
@@ -378,6 +410,9 @@ case, there is a full example of setting @t{mu4e} up with
 a maildir as well, maybe in combination with @t{procmail}. A bit of
 googling should be able to provide you with the details.
 @end itemize
+
+The maildir must be on a single file-system; and symbolic links are
+not supported.
 
 @node Initializing the message store
 @section Initializing the message store
@@ -553,7 +588,8 @@ messages, even if other programs have modified the Maildir.
 
 The downside of this thoroughness (which is the default) is that it is
 relatively slow, something that can be noticeable with large e-mail
-corpa. For a faster approach, you can use the following:
+corpa on slow file-systems. For a faster approach, you can use the
+following:
 
 @lisp
 (setq
@@ -561,9 +597,9 @@ corpa. For a faster approach, you can use the following:
   mu4e-index-lazy-check t)    ;; don't consider up-to-date dirs
 @end lisp
 
-In many cases, the mentioned thoroughness might not be needed, and these
-settings give a very significant speed-up. Note that you can of course
-occasionally run a thorough indexing round.
+In many cases, the mentioned thoroughness might not be needed, and
+these settings give a very significant speed-up. Note that you can of
+course occasionally run a thorough indexing round.
 
 For further details, please refer to the @t{mu-index} manpage; in
 particular, see @t{.noindex} and @t{.noupdate} which can help reducing
@@ -701,7 +737,7 @@ The main view looks something like the following:
 
 @cartouche
 @verbatim
-* mu4e - mu for emacs version @value{VERSION}; (in store: 78379 messages)
+* mu4e - mu for emacs version @value{VERSION}
 
   Basics
 
@@ -711,21 +747,27 @@ The main view looks something like the following:
 
   Bookmarks
 
-	* [bu] Unread messages      (26217/26217)
-	* [bt] Today's messages     (2/8)
-	* [bw] Last 7 days          (7/34)
-	* [bp] Messages with images (276/2315)
+	* [bu] Unread messages      (26119/26119)
+	* [bt] Today's messages     (1/7)
+	* [bw] Last 7 days          (30/126)
+	* [bp] Messages with images (268/2309)
 
   Misc
 
 	* [;]Switch context
 	* [U]pdate email & database
+	* toggle [m]ail sending mode (currently direct)
 
 	* [N]ews
 	* [A]bout mu4e
 	* [H]elp
 	* [q]uit
 
+  Info
+
+        * database-path       : /home/user/.cache/mu/xapian
+        * maildir             : /home/user/Maildir
+        * in store            : 78825 messages
 @end verbatim
 @end cartouche
 
@@ -865,9 +907,7 @@ compact way to convey the most important information: it shows @t{From:}
 @emph{except} when the e-mail was sent by the user (i.e., you) --- in that case
 it shows @t{To:} (prefixed by @t{To}@footnote{You can customize this by
 changing the variable @code{mu4e-headers-from-or-to-prefix} (a cons cell)}, as
-in the example above). To determine whether a message was sent by you,
-@t{mu4e} uses the variable @code{mu4e-user-mail-address-list}, a list of
-your e-mail addresses.
+in the example above).
 @item The `List' field shows the mailing-list a message is sent to;
 @code{mu4e} tries to create a convenient shortcut for the mailing-list name;
 the variable @code{mu4e-user-mailing-lists} can be used to add your
@@ -901,7 +941,7 @@ headers-view.
 @section Keybindings
 
 Using the below key bindings, you can do various things with these messages;
-these actions are also listed in the @t{Headers} menu in the Emacs
+these actions are also listed in the @t{Mu4e} menu in the Emacs
 menu bar.
 
 @verbatim
@@ -1198,7 +1238,7 @@ prevent this behavior, set @code{mu4e-view-scroll-to-next} to @code{nil}.
 @node MSGV Keybindings
 @section Keybindings
 
-You can find most things you can do with this message in the @emph{View} menu,
+You can find most things you can do with this message in the @emph{Mu4e} menu,
 or by using the keyboard; the default bindings are:
 
 @verbatim
@@ -1298,12 +1338,12 @@ OS X) the @t{open} program for opening attachments. If you want to use another
 program, you do so by setting the @t{MU_PLAY_PROGRAM} environment variable to
 the program to be used.
 
-The default directory for extracting (saving) attachments is your home
-directory (@file{~/}); you can change this using the variable
-@code{mu4e-attachment-dir}, for example:
+The default directory for attaching and extracting (saving)
+attachmentsis your home directory (@file{~/}); you can change this
+using the variable @code{mu4e-attachment-dir}, for example:
 
 @lisp
-(setq mu4e-attachment-dir  "~/Downloads")
+(setq mu4e-attachment-dir "~/Downloads")
 @end lisp
 
 For more flexibility, @code{mu4e-attachment-dir} can also be a user-provided
@@ -1658,13 +1698,12 @@ this:
 
 @itemize
 @item @code{mu4e-compose-complete-only-personal} --- when set to @t{t},
-only consider addresses that were seen in @emph{personal} messages --- that is,
-messages in which one of my e-mail addresses was seen in one of the address
-fields. This is to exclude mailing list posts. You can define what is
-considered `my e-mail address' using @code{mu4e-user-mail-address-list}, a
-list of e-mail address (defaults to @code{user-mail-address}, and when
-indexing from the command line, the @t{--my-address} parameter for @t{mu
-index}.
+only consider addresses that were seen in @emph{personal} messages ---
+that is, messages in which one of my e-mail addresses was seen in one
+of the address fields. This is to exclude mailing list posts. You can
+define what is considered `my e-mail address' using the
+@t{--my-address} parameter to @t{mu init}.
+
 @item @code{mu4e-compose-complete-only-after} --- only consider e-mail
 addresses last seen after some date. Parameter is a string, parseable by
 @code{org-parse-time-string}. This excludes old e-mail addresses. The default
@@ -1768,9 +1807,6 @@ for their counterparts, decrypting and signature verification (as discussed in
 @ref{MSGV Crypto}). Even if your @t{mu4e} does not have support for the latter
 two, you can still sign/encrypt messages.
 
-Currently, decryption and signature verification only works for PGP/MIME;
-inline-PGP and S/MIME are not supported.
-
 Important note: the messages are encrypted when they are @emph{sent}:
 this means that draft messages are @emph{not} encrypted. So if you are
 using e.g. @t{offlineimap} or @t{mbsync} to synchronize with some remote
@@ -1836,11 +1872,9 @@ configuration:
 (setq message-kill-buffer-on-exit t)
 @end lisp
 @item If you want to exclude your own e-mail address when ``replying to
-all'', set @code{mu4e-compose-dont-reply-to-self} to @code{t}.  In order
-for this to work properly you need to properly set the
-@code{user-mail-address} variable or in the case you use multiple e-mail
-addresses you need to set the @code{mu4e-user-mail-address-list}
-variable accordingly.
+all'', set @code{mu4e-compose-dont-reply-to-self} to @code{t}. In
+order for this to work properly you need to pass your address to
+@command{mu init --my-address=} at database initialization time.
 @end itemize
 
 @node Searching
@@ -2106,16 +2140,17 @@ You can search for maildirs like any other message property
 (e.g. with a query like @t{maildir:/myfolder}), but since it is so common,
 @t{mu4e} offers a shortcut for this.
 
-For this to work, you need to set the variable @code{mu4e-maildir-shortcuts}
-to the list of maildirs you want to have quick access to, for example:
+For this to work, you need to set the variable
+@code{mu4e-maildir-shortcuts} to the list of maildirs you want to have
+quick access to, for example:
 
 @lisp
 (setq mu4e-maildir-shortcuts
-  '( ("/inbox"     . ?i)
-     ("/archive"   . ?a)
-     ("/lists"     . ?l)
-     ("/work"      . ?w)
-     ("/sent"      . ?s)))
+  '( (:maildir "/inbox"     :key  ?i)
+     (:maildir "/archive"   :key  ?a)
+     (:maildir "/lists"     :key  ?l)
+     (:maildir "/work"      :key  ?w)
+     (:maildir "/sent"      :key  ?s)))
 @end lisp
 
 This sets @key{i} as a shortcut for the @t{/inbox} folder --- effectively a
@@ -2472,7 +2507,6 @@ example:
 * Contexts and special folders::Using context variables to determine them
 * Contexts example::How to define contexts
 * Account setup helper::Easy context creation with sane defaults
-* Some context tricks::Other thing to do with contexts
 @end menu
 
 It can be useful to switch between different sets of settings in
@@ -2729,25 +2763,6 @@ If the context created by @code{make-mu4e-context-account} is not
 enough, you can display the generated context with e.g. @code{M-x
 describe-variable mu4e-contexts} and tweak the result as needed.
 
-@node Some context tricks
-@section Some context tricks
-
-It is possible to automatically fill @code{mu4e-user-address-list} by
-concatenating the @code{user-mail-address} fields of all contexts:
-
-@lisp
-  ;; This sets `mu4e-user-mail-address-list' to the concatenation of all
-  ;; `user-mail-address' values for all contexts. If you have other mail
-  ;; addresses as well, you'll need to add those manually.
-  (setq mu4e-user-mail-address-list
-    (delq nil
-      (mapcar (lambda (context)
-		(when (mu4e-context-vars context)
-		  (cdr (assq 'user-mail-address (mu4e-context-vars context)))))
-	mu4e-contexts)))
-@end lisp
-
-
 @node Dynamic folders
 @chapter Dynamic folders
 
@@ -2811,7 +2826,7 @@ message. An example should clarify this:
       ((find-if
 	 (lambda (addr)
 	   (mu4e-message-contact-field-matches msg :from addr))
-	 mu4e-user-mail-address-list)
+	 (mu4e-personal-addresses))
 	mu4e-sent-folder)
       ;; everything else goes to /archive
       ;; important to have a catch-all at the end!
@@ -3218,7 +3233,7 @@ maildirs.
 @item @code{mu4e-running-p}: return @code{t} if the @t{mu4e} process is
 running, @code{nil} otherwise.
 @item @code{(mu4e-user-mail-address-p addr)}: return @code{t} if @var{addr} is
-one of the user's e-mail addresses (as per @code{mu4e-user-mail-address-list}).
+one of the user's e-mail addresses (as per @code{(mu4e-personal-addresses)}).
 @item @code{mu4e-log} logs to the @t{mu4e} debugging log if it is enabled;
 see @code{mu4e-toggle-logging}.
 @item @code{mu4e-message}, @code{mu4e-warning}, @code{mu4e-error} are the
@@ -3424,20 +3439,21 @@ running outside its session.
 @node Speedbar
 @section Speedbar
 
-@code{speedbar} is an Emacs-extension that shows navigational information for
-an Emacs buffer in a separate frame. Using @code{mu4e-speedbar}, @t{mu4e}
-lists your bookmarks and maildir folders and allows for one-click access to
-them.
+@code{speedbar} is an Emacs-extension that shows navigational
+information for an Emacs buffer in a separate frame. Using
+@code{mu4e-speedbar}, @t{mu4e} lists your bookmarks and maildir
+folders and allows for one-click access to them.
 
-@t{mu4e} loads @t{mu4e-speedbar} automatically; all you need to do to activate
-it is @kbd{M-x speedbar}. Then, when then switching to the @ref{Main view},
-the speedbar-frame is updated with your bookmarks and maildirs. For speed
-reasons, the list of maildirs is determined when @t{mu4e} starts; if the list
-of maildirs changes while @t{mu4e} is running, you need to restart @t{mu4e} to
-have those changes reflected in the speedbar and in other places that use this
-list, such as auto-completion when jumping to a maildir.
+To enable this, add @t{(require 'mu4e-speedbar)} to your
+configuration; then, all you need to do to activate it is @kbd{M-x
+speedbar}. Then, when then switching to the @ref{Main view}, the
+speedbar-frame is updated with your bookmarks and maildirs.
 
-@code{mu4e-speedbar} was contributed by @emph{Antono Vasiljev}.
+For speed reasons, the list of maildirs is determined when @t{mu4e}
+starts; if the list of maildirs changes while @t{mu4e} is running, you
+need to restart @t{mu4e} to have those changes reflected in the
+speedbar and in other places that use this list, such as
+auto-completion when jumping to a maildir.
 
 @node Dired
 @section Dired
@@ -3573,13 +3589,10 @@ customize.
 
 ;; the maildirs you use frequently; access them with 'j' ('jump')
 (setq   mu4e-maildir-shortcuts
-    '(("/archive"     . ?a)
-      ("/inbox"       . ?i)
-      ("/work"        . ?w)
-      ("/sent"        . ?s)))
-
-;; a  list of user's e-mail addresses
-(setq mu4e-user-mail-address-list '("foo@@bar.example.com" "cuux@@example.com")
+    '((:maildir "/archive" :key ?a)
+      (:maildir "/inbox"   :key ?i)
+      (:maildir "/work"    :key ?w)
+      (:maildir "/sent"    :key ?s)))
 
 ;; the headers to show in the headers list -- a pair of a field
 ;; and its width, with `nil' meaning 'unlimited'
@@ -3747,10 +3760,10 @@ Next step: let's make a @t{mu4e} configuration for this:
 ;; the 'All Mail' folder by pressing ``ma''.
 
 (setq mu4e-maildir-shortcuts
-    '( ("/INBOX"               . ?i)
-       ("/[Gmail].Sent Mail"   . ?s)
-       ("/[Gmail].Trash"       . ?t)
-       ("/[Gmail].All Mail"    . ?a)))
+    '( (:maildir "/INBOX"              :key ?i)
+       (:maildir "/[Gmail].Sent Mail"  :key ?s)
+       (:maildir "/[Gmail].Trash"      :key ?t)
+       (:maildir "/[Gmail].All Mail"   :key ?a)))
 
 ;; allow for updating mail using 'U' in the main view:
 (setq mu4e-get-mail-command "offlineimap")
@@ -3827,19 +3840,19 @@ answers.
 @section General
 
 @subsection Results from @command{mu} and @t{mu4e} differ - why?
+@anchor{mu-mu4e-differ}
 In general, the same queries for @command{mu} and @t{mu4e} should
-yield the same results. If they differ, this is usually because one
-of the following reasons:
+yield the same results. If they differ, this is usually because one of
+the following reasons:
 @itemize
-@item different default options:
-mu4e defaults to having @t{mu4e-headers-include-related} and
-@t{mu4e-headers-skip-duplicates} enabled and
+@item different options:
+@t{mu4e} defaults to having @t{mu4e-headers-include-related}, and
 @t{mu4e-headers-results-limit} set to 500. However, the command-line
-@command{mu find}'s corresponding @t{--include-related} and
-@t{--skip-dups} are false, and there's no limit (@t{--maxnum}).
+@command{mu find}'s corresponding @t{--include-related} is false, and
+there's no limit (@t{--maxnum}).
 @item reverse sorting:
-The results amy be different when only one @t{mu4e} and @command{mu
-find} do not both sort their results in the same direction.
+The results may be different when @t{mu4e} and @command{mu find} do
+not both sort their results in the same direction.
 @item shell quoting issues:
 Depending on the shell, various shell metacharacters in search query
 (such as @t{*}) may be expanded by the shell before @command{mu} ever
@@ -3847,11 +3860,15 @@ sees them, and the query may not be what you think it is. Quoting is
 necessary.
 @end itemize
 
+@subsection The unread/all counts in the main-screen differ from the 'real' numbers - what's going on?
+For speed reasons, the counts do not exclude messages that no longer
+exist in the file-system, nor does it exclude duplicate messages; @xref{mu-mu4e-differ}.
+
 @subsection How can I quickly delete/move/trash a lot of messages?
-You can select ('mark' in Emacs-speak) the messages like you
-would select text in a buffer; the actions you then take (e.g.,
-@key{DEL} for delete, @key{m} for move and @key{t} for trash) apply to
-all selected messages. You can also use functions like
+You can select ('mark' in Emacs-speak) the messages like you would
+select text in a buffer; the actions you then take (e.g., @key{DEL}
+for delete, @key{m} for move and @key{t} for trash) apply to all
+selected messages. You can also use functions like
 @code{mu4e-headers-mark-thread} (@key{T}),
 @code{mu4e-headers-mark-subthread} (@key{t}) to mark whole threads at
 the same time, and @code{mu4e-headers-mark-pattern} (@key{%}) to mark
@@ -3976,6 +3993,39 @@ few related queries on the mailing-list; worthwhile to check out.
 @node Reading messages
 @section Reading messages
 
+@subsection Opening messages is slower than expected - why?
+@t{mu4e} is designed to be very fast, even with large amounts of mail.
+However, if you experience slowdowns, here are some things to consider:
+@itemize
+@item opening messages while indexing:
+@t{mu4e} corresponds with the @t{mu} server synchronously; this means
+that you can do only one thing at a time. The one operation that
+potentially does take a bit of time is indexing of mail, during which
+you have to wait for messages to open. For some strategies to reduce
+that time, see the next question.
+@item getting contact information can take some time:
+especially when opening @t{mu4e} the first time and you have a
+@emph{lot} of contacts, it can take a few seconds to process those.
+Note that @t{mu4e} 1.3 and higher only get @emph{changed} contacts in
+subsequent updates (after and indexing operation), so this should be
+less of a concern.
+@item decryption / sign verification:
+encrypted / signed messages sometimes require network access, and this
+may take a while; certainly if the needed servers cannot be found.
+Part of this may be that influential environment variables are not set
+in the emacs environment.
+@end itemize
+
+If you still experience unexpected slowness, you can of course file a
+ticket, but please be sure to mention the following:
+
+@itemize
+@item are all messages slow or only some messages?
+@item if it's only some messages, is there something specific about them?
+@item in addition, please a (sufficiently censored version of) a message that is slow
+@item is opening @emph{always} slow or only sometimes? When?
+@end itemize
+
 @subsection How can I view attached images in my message view buffers? See
 @ref{Viewing images inline}.
 @subsection How can I word-wrap long lines in when viewing a message?
@@ -3985,8 +4035,7 @@ your @code{mu4e-view-mode-hook}.
 @subsection How can I perform custom actions on messages and attachments?
 See @ref{Actions}.
 @subsection Does @t{mu4e} support crypto (i.e., decrypting messages and verifying signatures)?
-Yes --- if @t{mu} was built with @t{GMime} 2.6
-or later, it is possible to do both (note, only PGP/MIME is
+Yes --- it is possible to do both (note, only PGP/MIME is
 supported). In the @ref{Main view} the support is indicated by a big
 letter @t{C} on the right hand side of the @t{mu4e} version. See
 @ref{Decryption} and @ref{Verifying signatures}. For encryption and
@@ -4025,7 +4074,7 @@ your configuration (courtesy of user @t{kpachnis}):
       mml2015-sign-with-sender t)
 @end lisp
 @subsection Can I `bounce' or `resend' messages?
-Yes --- it is possible to edit a (copy of) an existing message and
+Somewhat --- it is possible to edit a (copy of) an existing message and
 then send it, using @code{M-x mu4e-compose-resend}. This gives you a
 raw copy of the message, including all headers, encoded parts and so
 on. Reason for this is that for resending, it is important not to
@@ -4200,36 +4249,19 @@ a list of known issues and/or missing features in @t{mu4e}. Thus, users
 won't have to search in vain for things that are not there (yet), and
 the author can use it as a todo-list.
 
-@itemize
-@item @emph{mu4e does not work well if the Emacs language environment is not
-UTF-8}; so, if you encounter problems with encodings, be sure to have
-@code{(set-language-environment "UTF-8")} in your @file{~/.emacs}.
-@item @emph{Thread handling is incomplete.} While threads are calculated and are
-visible in the headers buffer, you cannot collapse/open them.
-@item @emph{The key-bindings are @emph{somewhat} hard-coded.} That is, the main
-menu assumes the default key-bindings, as do the clicks-on-bookmarks.
-@item @emph{The @t{emacs} front-end of the @t{notmuch} e-mail indexer
-conflicts with @t{mu4e}}. @t{notmuch} running in parallel with
-@t{mu4e} leads to
-@verbatim
-error in process filter: mu4e-error-handler: Error 70: cannot read
-~/Maildir/...
-@end verbatim
-when sending a reply to some e-mail. This seems to be caused by
-@t{notmuch} changing the name of the original message file while
-@t{mu4e} is working on it. To prevent this, deactivate @t{notmuch} in
-your Emacs setup.
-@item @emph{The PDF-version of the manual does not show any of the non-ASCII
-characters} --- this is because the @t{texi2pdf} documentation system does
-not support those. There is not much we can do about that.
-@item @emph{@t{mu4e} can get very slow when using Aquamacs' default theme (May 2018} --
-it's not clear what the root-cause for this is, but if you suffer from
-this, you can try to put
-@verbatim
-(aquamacs-autoface-mode 0)
-@end verbatim
-in @t{site-start.el}.
-@end itemize
+@subsection UTF-8 language environment is required
+@t{mu4e} does not work well if the Emacs language environment is not
+UTF-8; so, if you encounter problems with encodings, be sure to have
+@code{(set-language-environment "UTF-8")} in your @file{~/.emacs} (or
+its moral equivalents in other places).
+
+@subsection Thread handling is incomplete
+While threads are calculated and are visible in the headers buffer,
+you cannot collapse/open them.
+
+@subsection Key-bindings are @emph{somewhat} hard-coded.
+That is, the main menu assumes the default key-bindings, as do the
+clicks-on-bookmarks.
 
 For a more complete list, please refer to the issues-list in the
 github-repository.

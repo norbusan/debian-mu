@@ -81,6 +81,13 @@ NODEFAULT, hour and minute fields will be nil if not given."
 
 ;;; Various
 
+(defun mu4e-copy-message-path ()
+  "Copy the message-path of message at point to the kill-ring."
+  (interactive)
+  (let ((path (mu4e-message-field-at-point :path)))
+    (kill-new path)
+    (mu4e-message "Saved '%s' to kill-ring" path)))
+
 (defun mu4e-user-mail-address-p (addr)
   "If ADDR is one of user's e-mail addresses return t, nil otherwise.
 User's addresses are set in `(mu4e-personal-addresses)'.  Case
@@ -357,34 +364,34 @@ the list of maildirs will not change until you restart mu4e."
   mu4e-maildir-list)
 
 (defun mu4e-ask-maildir (prompt)
-  "Ask the user for a shortcut (using PROMPT) as defined in
-`mu4e-maildir-shortcuts', then return the corresponding folder
+  "Ask the user for a shortcut (using PROMPT) as per
+(mu4e-maildir-shortcuts), then return the corresponding folder
 name. If the special shortcut 'o' (for _o_ther) is used, or if
-`mu4e-maildir-shortcuts' is not defined, let user choose from all
-maildirs under `mu4e-maildir'."
+`(mu4e-maildir-shortcuts)' evaluates to nil, let user choose from
+all maildirs under `mu4e-maildir'."
   (let ((prompt (mu4e-format "%s" prompt)))
-    (if (not mu4e-maildir-shortcuts)
+    (if (not (mu4e-maildir-shortcuts))
         (funcall mu4e-completing-read-function prompt (mu4e-get-maildirs))
-      (let* ((mlist (append mu4e-maildir-shortcuts '(("ther" . ?o))))
+      (let* ((mlist (append (mu4e-maildir-shortcuts)
+                            '((:maildir "ther"  :key ?o))))
              (fnames
               (mapconcat
                (lambda (item)
                  (concat
                   "["
-                  (propertize (make-string 1 (cdr item))
+                  (propertize (make-string 1 (plist-get item :key))
                               'face 'mu4e-highlight-face)
                   "]"
-                  (car item)))
+                  (plist-get item :maildir)))
                mlist ", "))
              (kar (read-char (concat prompt fnames))))
         (if (member kar '(?/ ?o)) ;; user chose 'other'?
             (funcall mu4e-completing-read-function prompt
                      (mu4e-get-maildirs) nil nil "/")
-          (or (car-safe
-               (cl-find-if (lambda (item) (= kar (cdr item)))
-                           mu4e-maildir-shortcuts))
+          (or (plist-get
+               (cl-find-if (lambda (item) (= kar (plist-get item :key)))
+                           (mu4e-maildir-shortcuts)) :maildir)
               (mu4e-warn "Unknown shortcut '%c'" kar)))))))
-
 
 (defun mu4e-ask-maildir-check-exists (prompt)
   "Like `mu4e-ask-maildir', but check for existence of the maildir,
@@ -398,20 +405,7 @@ and offer to create it if it does not exist yet."
     mdir))
 
 ;;; Bookmarks
-
-(defun mu4e-bookmarks ()
-  "Get `mu4e-bookmarks' in the (new) format, converting from the
-old format if needed."
-  (cl-map 'list
-          (lambda (item)
-            (if (and (listp item) (= (length item) 3))
-                `(:name  ,(nth 1 item)
-                         :query ,(nth 0 item)
-                         :key   ,(nth 2 item))
-              item))
-          mu4e-bookmarks))
-
-(defun mu4e-ask-bookmark (prompt)
+ (defun mu4e-ask-bookmark (prompt)
   "Ask the user for a bookmark (using PROMPT) as defined in
 `mu4e-bookmarks', then return the corresponding query."
   (unless (mu4e-bookmarks) (mu4e-error "No bookmarks defined"))
@@ -643,7 +637,7 @@ process."
          (processed (plist-get info :processed))
          (updated (plist-get info :updated))
          (cleaned-up (plist-get info :cleaned-up))
-         (mainbuf (get-buffer mu4e~main-buffer-name)))
+         (mainbuf (get-buffer mu4e-main-buffer-name)))
     (cond
      ((eq type 'add) t) ;; do nothing
      ((eq type 'index)
@@ -661,7 +655,9 @@ process."
                        (zerop (plist-get info :updated)))
             (mu4e~request-contacts-maybe))
           (when (and (buffer-live-p mainbuf) (get-buffer-window mainbuf))
-            (mu4e~main-view 'refresh)))))
+            (save-window-excursion
+              (select-window (get-buffer-window mainbuf))
+              (mu4e~main-view 'refresh))))))
      ((plist-get info :message)
       (mu4e-index-message "%s" (plist-get info :message))))))
 
@@ -697,8 +693,9 @@ This is used by the completion function in mu4e-compose."
              (if (functionp mu4e-contact-process-function)
                  (funcall mu4e-contact-process-function (car contact))
                (car contact))))
-        (when address
-          (puthash address (cdr contact) mu4e~contacts))))
+        (when address ;; note the explicit deccode; the strings we get are  utf-8,
+          ;; but emacs doesn't know yet.
+          (puthash (decode-coding-string address 'utf-8) (cdr contact) mu4e~contacts))))
 
     (setq mu4e~contacts-tstamp (or tstamp "0"))
 
@@ -991,11 +988,10 @@ in the background; otherwise, pop up a window."
 
 ;;; Logging / debugging
 
-(defvar mu4e~log-max-lines 1200
-  "*internal* Last <n> number of lines to keep around in the buffer.")
+(defconst mu4e~log-max-size 1000000
+  "Max number of characters to keep around in the log buffer.")
 (defconst mu4e~log-buffer-name "*mu4e-log*"
   "*internal* Name of the logging buffer.")
-
 (defun mu4e-log (type frm &rest args)
   "Write a message of TYPE with format-string FRM and ARGS in
 *mu4e-log* buffer, if the variable mu4e-debug is non-nil. Type is
@@ -1005,7 +1001,7 @@ either 'to-server, 'from-server or 'misc. This function is meant for debugging."
       (view-mode)
       (setq buffer-undo-list t)
       (let* ((inhibit-read-only t)
-             (tstamp (propertize (format-time-string "%Y-%m-%d %T"
+             (tstamp (propertize (format-time-string "%Y-%m-%d %T.%3N"
                                                      (current-time))
                                  'face 'font-lock-string-face))
              (msg-face
@@ -1027,13 +1023,10 @@ either 'to-server, 'from-server or 'misc. This function is meant for debugging."
 
         ;; if `mu4e-log-max-lines is specified and exceeded, clearest the oldest
         ;; lines
-        (when (numberp mu4e~log-max-lines)
-          (let ((lines (count-lines (point-min) (point-max))))
-            (when (> lines mu4e~log-max-lines)
-              (goto-char (point-max))
-              (forward-line (- mu4e~log-max-lines lines))
-              (beginning-of-line)
-              (delete-region (point-min) (point)))))))))
+        (when (> (buffer-size) mu4e~log-max-size)
+          (goto-char (- (buffer-size) mu4e~log-max-size))
+          (beginning-of-line)
+          (delete-region (point-min) (point)))))))
 
 (defun mu4e-toggle-logging ()
   "Toggle between enabling/disabling debug-mode (in debug-mode,

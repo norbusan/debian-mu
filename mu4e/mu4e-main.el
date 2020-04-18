@@ -30,11 +30,18 @@
 (require 'mu4e-vars)  ;; the context
 (require 'cl-lib)
 
-
 ;;; Mode
 
-(defconst mu4e~main-buffer-name " *mu4e-main*"
-  "*internal* Name of the mu4e main view buffer.")
+(defvar mu4e-main-buffer-hide-personal-addresses nil
+  "Whether to hid trhe personal address in the main view. This
+  can be useful to avoid the noise when there are many.
+
+  This also hides the warning if your `user-mail-address' is not
+part of the personal addresses.")
+
+(defvar mu4e-main-buffer-name " *mu4e-main*"
+  "Name of the mu4e main view buffer. The default name starts
+with SPC and therefore is not visible in buffer list.")
 
 (defvar mu4e-main-mode-map
   (let ((map (make-sparse-keymap)))
@@ -159,7 +166,7 @@ clicked."
   (mu4e~main-view-real-1 'refresh))
 
 (defun mu4e~main-view-real-1 (&optional refresh)
-  "Create `mu4e~main-buffer-name' and set it up.
+  "Create `mu4e-main-buffer-name' and set it up.
 When REFRESH is non nil refresh infos from server."
   (let ((inhibit-read-only t)
         (pos (point)))
@@ -169,9 +176,10 @@ When REFRESH is non nil refresh infos from server."
       (mu4e~main-redraw-buffer))))
 
 (defun mu4e~main-redraw-buffer ()
-  (with-current-buffer mu4e~main-buffer-name
+  (with-current-buffer mu4e-main-buffer-name
     (let ((inhibit-read-only t)
-          (pos (point)))
+          (pos (point))
+          (addrs (mu4e-personal-addresses)))
       (erase-buffer)
       (insert
        "* "
@@ -212,7 +220,16 @@ When REFRESH is non nil refresh infos from server."
        (mu4e~key-val "database-path" (mu4e-database-path))
        (mu4e~key-val "maildir" (mu4e-root-maildir))
        (mu4e~key-val "in store"
-                     (format "%d" (plist-get mu4e~server-props :doccount)) "messages"))
+                     (format "%d" (plist-get mu4e~server-props :doccount)) "messages")
+       (unless mu4e-main-buffer-hide-personal-addresses
+         (mu4e~key-val "personal addresses" (if addrs (mapconcat #'identity addrs ", "  ) "none"))))
+
+      (unless mu4e-main-buffer-hide-personal-addresses
+        (when (and addrs user-mail-address (not (member user-mail-address addrs)))
+          (mu4e-message (concat
+                         "Note: `user-mail-address' ('%s') is not part "
+                         "of mu's addresses; add it with 'mu init --my-address='")
+                        user-mail-address)))
       (mu4e-main-mode)
       (goto-char pos))))
 
@@ -248,17 +265,16 @@ When REFRESH is non nil refresh infos from server."
   "Create the mu4e main-view, and switch to it.
 
 When REFRESH is non nil refresh infos from server."
-  (let ((buf (get-buffer-create mu4e~main-buffer-name)))
+  (let ((buf (get-buffer-create mu4e-main-buffer-name)))
     (if (eq mu4e-split-view 'single-window)
         (if (buffer-live-p (mu4e-get-headers-buffer))
 	    (switch-to-buffer (mu4e-get-headers-buffer))
 	  (mu4e~main-menu))
       ;; `mu4e~main-view' is called from `mu4e~start', so don't call it
       ;; a second time here i.e. do not refresh unless specified
-      ;; explicitely with REFRESH arg. 
+      ;; explicitely with REFRESH arg.
       (switch-to-buffer buf)
       (with-current-buffer buf
-        (mu4e-main-mode)
         (mu4e~main-view-real-1 refresh))
       (goto-char (point-min)))
   (add-to-list 'global-mode-string '(:eval (mu4e-context-label)))))
@@ -276,8 +292,8 @@ When REFRESH is non nil refresh infos from server."
   (message (concat "Outgoing mail will now be "
                    (if smtpmail-queue-mail "queued" "sent directly")))
   (unless (or (eq mu4e-split-view 'single-window)
-              (not (buffer-live-p (get-buffer mu4e~main-buffer-name))))
-    (with-current-buffer mu4e~main-buffer-name
+              (not (buffer-live-p (get-buffer mu4e-main-buffer-name))))
+    (with-current-buffer mu4e-main-buffer-name
       (revert-buffer))))
 
 (defun mu4e~main-menu ()

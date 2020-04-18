@@ -15,7 +15,7 @@
 ## Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
 
 AC_PREREQ([2.68])
-AC_INIT([mu],[1.3.9],[https://github.com/djcb/mu/issues],[mu])
+AC_INIT([mu],[1.4],[https://github.com/djcb/mu/issues],[mu])
 AC_COPYRIGHT([Copyright (C) 2008-2020 Dirk-Jan C. Binnema])
 AC_CONFIG_HEADERS([config.h])
 AC_CONFIG_SRCDIR([mu/mu.cc])
@@ -155,28 +155,35 @@ AS_IF([test "x$have_json_glib" = "xyes"],[
 AM_CONDITIONAL(HAVE_JSON_GLIB,[test "x$have_json_glib" = "xyes"])
 
 # xapian checking - we need 1.4 at least
-AC_CHECK_PROG(XAPIAN_CONFIG,xapian-config,xapian-config,no)
-AM_CONDITIONAL(HAVE_XAPIAN,test "x$XAPIAN_CONFIG" != "xno")
-AS_IF([test "x$XAPIAN_CONFIG" = "xno"],[
-   AC_MSG_ERROR([
-   *** xapian could not be found; please install it
-   *** e.g., in debian/ubuntu the package would be 'libxapian-dev'
-   *** If you compiled it yourself, you should ensure that xapian-config
-   *** is in your PATH.])],
-   [xapian_version=$($XAPIAN_CONFIG --version | sed -e 's/.* //')])
+PKG_CHECK_MODULES(XAPIAN,xapian-core >= 1.4,[
+  have_xapian=yes
+  xapian_version=$($PKG_CONFIG xapian-core --modversion)
+  AC_SUBST(XAPIAN_CXXFLAGS,${XAPIAN_CFLAGS})
+],[
+  # fall back to the xapian-config script. Not sure if there are cases where the
+  # pkgconfig does not work, but xapian-config does, so keep this for now.
+  AC_MSG_NOTICE([falling back to xapian-config])
+  AC_CHECK_PROG(XAPIAN_CONFIG,xapian-config,xapian-config,no)
+  AS_IF([test "x$XAPIAN_CONFIG" = "xno"],[
+     AC_MSG_ERROR([
+     *** xapian could not be found; please install it
+     *** e.g., in debian/ubuntu the package would be 'libxapian-dev'
+     *** If you compiled it yourself, you should ensure that xapian-config
+     *** is in your PATH.])],
+     [xapian_version=$($XAPIAN_CONFIG --version | sed -e 's/.* //')])
 
-AS_CASE([$xapian_version],
-    [1.[[4-9]].[[0-9]]*],
-      [AC_DEFINE([XAPIAN_HAVE_OP_WILDCARD],[1],[Xapian::Query::OP_WILDCARD?])],
-      [AC_MSG_ERROR([*** xapian version >= 1.4 needed, but version $xapian_version found.])])
+  AS_CASE([$xapian_version],
+      [1.[[4-9]].[[0-9]]*],
+        [AC_MSG_NOTICE([xapian $xapian_version found.])],
+        [AC_MSG_ERROR([*** xapian version >= 1.4 needed, but version $xapian_version found.])])
 
-XAPIAN_CXXFLAGS="$($XAPIAN_CONFIG --cxxflags)"
-XAPIAN_LIBS="$($XAPIAN_CONFIG --libs)"
-have_xapian="yes"
+  XAPIAN_CXXFLAGS="$($XAPIAN_CONFIG --cxxflags)"
+  XAPIAN_LIBS="$($XAPIAN_CONFIG --libs)"
+  have_xapian="yes"
 
-AC_SUBST(XAPIAN_CXXFLAGS)
-AC_SUBST(XAPIAN_LIBS)
-
+  AC_SUBST(XAPIAN_CXXFLAGS)
+  AC_SUBST(XAPIAN_LIBS)
+])
 ###############################################################################
 # we set the set the version of the MuStore (Xapian database) layout
 # here; it will become part of the db name, so we can automatically
@@ -216,7 +223,7 @@ AM_CONDITIONAL(BUILD_GUI,[test "x$have_webkit" = "xyes" -a "x$have_gtk" = "xyes"
 # build with guile2.2 when available and not disabled.
 AC_ARG_ENABLE([guile], AS_HELP_STRING([--disable-guile],[Disable guile]))
 AS_IF([test "x$enable_guile" != "xno"],[
-  PKG_CHECK_MODULES(guile_22, guile-2.2, [have_guile22=yes],[have_guile22=no])
+  PKG_CHECK_MODULES(GUILE22, guile-2.2, [have_guile22=yes],[have_guile22=no])
   # this is a bit hacky; GUILE_PKG
   AS_IF([test "x$have_guile22" = "xyes"],[
     GUILE_PKG([2.2])
@@ -224,10 +231,11 @@ AS_IF([test "x$enable_guile" != "xno"],[
     GUILE_FLAGS
     AC_DEFINE_UNQUOTED([GUILE_BINARY],"$GUILE",[guile binary])
     AC_DEFINE(BUILD_GUILE,[1], [Do we support Guile?])
+    AC_SUBST(GUILE_SNARF, [guile-snarf])
+    guile_version=$($PKG_CONFIG guile-2.2 --modversion)
   ])
 ])
-AM_CONDITIONAL(BUILD_GUILE,
-[ test -n "$GUILE_EFFECTIVE_VERSION" -a -n "$GUILE_SNARF"])
+AM_CONDITIONAL(BUILD_GUILE,[test "x$have_guile22" = "xyes"])
 ###############################################################################
 
 ###############################################################################
@@ -275,8 +283,7 @@ contrib/Makefile
 ])
 AC_OUTPUT
 
-# toys/msg2pdf/Makefile
-
+dnl toys/msg2pdf/Makefile
 
 echo
 echo "mu configuration is complete."
@@ -298,7 +305,7 @@ echo "Webkit2/GTK+ version                 : $webkit_version"
 ])
 
 AM_COND_IF([BUILD_GUILE],[
-echo "Guile version                        : $GUILE_EFFECTIVE_VERSION"
+echo "Guile version                        : $guile_version"
 ])
 
 if test "x$build_mu4e" = "xyes"; then
