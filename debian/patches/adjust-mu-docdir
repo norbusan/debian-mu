@@ -4,7 +4,7 @@
 
 --- maildir-utils.git.orig/configure.ac
 +++ maildir-utils.git/configure.ac
-@@ -245,7 +245,7 @@ AM_CONDITIONAL(HAVE_MAKEINFO, [test "x$h
+@@ -244,7 +244,7 @@ AM_CONDITIONAL(HAVE_MAKEINFO, [test "x$h
  
  ###############################################################################
  # docdir, so we can use it in mu4e-meta.el.in
