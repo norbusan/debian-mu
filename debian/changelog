@@ -2,6 +2,8 @@ maildir-utils (1.4.3-2) UNRELEASED; urgency=medium
 
   * Trim trailing whitespace.
   * Use secure URI in Homepage field.
+  * Set upstream metadata fields: Bug-Database, Bug-Submit, Repository,
+    Repository-Browse.
 
  -- Debian Janitor <janitor@jelmer.uk>  Wed, 29 Apr 2020 15:06:06 +0000
 
