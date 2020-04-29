@@ -4,6 +4,7 @@ maildir-utils (1.4.3-2) UNRELEASED; urgency=medium
   * Use secure URI in Homepage field.
   * Set upstream metadata fields: Bug-Database, Bug-Submit, Repository,
     Repository-Browse.
+  * Rely on pre-initialized dpkg-architecture variables.
 
  -- Debian Janitor <janitor@jelmer.uk>  Wed, 29 Apr 2020 15:06:06 +0000
 
