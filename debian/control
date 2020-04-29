@@ -16,14 +16,14 @@ Depends: ${shlibs:Depends}, ${misc:Depends}, dpkg (>= 1.15.4) | install-info
 Conflicts: mailutils (<< 1:2.99.97-3)
 Replaces: mailutils (<< 1:2.99.97-3)
 Description: Set of utilities to deal with Maildirs (upstream name mu)
- mu is a set of utilities to deal with Maildirs, specifically, 
- indexing and searching. 
+ mu is a set of utilities to deal with Maildirs, specifically,
+ indexing and searching.
   - mu index - recursively scans a collection of email messages, and
     stores information found in a database.
   - mu find - searches for messages based on some search criteria.
   - mu mkmdir - creates a new Maildir.
  .
- mu uses libgmime to parse the message, and Xapian to store the message data. 
+ mu uses libgmime to parse the message, and Xapian to store the message data.
 
 Package: mu4e
 Section: lisp
