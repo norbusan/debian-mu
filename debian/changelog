@@ -1,3 +1,13 @@
+maildir-utils (1.4.3-2) UNRELEASED; urgency=medium
+
+  * Trim trailing whitespace.
+  * Use secure URI in Homepage field.
+  * Set upstream metadata fields: Bug-Database, Bug-Submit, Repository,
+    Repository-Browse.
+  * Rely on pre-initialized dpkg-architecture variables.
+
+ -- Debian Janitor <janitor@jelmer.uk>  Wed, 29 Apr 2020 15:06:06 +0000
+
 maildir-utils (1.4.3-1) unstable; urgency=medium
 
   * New upstream version 1.4.3
@@ -85,7 +95,7 @@ maildir-utils (1.0-4) unstable; urgency=medium
 
 maildir-utils (1.0-3) unstable; urgency=medium
 
-  * don't request non-existing libguile-2.2-dev on armel 
+  * don't request non-existing libguile-2.2-dev on armel
 
  -- Norbert Preining <preining@debian.org>  Tue, 08 May 2018 13:42:47 +0900
 
@@ -94,7 +104,7 @@ maildir-utils (1.0-2) unstable; urgency=medium
   * fix NEWS entry in mu4e welcome screen (Closes: #882341)
     - install everything into /u/s/d/maildir-utils
     - adjust MU_DOC_DIR to refer to it
-  * reintroduce maildir-utils-extra with mug 
+  * reintroduce maildir-utils-extra with mug
 
  -- Norbert Preining <preining@debian.org>  Wed, 04 Apr 2018 01:58:11 +0900
 
@@ -111,7 +121,7 @@ maildir-utils (1.0-1) unstable; urgency=medium
 
 maildir-utils (0.9.18-2) unstable; urgency=medium
 
-  * drop maildir-utils-extra package, mug/msg2pdf cannot be build with 
+  * drop maildir-utils-extra package, mug/msg2pdf cannot be build with
     webkitgtk4 (Closes: #866645)
   * bump standards version, no changes necessary
 
@@ -253,7 +263,7 @@ maildir-utils (0.9.9-1) unstable; urgency=low
 
 maildir-utils (0.9.8.5-3) unstable; urgency=low
 
-  * restrict mu4e and m-u-e's dependency on maildir-utils to the same 
+  * restrict mu4e and m-u-e's dependency on maildir-utils to the same
     version (and including bin-nmus for mu4e)
 
  -- Norbert Preining <preining@debian.org>  Thu, 23 Aug 2012 09:22:35 +0900
@@ -284,7 +294,7 @@ maildir-utils (0.9.8.4-3) unstable; urgency=high
 
 maildir-utils (0.9.8.4-2) unstable; urgency=low
 
-  * mention GFDL without invariant sections etc for mu4e.texi etc 
+  * mention GFDL without invariant sections etc for mu4e.texi etc
     (Closes: #672596)
   * fix FTBFS due to xapian version check being to strict (Closes: #672707)
 
@@ -334,7 +344,7 @@ maildir-utils (0.9.6.99.1-1) unstable; urgency=low
   * make lintian happy by adding some recommended targets in debian/rules
   * rename maildir-utils-gtk to maildir-utils-extra as we will probably
     include the guile interface and some other things there, soon.
-    Add accordingly replaces and conflicts to debian/control, and 
+    Add accordingly replaces and conflicts to debian/control, and
     adapt debian/rules.
 
  -- Norbert Preining <preining@debian.org>  Tue, 23 Aug 2011 11:03:26 +0900

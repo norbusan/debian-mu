@@ -14,7 +14,7 @@ mu4e := $(CURDIR)/debian/mu4e
 
 DOGUILECONFIG=
 BAD_GUILE_ARCHS := ia64 armel
-DEB_HOST_ARCH     ?= $(shell dpkg-architecture -qDEB_HOST_ARCH)
+include /usr/share/dpkg/architecture.mk
 ifneq ($(filter $(DEB_HOST_ARCH),$(BAD_GUILE_ARCHS)),)
   DOGUILECONFIG=--disable-guile
 endif
