@@ -816,9 +816,12 @@ own and/or replace the default ones; @xref{Bookmarks}. For instance:
 @end lisp
 
 There are optional keys @t{:hide} to hide the bookmark from the main
-memu, but still have it available (using @key{b})) and
+menu, but still have it available (using @key{b})) and
 @t{:hide-unread} to avoid generating the unread-number; that can be
-useful if you have bookmarks for slow queries.
+useful if you have bookmarks for slow queries. Note that
+@t{:hide-unread} is implied when the query is not a string; this for
+the common case where the query function involves some user input,
+which would be disruptive in this case.
 
 @node Miscellaneous
 @section Miscellaneous
@@ -1507,8 +1510,6 @@ requires @t{mu} to have been build with crypto-support; see the
 signatures. For signing/encrypting messages your outgoing messages, see
 @ref{Signing and encrypting}.
 
-Currently, only PGP/MIME is supported; PGP-inline and S/MIME are not.
-
 For all of this to work, @command{gpg-agent} must be running, and it
 must set the environment variable @t{GPG_AGENT_INFO}. You can check from
 Emacs with @key{M-x getenv GPG_AGENT_INFO}.
@@ -1522,6 +1523,11 @@ $ eval $(gpg-agent --daemon)
 
 @noindent
 This starts the daemon, and sets the environment variable.
+
+Some users have reported problems with certain S/MIME-signed messages
+where mu checks if the certificate has been revoked. This can be
+avoided by adding @t{disable-crl-checks} to @t{~/.gnupg/gpgsm.conf};
+alternatively, you could use the gnus-based viewer.
 
 @subsection Decryption
 @anchor{Decryption}
@@ -2046,7 +2052,7 @@ be instructive:
       :key ?t)
     ( :name "Last 7 days"
       :query "date:7d..now"
-      :show-unread t
+      :hide-unread t
       :key ?w)
     ( :name "Messages with images"
       :query "mime:image/*"
