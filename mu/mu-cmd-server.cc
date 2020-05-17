@@ -20,7 +20,6 @@
 #include "config.h"
 #include "mu-cmd.h"
 
-
 #include <iostream>
 #include <string>
 #include <algorithm>
@@ -28,33 +27,6 @@
 #include <cstring>
 #include <glib.h>
 #include <glib/gprintf.h>
-
-#ifdef HAVE_LIBREADLINE
-#  if defined(HAVE_READLINE_READLINE_H)
-#    include <readline/readline.h>
-#  elif defined(HAVE_READLINE_H)
-#    include <readline.h>
-#  else /* !defined(HAVE_READLINE_H) */
-extern char *readline ();
-#  endif /* !defined(HAVE_READLINE_H) */
-char *cmdline = NULL;
-#else /* !defined(HAVE_READLINE_READLINE_H) */
-   /* no readline */
-#endif /* HAVE_LIBREADLINE */
-
-#ifdef HAVE_READLINE_HISTORY
-#  if defined(HAVE_READLINE_HISTORY_H)
-#    include <readline/history.h>
-#  elif defined(HAVE_HISTORY_H)
-#    include <history.h>
-#  else /* !defined(HAVE_HISTORY_H) */
-extern void add_history ();
-extern int write_history ();
-extern int read_history ();
-#  endif /* defined(HAVE_READLINE_HISTORY_H) */
-   /* no history */
-#endif /* HAVE_READLINE_HISTORY */
-
 
 #include "mu-runtime.h"
 #include "mu-cmd.h"
@@ -430,7 +402,7 @@ compose_handler (Context& context, const Parameters& params)
                 const unsigned docid{(unsigned)get_int_or(params, "docid")};
                 auto msg{mu_store_get_msg (context.store, docid, &gerr)};
                 if (!msg)
-                        throw Error{Error::Code::Store, &gerr, "faile to get message %u", docid};
+                        throw Error{Error::Code::Store, &gerr, "failed to get message %u", docid};
 
                 const auto opts{message_options(params)};
                 sexp = mu_msg_to_sexp (msg, docid, NULL, opts);
@@ -784,7 +756,7 @@ help_handler (Context& context, const Parameters& params)
                 std::cout << ";; Commands are s-expressions of the form\n"
                           << ";;   (<command-name> :param1 val1 :param2 val2 ...)\n"
                           << ";; For instance:\n;;  (help :command quit)\n"
-                          << ";; to get information about the 'quit' commmand\n;;\n";
+                          << ";; to get information about the 'quit' command\n;;\n";
                 std::cout << ";; The following commands are available:\n";
         }
 
@@ -1299,59 +1271,8 @@ make_command_map (Context& context)
 }
 
 
-struct  Readline {
-        Readline (const std::string& histpath, size_t max_lines);
-        ~Readline();
-        std::string read_line(bool& do_quit);
-        void save_line(const std::string& line);
-        std::string histpath_;
-        size_t max_lines_{0};
-};
-
-/// Wrapper around readline (if available) or nothing otherwise.
-#if defined(HAVE_LIBREADLINE) && defined(HAVE_READLINE_HISTORY)
-Readline::Readline (const std::string& histpath, size_t max_lines):
-        histpath_{histpath}, max_lines_{max_lines}
-{
-        rl_bind_key('\t', rl_insert); // default (filenames) is not useful
-        using_history();
-        read_history (histpath_.c_str());
-
-        if (max_lines_ > 0)
-                stifle_history(max_lines_);
-}
-
-Readline::~Readline () {
-        write_history(histpath_.c_str());
-        if (max_lines_ > 0)
-                history_truncate_file (histpath_.c_str(), max_lines_);
-}
-
-std::string
-Readline::read_line(bool& do_quit)
-{
-        auto buf = readline(";; mu% ");
-        if (!buf) {
-                do_quit = true;
-                return {};
-        }
-        std::string line{buf};
-        ::free (buf);
-        return line;
-}
-
-void
-Readline::save_line(const std::string& line)
-{
-        add_history(line.c_str());
-}
-#else
-Readline::Readline (const std::string& histpath, size_t max_lines) {}
-Readline::~Readline() {}
-void Readline::save_line(const std::string& line) {}
-
-std::string
-Readline::read_line(bool& do_quit)
+static std::string
+read_line(bool& do_quit)
 {
         std::string line;
         std::cout << ";; mu> ";
@@ -1359,8 +1280,6 @@ Readline::read_line(bool& do_quit)
                 do_quit = true;
         return line;
 }
-#endif // ! defined(HAVE_LIBREADLINE) && defined(HAVE_READLINE_HISTORY)
-
 
 MuError
 mu_cmd_server (MuConfig *opts, GError **err) try
@@ -1381,9 +1300,6 @@ mu_cmd_server (MuConfig *opts, GError **err) try
                 return MU_OK;
         }
 
-        const auto histpath{std::string{mu_runtime_path(MU_RUNTIME_PATH_CACHE)} + "/history"};
-        Readline readline(histpath, 50);
-
         install_sig_handler();
         std::cout << ";; Welcome to the "  << PACKAGE_STRING << " command-server\n"
                   << ";; Use (help) to get a list of commands, (quit) to quit.\n";
@@ -1392,12 +1308,11 @@ mu_cmd_server (MuConfig *opts, GError **err) try
 
                 std::string line;
                 try {
-                        line = readline.read_line(context.do_quit);
+                        line = read_line(context.do_quit);
                         if (line.find_first_not_of(" \t") == std::string::npos)
                                 continue; // skip whitespace-only lines
 
                         auto call{Sexp::parse(line)};
-                        readline.save_line(line);
 
                         invoke(context.command_map, call);
 
