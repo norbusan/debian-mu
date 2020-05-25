@@ -73,12 +73,9 @@
     - In addition, he added support for custom headers, so the ones for for the
       non-gnus-view should work just as well.
 
-    - Pierre Neidhardt contributed an experimental "Account Setup Helper" which
-      wraps the existing context setup with some niceties for accounts. See the
-      manual for details.
-
     - ~org-mode~ support is enabled by default now. ~speedbar~ support is disabled
-      by default.
+      by default. The support org functionality has been moved to ~mu4e-org.el~,
+      with ~org-mu4e.el~ remaining for older things.
 
     - ~mu4e~ now adds message-ids to messages when saving drafts, so we can find
       them even with ~mu4e-headers-skip-duplicates~.
