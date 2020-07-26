@@ -1,3 +1,9 @@
+maildir-utils (1.4.12-1) unstable; urgency=medium
+
+  * New upstream version 1.4.12
+
+ -- Norbert Preining <norbert@preining.info>  Sun, 26 Jul 2020 22:30:22 +0900
+
 maildir-utils (1.4.11-1) unstable; urgency=medium
 
   * New upstream version 1.4.11
