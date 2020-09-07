@@ -1,8 +1,8 @@
-maildir-utils (1.4.13-2~1) UNRELEASED; urgency=medium
+maildir-utils (1.4.13-2) unstable; urgency=medium
 
   * Use guile-3.0 (Closes: #969674)
 
- -- Norbert Preining <norbert@preining.info>  Mon, 07 Sep 2020 10:46:36 +0900
+ -- Norbert Preining <norbert@preining.info>  Mon, 07 Sep 2020 12:17:45 +0900
 
 maildir-utils (1.4.13-1) unstable; urgency=medium
 
