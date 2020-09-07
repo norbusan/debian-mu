@@ -1,6 +1,7 @@
 ---
- configure.ac |   10 +++++-----
- 1 file changed, 5 insertions(+), 5 deletions(-)
+ configure.ac      |   10 +++++-----
+ guile/Makefile.am |    2 +-
+ 2 files changed, 6 insertions(+), 6 deletions(-)
 
 --- a/configure.ac
 +++ b/configure.ac
@@ -31,3 +32,14 @@
  ###############################################################################
  
  ###############################################################################
+--- a/guile/Makefile.am
++++ b/guile/Makefile.am
+@@ -68,7 +68,7 @@ SUFFIXES = .x .doc
+ 
+ # FIXME: GUILE_SITEDIR would be better, but that
+ # breaks 'make distcheck'
+-scmdir=${prefix}/share/guile/site/2.2/
++scmdir=${prefix}/share/guile/site/3.0/
+ scm_DATA=mu.scm
+ 
+ EXTRA_DIST=$(scm_DATA)
