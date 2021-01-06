@@ -386,8 +386,6 @@ article-mode."
   (let ((marked-read (mu4e~view-mark-as-read-maybe msg))
         (path (mu4e-message-field msg :path))
         (inhibit-read-only t)
-        ;; support signature verification
-        (mm-verify-option 'known)
         (mm-decrypt-option 'known)
         (gnus-article-emulate-mime t)
         (gnus-buttonized-mime-types (append (list "multipart/signed"
@@ -1448,7 +1446,7 @@ ATTNUM is nil ask for the attachment number."
         ;; server, and use it to determine the parent message (ie., the current
         ;; message) when showing the embedded message/rfc822, and return to the
         ;; current message when quitting that one.
-        (mu4e~view-temp-action docid index "mu4e" docid)
+        (mu4e~view-temp-action docid index 'mu4e (format "%s" docid))
       ;; otherwise, open with the default program (handled in mu-server
       (mu4e~proc-extract 'open docid index mu4e-decryption-policy))))
 
