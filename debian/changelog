@@ -1,3 +1,9 @@
+maildir-utils (1.4.14-1) unstable; urgency=medium
+
+  * New upstream version 1.4.14
+
+ -- Norbert Preining <norbert@preining.info>  Wed, 06 Jan 2021 12:17:25 +0900
+
 maildir-utils (1.4.13-2) unstable; urgency=medium
 
   * Use guile-3.0 (Closes: #969674)
