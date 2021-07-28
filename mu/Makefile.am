@@ -16,105 +16,86 @@
 
 include $(top_srcdir)/gtest.mk
 
-AM_CPPFLAGS=							\
-	-I${top_srcdir}/lib					\
-	$(GLIB_CFLAGS)						\
+AM_CPPFLAGS=                                                    \
+	-I${top_srcdir}/lib                                     \
+	$(GLIB_CFLAGS)                                          \
 	$(CODE_COVERAGE_CFLAGS)
 
-# don't use -Werror, as it might break on other compilers
-# use -Wno-unused-parameters, because some callbacks may not
-# really need all the params they get
-AM_CFLAGS=							\
-	$(JSON_GLIB_CFLAGS)					\
-	$(ASAN_CFLAGS)						\
-	$(WARN_CFLAGS)						\
-	$(CODE_COVERAGE_CFLAGS)					\
-	-Wno-switch-enum					\
+AM_CXXFLAGS=                                                    \
+	$(JSON_GLIB_CFLAGS)                                     \
 	-DMU_SCRIPTS_DIR="\"$(pkgdatadir)/scripts/\""
+	$(ASAN_CXXCFLAGS)                                       \
+	$(WARN_CXXFLAGS)                                        \
+	$(CODE_COVERAGE_CFLAGS)                                 \
+	-Wno-switch-enum
 
-AM_CXXFLAGS=							\
-	$(ASAN_CXXCFLAGS)					\
-	$(WARN_CXXFLAGS)					\
-	$(CODE_COVERAGE_CFLAGS)
 
-AM_LDFLAGS=							\
+AM_LDFLAGS=                                                     \
 	$(ASAN_LDFLAGS)
 
-bin_PROGRAMS=							\
+bin_PROGRAMS=                                                   \
 	mu
 
 # note, mu.cc is only '.cc' and not '.c' because libmu must explicitly
 # be linked as c++, not c.
-mu_SOURCES=							\
-	mu.cc							\
-	mu-cmd-cfind.c						\
-	mu-config.c						\
-	mu-config.h						\
-	mu-cmd-extract.c					\
-	mu-cmd-find.c						\
-	mu-cmd-index.c						\
-	mu-cmd-server.cc					\
-	mu-cmd-script.c						\
-	mu-cmd.c						\
-	mu-cmd.h
+mu_SOURCES=                                                     \
+	mu.cc                                                   \
+	mu-cmd-cfind.cc                                         \
+	mu-config.cc                                            \
+	mu-config.hh                                            \
+	mu-cmd-extract.cc                                       \
+	mu-cmd-find.cc                                          \
+	mu-cmd-index.cc                                         \
+	mu-cmd-server.cc                                        \
+	mu-cmd-script.cc                                        \
+	mu-cmd.cc                                               \
+	mu-cmd.hh
 
-BUILT_SOURCES=							\
+BUILT_SOURCES=                                                  \
 	mu-help-strings.h
 
 mu-help-strings.h: mu-help-strings.txt mu-help-strings.awk
 	 $(AM_V_GEN) $(AWK) -f ${top_srcdir}/mu/mu-help-strings.awk < $< > $@
 
-mu_LDADD=							\
-	${top_builddir}/lib/libmu.la				\
-	${top_builddir}/lib/utils/libmu-utils.la		\
-	$(GLIB_LIBS)						\
-	$(READLINE_LIBS)					\
+mu_LDADD=                                                       \
+	${top_builddir}/lib/libmu.la                            \
+	${top_builddir}/lib/utils/libmu-utils.la                \
+	$(GLIB_LIBS)                                            \
+	$(READLINE_LIBS)                                        \
 	$(CODE_COVERAGE_LIBS)
 
-EXTRA_DIST=							\
-	mu-help-strings.awk					\
+EXTRA_DIST=                                                     \
+	mu-help-strings.awk                                     \
 	mu-help-strings.txt
 
 noinst_PROGRAMS= $(TEST_PROGS)
 
-test_cflags=							\
-	${AM_CFLAGS}						\
-	-DMU_TESTMAILDIR=\"${abs_top_srcdir}/lib/testdir\"	\
-	-DMU_TESTMAILDIR2=\"${abs_top_srcdir}/lib/testdir2\"	\
-	-DMU_TESTMAILDIR3=\"${abs_top_srcdir}/lib/testdir3\"	\
-	-DMU_TESTMAILDIR4=\"${abs_top_srcdir}/lib/testdir4\"	\
-	-DMU_PROGRAM=\"${abs_top_builddir}/mu/mu\"		\
-	-DABS_CURDIR=\"${abs_builddir}\"			\
+test_cxxflags=                                                  \
+	${AM_CXXFLAGS}                                          \
+	-DMU_TESTMAILDIR=\"${abs_top_srcdir}/lib/testdir\"      \
+	-DMU_TESTMAILDIR2=\"${abs_top_srcdir}/lib/testdir2\"    \
+	-DMU_TESTMAILDIR4=\"${abs_top_srcdir}/lib/testdir4\"    \
+	-DMU_PROGRAM=\"${abs_top_builddir}/mu/mu\"              \
+	-DABS_CURDIR=\"${abs_builddir}\"                        \
 	-DABS_SRCDIR=\"${abs_srcdir}\"
 
-TEST_PROGS += test-mu-query
-test_mu_query_SOURCES= test-mu-query.c dummy.cc
-test_mu_query_CFLAGS=$(test_cflags)
-test_mu_query_LDADD=${top_builddir}/lib/libtestmucommon.la $(CODE_COVERAGE_LIBS)
+TEST_PROGS += test-query
+test_query_SOURCES= test-mu-query.cc
+test_query_CXXFLAGS=$(test_cxxflags)
+test_query_LDADD=${top_builddir}/lib/libtestmucommon.la $(CODE_COVERAGE_LIBS)
 
-TEST_PROGS += test-mu-cmd
-test_mu_cmd_SOURCES= test-mu-cmd.c dummy.cc
-test_mu_cmd_CFLAGS=$(test_cflags)
-test_mu_cmd_LDADD=${top_builddir}/lib/libtestmucommon.la $(CODE_COVERAGE_LIBS)
+TEST_PROGS += test-cmd
+test_cmd_SOURCES= test-mu-cmd.cc
+test_cmd_CXXFLAGS=$(test_cxxflags)
+test_cmd_LDADD=${top_builddir}/lib/libtestmucommon.la $(CODE_COVERAGE_LIBS)
 
-TEST_PROGS += test-mu-cmd-cfind
-test_mu_cmd_cfind_SOURCES= test-mu-cmd-cfind.c dummy.cc
-test_mu_cmd_cfind_CFLAGS=$(test_cflags)
-test_mu_cmd_cfind_LDADD=${top_builddir}/lib/libtestmucommon.la $(CODE_COVERAGE_LIBS)
-
-TEST_PROGS += test-mu-threads
-test_mu_threads_SOURCES= test-mu-threads.c dummy.cc
-test_mu_threads_CFLAGS=$(test_cflags)
-test_mu_threads_LDADD=${top_builddir}/lib/libtestmucommon.la $(CODE_COVERAGE_LIBS)
-
-# we need to use dummy.cc to enforce c++ linking...
-BUILT_SOURCES+=							\
-	dummy.cc
-dummy.cc:
-	touch dummy.cc
+TEST_PROGS += test-cmd-cfind
+test_cmd_cfind_SOURCES= test-mu-cmd-cfind.cc
+test_cmd_cfind_CXXFLAGS=$(test_cxxflags)
+test_cmd_cfind_LDADD=${top_builddir}/lib/libtestmucommon.la $(CODE_COVERAGE_LIBS)
 
 TESTS=$(TEST_PROGS)
 include $(top_srcdir)/aminclude_static.am
 
-CLEANFILES=							\
+CLEANFILES=                                                     \
 	$(BUILT_SOURCES)

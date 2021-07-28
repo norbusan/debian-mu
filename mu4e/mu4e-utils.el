@@ -7,18 +7,18 @@
 
 ;; This file is not part of GNU Emacs.
 
-;; GNU Emacs is free software: you can redistribute it and/or modify
+;; mu4e is free software: you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
 ;; the Free Software Foundation, either version 3 of the License, or
 ;; (at your option) any later version.
 
-;; GNU Emacs is distributed in the hope that it will be useful,
+;; mu4e is distributed in the hope that it will be useful,
 ;; but WITHOUT ANY WARRANTY; without even the implied warranty of
 ;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with mu4e.  If not, see <http://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -26,11 +26,11 @@
 
 ;;; Code:
 
-(eval-when-compile
-  (require 'org nil 'noerror))
+(require 'org)
 (require 'cl-lib)
 (require 'cl-seq nil 'noerror)
 (require 'mu4e-vars)
+(require 'mu4e-message)
 (require 'mu4e-meta)
 (require 'mu4e-lists)
 (require 'doc-view)
@@ -45,39 +45,17 @@
 (declare-function mu4e~proc-mkdir     "mu4e-proc")
 (declare-function mu4e~proc-running-p "mu4e-proc")
 
+(declare-function mu4e-message-field-at-point     "mu4e-proc")
+(declare-function mu4e~proc-running-p "mu4e-proc")
+
+(declare-function mu4e~main-view          "mu4e-main")
+
 (declare-function mu4e~context-autoswitch "mu4e-context")
 (declare-function mu4e-context-determine  "mu4e-context")
 (declare-function mu4e-context-vars       "mu4e-context")
+(declare-function mu4e-context-current    "mu4e-context")
+
 (declare-function show-all "org")
-
-;; the following is taken from org.el; we copy it here since we don't want to
-;; depend on org-mode directly (it causes byte-compilation errors) TODO: a
-;; cleaner solution....
-(defconst mu4e~ts-regexp0
-  (concat
-   "\\(\\([0-9]\\{4\\}\\)-\\([0-9]\\{2\\}\\)-\\([0-9]\\{2\\}\\)"
-   "\\( +[^]+0-9>\r\n -]+\\)?\\( +\\([0-9]\\{1,2\\}\\):"
-   "\\([0-9]\\{2\\}\\)\\)?\\)")
-  "Regular expression matching time strings for analysis.
-This one does not require the space after the date, so it can be
-used on a string that terminates immediately after the date.")
-
-(defun mu4e-parse-time-string (s &optional nodefault)
-  "Parse the standard Org-mode time string.
-This should be a lot faster than the normal `parse-time-string'.
-If time is not given, defaults to 0:00.  However, with optional
-NODEFAULT, hour and minute fields will be nil if not given."
-  (if (string-match mu4e~ts-regexp0 s)
-      (list 0
-            (if (or (match-beginning 8) (not nodefault))
-                (string-to-number (or (match-string 8 s) "0")))
-            (if (or (match-beginning 7) (not nodefault))
-                (string-to-number (or (match-string 7 s) "0")))
-            (string-to-number (match-string 4 s))
-            (string-to-number (match-string 3 s))
-            (string-to-number (match-string 2 s))
-            nil nil nil)
-    (mu4e-error "Not a standard mu4e time string: %s" s)))
 
 ;;; Various
 
@@ -88,15 +66,23 @@ NODEFAULT, hour and minute fields will be nil if not given."
     (kill-new path)
     (mu4e-message "Saved '%s' to kill-ring" path)))
 
-(defun mu4e-user-mail-address-p (addr)
-  "If ADDR is one of user's e-mail addresses return t, nil otherwise.
-User's addresses are set in `(mu4e-personal-addresses)'.  Case
-insensitive comparison is used."
-  (when (and addr (mu4e-personal-addresses)
-             (cl-find addr (mu4e-personal-addresses)
-                      :test (lambda (s1 s2)
-                              (eq t (compare-strings s1 nil nil s2 nil nil t)))))
-    t))
+(defun mu4e-personal-address-p (addr)
+  "Is ADDR a personal address?
+Evaluate to nil if ADDR matches any of the personal addresses.
+Uses (mu4e-personal-addresses) for the addresses with both the plain
+addresses and /regular expressions/."
+  (when addr
+    (seq-find
+     (lambda (m)
+       (if (string-match "/\\(.*\\)/" m)
+           (let ((rx (match-string 1 m))
+                 (case-fold-search t))
+             (if (string-match rx addr) t nil))
+         (eq t (compare-strings addr nil nil m nil nil 'case-insensitive))))
+     (mu4e-personal-addresses))))
+
+(define-obsolete-function-alias 'mu4e-user-mail-address-p
+  'mu4e-personal-address-p "1.5.5")
 
 (defmacro with~mu4e-context-vars (context &rest body)
   "Evaluate BODY, with variables let-bound for CONTEXT (if any).
@@ -554,8 +540,13 @@ Or go to the top level if there is none."
     (with-current-buffer  (mu4e-get-headers-buffer)
       mu4e~headers-last-query)))
 
+(defvar gnus-article-buffer) ;; Fix byte-compiler warning.
 (defun mu4e-get-view-buffer ()
-  (get-buffer mu4e~view-buffer-name))
+  "Get the view buffer, if any."
+  (get-buffer
+   (if mu4e-view-use-old
+       mu4e~view-buffer-name
+     gnus-article-buffer)))
 
 (defun mu4e-get-headers-buffer ()
   (get-buffer mu4e~headers-buffer-name))
@@ -681,9 +672,8 @@ process."
 (defun mu4e~update-contacts (contacts &optional tstamp)
   "Receive a sorted list of CONTACTS.
 Each of the contacts has the form
-  (FULL_EMAIL_ADDRESS . RANK) and fill the hash
-`mu4e~contacts' with it, with each contact mapped to an integer
-for their ranking.
+  (FULL_EMAIL_ADDRESS . RANK) and fill `mu4e~contacts-hash' with
+it, with each contact mapped to an integer for their ranking.
 
 This is used by the completion function in mu4e-compose."
   ;; We have our nicely sorted list, map them to a list
@@ -691,24 +681,26 @@ This is used by the completion function in mu4e-compose."
   ;; to sort them there. It would have been so much easier if emacs
   ;; allowed us to use the sorted-list as-is, but no such luck.
   (let ((n 0))
-    (unless mu4e~contacts
-      (setq mu4e~contacts (make-hash-table :test 'equal :weakness nil
+    (unless mu4e~contacts-hash
+      (setq mu4e~contacts-hash (make-hash-table :test 'equal :weakness nil
                                            :size (length contacts))))
     (dolist (contact contacts)
       (cl-incf n)
-      (let ((address
-             (if (functionp mu4e-contact-process-function)
-                 (funcall mu4e-contact-process-function (car contact))
-               (car contact))))
+      (let* ((address (plist-get contact :address))
+             (address
+              (if (functionp mu4e-contact-process-function)
+                  (funcall mu4e-contact-process-function address)
+                address)))
         (when address ;; note the explicit deccode; the strings we get are  utf-8,
           ;; but emacs doesn't know yet.
-          (puthash (decode-coding-string address 'utf-8) (cdr contact) mu4e~contacts))))
+          (puthash (decode-coding-string address 'utf-8)
+                   (plist-get contact :rank) mu4e~contacts-hash))))
 
     (setq mu4e~contacts-tstamp (or tstamp "0"))
 
     (unless (zerop n)
       (mu4e-index-message "Contacts updated: %d; total %d"
-                          n (hash-table-count mu4e~contacts)))))
+                          n (hash-table-count mu4e~contacts-hash)))))
 
 (defun mu4e-contacts-info ()
   "Display information about the cache used for contacts
@@ -723,12 +715,19 @@ completion; for testing/debugging."
     (insert (format "only addresses seen after: %s\n"
                     (or mu4e-compose-complete-only-after "no restrictions")))
 
-    (when mu4e~contacts
+    (when mu4e~contacts-hash
       (insert (format "number of contacts cached: %d\n\n"
-                      (hash-table-count mu4e~contacts)))
-      (maphash (lambda(key _val)
-                 (insert (format "%S\n" key))) mu4e~contacts)))
-  (pop-to-buffer "*mu4e-contacts-info*"))
+                      (hash-table-count mu4e~contacts-hash)))
+      (let ((contacts))
+        (maphash (lambda (addr rank)
+                   (setq contacts (cons (cons rank addr) contacts)))
+                 mu4e~contacts-hash)
+        (setq contacts (sort contacts
+                             (lambda(cell1 cell2) (< (car cell1) (car cell2)))))
+        (dolist (contact contacts)
+          (insert (format "%s\n" (cdr contact))))))
+
+    (pop-to-buffer "*mu4e-contacts-info*")))
 
 (defun mu4e~check-requirements ()
   "Check for the settings required for running mu4e."
@@ -798,6 +797,28 @@ nothing."
                          (lambda () (mu4e-update-mail-and-index
                                      mu4e-index-update-in-background)))))))
 
+(defun mu4e-last-query-results ()
+  "Get the results (counts) of the last cached queries.
+
+The cached queries are the bookmark / maildir queries that are
+used to populated the read/unread counts in the main view. They
+are refreshed when calling `(mu4e)', i.e., when going to the main
+view.
+
+The results are a list of elements of the form
+   (:query \"query string\"
+            :count  <total number matching count>
+            :unread <number of unread messages in count>)"
+  (plist-get mu4e~server-props :queries))
+
+
+(defun mu4e-last-query-result (query)
+  "Get the last result for some cached query, as per
+  `mu4e-bookmark-query-results' or nil if not found."
+  (cl-find-if
+   (lambda (elm) (string= (plist-get elm :query) query))
+   (mu4e-last-query-results)))
+
 
 (defun mu4e~start (&optional func)
   "If `mu4e-contexts' have been defined, but we don't have a
@@ -809,23 +830,25 @@ When successful, call FUNC (if non-nil) afterwards."
     (mu4e~context-autoswitch nil mu4e-context-policy))
   (setq mu4e-pong-func (lambda (info) (mu4e~pong-handler info func)))
   (mu4e~proc-ping
-   (mapcar
-    ;; send it a list of queries we'd like to see read/unread info for.
-    (lambda(bm) (plist-get bm :query))
-    (seq-filter (lambda (bm) ;; exclude bookmarks that are not strings,
-                  ;; and with these flags.
+   (mapcar ;; send it a list of queries we'd like to see read/unread info for
+    (lambda (bm)
+      (funcall (or mu4e-query-rewrite-function #'identity)
+               (plist-get bm :query)))
+    ;; exclude bookmarks that are not strings, and with certain flags
+    (seq-filter (lambda (bm)
                   (and (stringp (plist-get bm :query))
                        (not (or (plist-get bm :hide) (plist-get bm :hide-unread)))))
-                (mu4e-bookmarks))))
+                (append (mu4e-bookmarks)
+                        (mu4e~maildirs-with-query)))))
   ;; maybe request the list of contacts, automatically refreshed after
   ;; reindexing
-  (unless mu4e~contacts (mu4e~request-contacts-maybe)))
+  (unless mu4e~contacts-hash (mu4e~request-contacts-maybe)))
 
 (defun mu4e-clear-caches ()
   "Clear any cached resources."
   (setq
    mu4e-maildir-list nil
-   mu4e~contacts nil
+   mu4e~contacts-hash nil
    mu4e~contacts-tstamp "0"))
 
 (defun mu4e~stop ()
@@ -838,11 +861,41 @@ When successful, call FUNC (if non-nil) afterwards."
   ;; kill all mu4e buffers
   (mapc
    (lambda (buf)
-     (with-current-buffer buf
-       (when (member major-mode
-                     '(mu4e-headers-mode mu4e-view-mode mu4e-main-mode))
-         (kill-buffer))))
+     ;; When using the Gnus-based viewer, the view buffer has the
+     ;; kill-buffer-hook function mu4e~view-kill-buffer-hook-fn which kills the
+     ;; mm-* buffers created by Gnus' article mode.  Those have been returned by
+     ;; `buffer-list' but might already be deleted in case the view buffer has
+     ;; been killed first.  So we need a `buffer-live-p' check here.
+     (when (buffer-live-p buf)
+       (with-current-buffer buf
+         (when (member major-mode
+                       '(mu4e-headers-mode mu4e-view-mode mu4e-main-mode))
+           (kill-buffer)))))
    (buffer-list)))
+
+(defun mu4e~maildirs-with-query ()
+  "Return a copy of `mu4e-maildirs-shortcuts' with :query populated.
+
+This is meant to be the exact same data structure as
+`mu4e-bookmarks'."
+  (cl-mapcar
+   (lambda (m)
+     (append
+      ;; we want to change the :maildir key to :name, and add a :query key
+      (list :name (plist-get m :maildir)
+            :query (format "maildir:\"%s\"" (plist-get m :maildir)))
+      ;; next we want to append any other keys to our previous list (e.g. :hide,
+      ;; :key, etc) but skipping :maildir (since it's renamed to :name)
+      (cl-loop for (key value) on m by 'cddr
+               when (not (equal key :maildir))
+               append (list key value))))
+   (mu4e-maildir-shortcuts)))
+
+(defun mu4e~longest-of-maildirs-and-bookmarks ()
+  "Return the length of longest name of bookmarks and maildirs."
+  (cl-loop for b in (append (mu4e-bookmarks)
+                            (mu4e~maildirs-with-query))
+           maximize (string-width (plist-get b :name))))
 
 
 ;;; Indexing & Updating
@@ -999,14 +1052,26 @@ in the background; otherwise, pop up a window."
   "Max number of characters to keep around in the log buffer.")
 (defconst mu4e~log-buffer-name "*mu4e-log*"
   "*internal* Name of the logging buffer.")
+
+(defun mu4e~get-log-buffer ()
+  "Fetch (and maybe create) the log buffer."
+  (unless (get-buffer mu4e~log-buffer-name)
+    (with-current-buffer (get-buffer-create mu4e~log-buffer-name)
+      (view-mode)
+
+      (when (fboundp 'so-long-mode)
+        (unless (eq major-mode 'so-long-mode)
+          (eval '(so-long-mode))))
+
+      (setq buffer-undo-list t)))
+  mu4e~log-buffer-name)
+
 (defun mu4e-log (type frm &rest args)
   "Write a message of TYPE with format-string FRM and ARGS in
 *mu4e-log* buffer, if the variable mu4e-debug is non-nil. Type is
 either 'to-server, 'from-server or 'misc. This function is meant for debugging."
   (when mu4e-debug
-    (with-current-buffer (get-buffer-create mu4e~log-buffer-name)
-      (view-mode)
-      (setq buffer-undo-list t)
+    (with-current-buffer (mu4e~get-log-buffer)
       (let* ((inhibit-read-only t)
              (tstamp (propertize (format-time-string "%Y-%m-%d %T.%3N"
                                                      (current-time))
@@ -1019,21 +1084,22 @@ either 'to-server, 'from-server or 'misc. This function is meant for debugging."
                 (error       'font-lock-warning-face)
                 (otherwise   (mu4e-error "Unsupported log type"))))
              (msg (propertize (apply 'format frm args) 'face msg-face)))
-        (goto-char (point-max))
-        (insert tstamp
-                (cl-case type
-                  (from-server " <- ")
-                  (to-server   " -> ")
-                  (error       " !! ")
-                  (otherwise   " "))
-                msg "\n")
+        (save-excursion
+          (goto-char (point-max))
+          (insert tstamp
+                  (cl-case type
+                    (from-server " <- ")
+                    (to-server   " -> ")
+                    (error       " !! ")
+                    (otherwise   " "))
+                  msg "\n")
 
-        ;; if `mu4e-log-max-lines is specified and exceeded, clearest the oldest
-        ;; lines
-        (when (> (buffer-size) mu4e~log-max-size)
-          (goto-char (- (buffer-size) mu4e~log-max-size))
-          (beginning-of-line)
-          (delete-region (point-min) (point)))))))
+          ;; if `mu4e-log-max-lines is specified and exceeded, clearest the oldest
+          ;; lines
+          (when (> (buffer-size) mu4e~log-max-size)
+            (goto-char (- (buffer-size) mu4e~log-max-size))
+            (beginning-of-line)
+            (delete-region (point-min) (point))))))))
 
 (defun mu4e-toggle-logging ()
   "Toggle between enabling/disabling debug-mode (in debug-mode,
@@ -1049,6 +1115,7 @@ mu4e logs some of its internal workings to a log-buffer. See
 (defun mu4e-show-log ()
   "Visit the mu4e debug log."
   (interactive)
+  (unless mu4e-debug (mu4e-toggle-logging))
   (let ((buf (get-buffer mu4e~log-buffer-name)))
     (unless (buffer-live-p buf)
       (mu4e-warn "No debug log available"))
@@ -1092,23 +1159,38 @@ This includes expanding e.g. 3-5 into 3,4,5.  If the letter
 (defvar mu4e-imagemagick-identify "identify"
   "Name/path of the Imagemagick 'identify' program.")
 
+(defun mu4e~image-width-scale (width height max_width max_height)
+  "Returns a width to use for proportional image scaling
+to satisfy both MAX_WIDTH and MAX_HEIGHT restrictions."
+  (floor
+   (if (<= width max_width)
+       (if (<= height max_height)
+           width                                  ; both width and height ok, just return width
+         (* (/ max_height (float height)) width)) ; height is too large, scale width by hmax/h
+     (if (<= height max_height)
+         max_width                                ; width is too large, return max_width as scaling
+       (let ((width_heightscale (* (/ max_height (float height)) width)))
+         (min max_width width_heightscale))))))    ; both too large, return smallest width
+
 (defun mu4e-display-image (imgpath &optional maxwidth maxheight)
   "Display image IMG at point; optionally specify MAXWIDTH and
 MAXHEIGHT. Function tries to use imagemagick if available (ie.,
-emacs was compiled with inmagemagick support); otherwise MAXWIDTH
+emacs was compiled with imagemagick support); otherwise MAXWIDTH
 and MAXHEIGHT are ignored."
   (let* ((have-im (and (fboundp 'imagemagick-types)
                        (imagemagick-types))) ;; hmm, should check for specific type
          (identify (and have-im maxwidth
                         (executable-find mu4e-imagemagick-identify)))
-         (props (and identify (shell-command-to-string
-                               (format "%s -format '%%w' %s"
-                                       identify (shell-quote-argument imgpath)))))
-         (width (and props (string-to-number props)))
+         (props (and identify (mapcar 'string-to-number
+                                      (split-string (shell-command-to-string
+                                                     (format "%s -format '%%w %%h' %s"
+                                                             identify (shell-quote-argument imgpath)))))))
+         (width (and props (car props)))
+         (height (and props (car (cdr props))))
+
          (img (if have-im
-                  (if (> (or width 0) (or maxwidth 0))
-                      (create-image imgpath 'imagemagick nil :width maxwidth)
-                    (create-image imgpath 'imagemagick))
+                  (create-image imgpath 'imagemagick nil
+                                :width (mu4e~image-width-scale width height maxwidth maxheight))
                 (create-image imgpath))))
     (when img
       (save-excursion
@@ -1143,7 +1225,7 @@ displaying it). Do _not_ bury the current buffer, though."
   after PROMPT. Formats are all that are accepted by
   `parse-time-string'."
   (let ((timestr (read-string (mu4e-format "%s" prompt))))
-    (apply 'encode-time (mu4e-parse-time-string timestr))))
+    (apply 'encode-time (org-parse-time-string timestr))))
 
 
 ;;; Mu4e-org-mode
@@ -1220,17 +1302,9 @@ the view and compose modes and will color each signature in digest messages adhe
   "Quote a string to be used literally in the modeline. The
 string will be shortened to fit if its length exceeds
 `mu4e-modeline-max-width'."
-  (let* (;; Adjust the max-width to include the length of the " ..." string
-         (width (let ((w (- mu4e-modeline-max-width 4)))
-                  (if (> w 0) w 0)))
-         (str (let* ((l (length str))
-                     ;; If the input str is longer than the max-width, then will shorten
-                     (w (if (> l width) width l))
-                     ;; If the input str is longer than the max-width, then append " ..."
-                     (a (if (> l width) " ..." "")))
-                (concat (substring str 0 w) a))))
-    ;; Escape the % character
-    (replace-regexp-in-string "%" "%%" str t t)))
+  (replace-regexp-in-string
+   "%" "%%"
+   (truncate-string-to-width str mu4e-modeline-max-width 0 nil t)))
 
 (defun mu4e~active-composition-buffers ()
   "Return all active mu4e composition buffers"
@@ -1241,6 +1315,65 @@ string will be shortened to fit if its length exceeds
         (when (eq major-mode 'mu4e-compose-mode)
           (push (buffer-name buffer) buffers))))
     (nreverse buffers)))
+
+
+;;
+;; Loading messages
+;;
+
+(defvar mu4e-loading-mode-map nil  "Keymap for *mu4e-loading* buffers.")
+(unless mu4e-loading-mode-map
+  (setq mu4e-loading-mode-map
+        (let ((map (make-sparse-keymap)))
+          (define-key map "n" 'ignore)
+          (define-key map "p" 'ignore)
+          (define-key map "q"
+            (lambda()(interactive)
+              (if (eq mu4e-split-view 'single-window)
+                  'kill-buffer
+                'kill-buffer-and-window)))
+          map)))
+(fset 'mu4e-loading-mode-map mu4e-loading-mode-map)
+
+(define-derived-mode mu4e-loading-mode special-mode
+  "mu4e:loading"
+  (use-local-map mu4e-loading-mode-map)
+  (let ((inhibit-read-only t))
+    (erase-buffer)
+    (insert (propertize "Loading message..."
+                        'face 'mu4e-system-face 'intangible t))))
+
+;;
+;; Bug Reference mode support
+;;
+
+;; This is Emacs 28 stuff but there is no need to guard it with some (f)boundp
+;; checks (which would return nil if bug-reference.el is not loaded before
+;; mu4e) since the function definition doesn't hurt and `add-hook' works fine
+;; for not yet defined variables (by creating them).
+(declare-function bug-reference-maybe-setup-from-mail "ext:bug-reference")
+(defun mu4e-view--try-setup-bug-reference-mode ()
+  "Try to guess bug-reference setup from the current mu4e mail.
+Looks at the maildir and the mail headers List, List-Id, Maildir,
+To, From, Cc, and Subject and tries to guess suitable values for
+`bug-reference-bug-regexp' and `bug-reference-url-format' by
+matching the maildir name against GROUP-REGEXP and each header
+value against HEADER-REGEXP in
+`bug-reference-setup-from-mail-alist'."
+  (when (derived-mode-p 'mu4e-view-mode)
+    (let (header-values)
+      (save-excursion
+        (goto-char (point-min))
+        (dolist (field '("list" "list-id" "to" "from" "cc" "subject"))
+          (let ((val (mail-fetch-field field)))
+            (when val
+              (push val header-values)))))
+      (bug-reference-maybe-setup-from-mail
+       (mail-fetch-field "maildir")
+       header-values))))
+
+(add-hook 'bug-reference-auto-setup-functions
+          #'mu4e-view--try-setup-bug-reference-mode)
 
 ;;; _
 (provide 'mu4e-utils)

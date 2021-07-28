@@ -7,18 +7,18 @@
 
 ;; This file is not part of GNU Emacs.
 
-;; GNU Emacs is free software: you can redistribute it and/or modify
+;; mu4e is free software: you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
 ;; the Free Software Foundation, either version 3 of the License, or
 ;; (at your option) any later version.
 
-;; GNU Emacs is distributed in the hope that it will be useful,
+;; mu4e is distributed in the hope that it will be useful,
 ;; but WITHOUT ANY WARRANTY; without even the implied warranty of
 ;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with mu4e.  If not, see <http://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -28,16 +28,18 @@
 
 (require 'cl-lib)
 (require 'mu4e-vars)
-(require 'mu4e-utils)
 (require 'flow-fill)
+(require 'shr)
+
+(declare-function mu4e-error "mu4e-utils")
+(declare-function mu4e-warn  "mu4e-utils")
+(declare-function mu4e-personal-address-p "mu4e-utils")
+(declare-function mu4e-make-temp-file  "mu4e-utils")
 
 (defvar mu4e~view-message)
 (defvar shr-inhibit-images)
 
-(defcustom mu4e-html2text-command
-  (if (fboundp 'shr-insert-document)
-      'mu4e-shr2text
-    (progn (require 'html2text) 'html2text))
+(defcustom mu4e-html2text-command 'mu4e-shr2text
   "Either a shell command or a function that converts from html to plain text.
 
 If it is a shell command, the command reads html from standard
@@ -55,9 +57,7 @@ and expected to transform this (like the `html2text' function).
 
 In all cases, the output is expected to be in UTF-8 encoding.
 
-Newer emacs has the shr renderer, and when it's available
-conversion defaults to `mu4e-shr2text'; otherwise, the default is
-emacs' built-in `html2text' function."
+The default is to use the shr renderer."
   :type '(choice string function)
   :group 'mu4e-view)
 
@@ -245,7 +245,8 @@ replace with."
   (with-temp-buffer
     (insert body)
     (goto-char (point-min))
-    (while (re-search-forward "[ ]" nil t)
+    (while (re-search-forward "[
+ ]" nil t)
       (replace-match
        (cond
         ((string= (match-string 0) "") "'")
@@ -254,7 +255,7 @@ replace with."
     (buffer-string)))
 
 (defun mu4e-message-contact-field-matches (msg cfield rx)
-  "Does MSG's contact-field CFIELD matche rx?
+  "Does MSG's contact-field CFIELD match rx?
 Check if any of the of the CFIELD in MSG matches RX. I.e.
 anything in field CFIELD (either :to, :from, :cc or :bcc, or a
 list of those) of msg MSG matches (with their name or e-mail
@@ -273,26 +274,37 @@ expressions, in which case any of those are tried for a match."
         ;; not a list, check the rx
         (cl-find-if
          (lambda (ct)
-           (let ((name (car ct)) (email (cdr ct)))
+           (let ((name (car ct)) (email (cdr ct))
+                 ;; the 'rx' may be some `/rx/` from mu4e-personal-addresses;
+                 ;; so let's detect and extract in that case.
+                 (rx (if (string-match-p  "^\\(.*\\)/$" rx)
+                         (substring rx  1 -1) rx)))
              (or
               (and name  (string-match rx name))
               (and email (string-match rx email)))))
          (mu4e-message-field msg cfield))))))
 
 (defun mu4e-message-contact-field-matches-me (msg cfield)
-  "Does contact-field CFIELD in MSG match me?
-Checks whether any of the of the contacts in field
-CFIELD (either :to, :from, :cc or :bcc) of msg MSG matches *me*,
-that is, any of the e-mail address in
-`(mu4e-personal-addresses)'. Returns the contact cell that
-matched, or nil."
-  (cl-find-if
-   (lambda (cc-cell)
-     (cl-member-if
-      (lambda (addr)
-        (string= (downcase addr) (downcase (cdr cc-cell))))
-      (mu4e-personal-addresses)))
-   (mu4e-message-field msg cfield)))
+  "Does contact-field CFIELD in MSG match me?  Checks whether any
+of the of the contacts in field CFIELD (either :to, :from, :cc or
+:bcc) of msg MSG matches *me*, that is, any of the addresses for
+which `mu4e-personal-address-p' return t. Returns the contact
+cell that matched, or nil."
+  (cl-find-if (lambda (cell) (mu4e-personal-address-p (cdr cell)))
+                (mu4e-message-field msg cfield)))
+
+(defun mu4e-message-sent-by-me (msg)
+  "Is this message (to be) sent by me?
+Checks if the from field matches user's personal addresses."
+  (mu4e-message-contact-field-matches-me msg :from))
+
+(defun mu4e-message-personal-p (msg)
+  "Does message have user's personal address in any of the
+contact fields?"
+  (cl-some
+   (lambda (field)
+     (mu4e-message-contact-field-matches-me msg field))
+   '(:from :to :cc :bcc)))
 
 (defsubst mu4e-message-part-field  (msgpart field)
   "Get some FIELD from MSGPART.

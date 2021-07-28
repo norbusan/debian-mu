@@ -18,6 +18,7 @@
 */
 
 #include "mu-command-parser.hh"
+#include "mu-error.hh"
 #include "mu-utils.hh"
 
 #include <iostream>
@@ -25,26 +26,22 @@
 
 using namespace Mu;
 using namespace Command;
-using namespace Sexp;
-
-static Mu::Error
-command_error(const std::string& msg)
-{
-        return Mu::Error(Error::Code::Command,  msg);
-}
-
 
 void
-Command::invoke(const Command::CommandMap& cmap, const Node& call)
+Command::invoke(const Command::CommandMap& cmap, const Sexp& call)
 {
-        if (call.type != Type::List || call.children.empty() ||
-            call.children[0].type != Type::Symbol)
-                throw command_error("call must be a list starting with a symbol");
+        if (!call.is_call()) {
+                throw Mu::Error{Error::Code::Command,
+                                "expected call-sexpr but got %s",
+                                call.to_sexp_string().c_str()};
+        }
 
-        const auto& params{call.children};
-        const auto cmd_it = cmap.find(params[0].value);
+        const auto& params{call.list()};
+        const auto cmd_it = cmap.find(params.at(0).value());
         if (cmd_it == cmap.end())
-                throw command_error("unknown command '" + params[0].value + "'");
+                throw Mu::Error{Error::Code::Command,
+                                "unknown command in call %s",
+                                call.to_sexp_string().c_str()};
 
         const auto& cinfo{cmd_it->second};
 
@@ -56,10 +53,9 @@ Command::invoke(const Command::CommandMap& cmap, const Node& call)
                 // calls used keyword-parameters, e.g.
                 //    (my-function :bar 1 :cuux "fnorb")
                 // so, we're looking for the odd-numbered parameters.
-                const auto param_it = [&]() {
+                const auto param_it = [&]()->Sexp::Seq::const_iterator {
                         for (size_t i = 1; i < params.size(); i += 2)
-                                if (params[i].type == Type::Symbol &&
-                                    params[i].value == ':' + argname)
+                                if (params.at(i).is_symbol() && params.at(i).value() == argname)
                                         return params.begin() + i + 1;
 
                         return params.end();
@@ -69,64 +65,78 @@ Command::invoke(const Command::CommandMap& cmap, const Node& call)
                 // it's an error when a required parameter is missing.
                 if (param_it == params.end()) {
                         if (arginfo.required)
-                                throw command_error("missing required parameter '" + argname + "'");
+                                throw Mu::Error{Error::Code::Command,
+                                                "missing required parameter %s in call %s",
+                                                argname.c_str(), call.to_sexp_string().c_str()};
                         continue; // not required
                 }
 
                 // the types must match, but the 'nil' symbol is acceptable as
                 // "no value"
-                if (param_it->type != arginfo.type &&
-                    !(param_it->type == Type::Symbol && param_it->value == "nil"))
-                        throw command_error("parameter '" + argname + "' expects type " +
-                                            to_string(arginfo.type) +
-                                            " but got " + to_string(param_it->type));
+                if (param_it->type() != arginfo.type && !(param_it->is_nil()))
+                        throw Mu::Error{Error::Code::Command,
+                                        "parameter %s expects type %s, but got %s in call %s",
+                                        argname.c_str(), to_string(arginfo.type).c_str(),
+                                        to_string(param_it->type()).c_str(),
+                                        call.to_sexp_string().c_str()};
         }
 
         // all passed parameters must be known
         for (size_t i = 1; i < params.size(); i += 2) {
                 if (std::none_of(cinfo.args.begin(), cinfo.args.end(),
-                                 [&](auto&& arg) {return params[i].value == ":" + arg.first;}))
-                        throw command_error("unknown parameter '" + params[i].value + "'");
+                                 [&](auto&& arg) {return params.at(i).value() == arg.first;}))
+                        throw Mu::Error{Error::Code::Command,
+                                        "unknown parameter %s in call %s",
+                                        params.at(i).value().c_str(), call.to_sexp_string().c_str()};
         }
 
         if (cinfo.handler)
                 cinfo.handler(params);
 }
 
-static Parameters::const_iterator
+static Sexp::Seq::const_iterator
 find_param_node (const Parameters& params, const std::string& argname)
 {
+        if (params.empty())
+                throw Error(Error::Code::InvalidArgument,
+                            "params must not be empty");
+
+        if (argname.empty() || argname.at(0) != ':')
+                throw Error(Error::Code::InvalidArgument,
+                            "property key must start with ':' but got '%s')",
+                            argname.c_str());
+
         for (size_t i = 1; i < params.size(); i += 2) {
                 if (i + 1 != params.size() &&
-                    params[i].type == Type::Symbol &&
-                    params[i].value == ':' + argname)
+                    params.at(i).is_symbol() && params.at(i).value() == argname)
                         return params.begin() + i + 1;
         }
 
         return params.end();
 }
 
-constexpr auto Nil = "nil";
 
-static bool
-is_nil(const Node& node)
+static Error
+wrong_type (Sexp::Type expected, Sexp::Type got)
 {
-        return node.type == Type::Symbol && node.value == Nil;
+        return Error(Error::Code::InvalidArgument,
+                     "expected <%s> but got <%s>",
+                     to_string(expected).c_str(),
+                     to_string(got).c_str());
 }
+
 
 const std::string&
 Command::get_string_or (const Parameters& params, const std::string& argname,
                         const std::string& alt)
 {
         const auto it = find_param_node (params, argname);
-        if (it == params.end() || is_nil(*it))
+        if (it == params.end() || it->is_nil())
                 return alt;
-        else if (it->type != Type::String)
-                throw Error(Error::Code::InvalidArgument, "expected <string> but got %s (value: '%s')",
-                            to_string(it->type).c_str(),
-                            it->value.c_str());
-
-        return it->value;
+        else if (!it->is_string())
+                throw wrong_type(Sexp::Type::String, it->type());
+        else
+                return it->value();
 }
 
 const std::string&
@@ -134,14 +144,12 @@ Command::get_symbol_or (const Parameters& params, const std::string& argname,
                         const std::string& alt)
 {
         const auto it = find_param_node (params, argname);
-        if (it == params.end() || is_nil(*it))
+        if (it == params.end() || it->is_nil())
                 return alt;
-        else if (it->type != Type::Symbol)
-                throw Error(Error::Code::InvalidArgument, "expected <symbol> but got %s (value: '%s')",
-                            to_string(it->type).c_str(),
-                            it->value.c_str());
-
-        return it->value;
+        else if (!it->is_symbol())
+                throw wrong_type(Sexp::Type::Symbol, it->type());
+        else
+                return it->value();
 }
 
 
@@ -150,13 +158,12 @@ Command::get_int_or (const Parameters& params, const std::string& argname,
                      int alt)
 {
         const auto it = find_param_node (params, argname);
-        if (it == params.end() || is_nil(*it))
+        if (it == params.end() || it->is_nil())
                 return alt;
-        else if (it->type != Type::Integer)
-                throw Error(Error::Code::InvalidArgument, "expected <integer> but got %s",
-                            to_string(it->type).c_str());
+        else if (!it->is_number())
+                throw wrong_type(Sexp::Type::Number, it->type());
         else
-                return ::atoi(it->value.c_str());
+                return ::atoi(it->value().c_str());
 }
 
 bool
@@ -166,30 +173,26 @@ Command::get_bool_or (const Parameters& params, const std::string& argname,
         const auto it = find_param_node (params, argname);
         if (it == params.end())
                 return alt;
-        else if (it->type != Type::Symbol)
-                throw Error(Error::Code::InvalidArgument, "expected <symbol> but got %s",
-                            to_string(it->type).c_str());
+        else if (!it->is_symbol())
+                throw wrong_type(Sexp::Type::Symbol, it->type());
         else
-                return it->value != Nil;
+                return it->is_nil() ? false : true;
 }
 
 std::vector<std::string>
 Command::get_string_vec  (const Parameters& params, const std::string& argname)
 {
         const auto it = find_param_node (params, argname);
-        if (it == params.end() || is_nil(*it))
+        if (it == params.end() || it->is_nil())
                 return {};
-        else if (it->type != Type::List)
-                throw Error(Error::Code::InvalidArgument, "expected <list> but got %s",
-                            to_string(it->type).c_str());
+        else if (!it->is_list())
+                throw wrong_type(Sexp::Type::List, it->type());
 
         std::vector<std::string> vec;
-        for (const auto& n: it->children) {
-                if (n.type != Type::String)
-                        throw Error(Error::Code::InvalidArgument,
-                                    "expected string element but got %s",
-                                    to_string(n.type).c_str());
-                vec.emplace_back (n.value);
+        for (const auto& n: it->list()) {
+                if (!n.is_string())
+                        throw wrong_type(Sexp::Type::String, n.type());
+                vec.emplace_back (n.value());
         }
 
         return vec;

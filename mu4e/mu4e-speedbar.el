@@ -55,11 +55,7 @@
 (defun mu4e-speedbar-install-variables ()
   "Install those variables used by speedbar to enhance mu4e."
   (add-hook 'mu4e-context-changed-hook
-            (lambda()
-              (when (buffer-live-p speedbar-buffer)
-                (with-current-buffer speedbar-buffer
-                  (let ((inhibit-read-only t))
-                    (mu4e-speedbar-buttons))))))
+            #'mu4e~speedbar-context-changed-hook-fn)
   (dolist (keymap
            '( mu4e-main-speedbar-key-map
               mu4e-headers-speedbar-key-map
@@ -69,10 +65,14 @@
       (define-key keymap "RET" 'speedbar-edit-line)
       (define-key keymap "e" 'speedbar-edit-line))))
 
-;; Make sure our special speedbar major mode is loaded
-(if (featurep 'speedbar)
-    (mu4e-speedbar-install-variables)
-  (add-hook 'speedbar-load-hook 'mu4e-speedbar-install-variables))
+(defun mu4e~speedbar-context-changed-hook-fn ()
+  (when (buffer-live-p speedbar-buffer)
+    (with-current-buffer speedbar-buffer
+      (let ((inhibit-read-only t))
+        (mu4e-speedbar-buttons)))))
+
+(with-eval-after-load 'speedbar
+  (mu4e-speedbar-install-variables))
 
 (defun mu4e~speedbar-render-maildir-list ()
   "Insert the list of maildirs in the speedbar."

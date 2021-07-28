@@ -49,6 +49,20 @@ G_BEGIN_DECLS
 char* mu_util_dir_expand (const char* path)
 	G_GNUC_MALLOC G_GNUC_WARN_UNUSED_RESULT;
 
+
+/**
+ * See g_canonicalize_filename
+ *
+ * @param filename
+ * @param relative_to
+ *
+ * @return
+ */
+char *mu_canonicalize_filename (const gchar *filename,
+                                const gchar *relative_to)
+        G_GNUC_MALLOC G_GNUC_WARN_UNUSED_RESULT;
+
+
 /**
  * guess the maildir; first try $MAILDIR; if it is unset or
  * non-existent, try ~/Maildir if both fail, return NULL
@@ -197,14 +211,11 @@ gboolean mu_util_play (const char *path, gboolean allow_local,
 gboolean mu_util_program_in_path (const char *prog);
 
 
-
 enum _MuFeature {
 	MU_FEATURE_GUILE     = 1 << 0,  /* do we support Guile 2.0? */
 	MU_FEATURE_GNUPLOT   = 1 << 1,  /* do we have gnuplot installed? */
-	MU_FEATURE_CRYPTO    = 1 << 2   /* do we support crypto (Gmime >= 2.6) */
 };
 typedef enum _MuFeature MuFeature;
-
 
 /**
  * Check whether mu supports some particular feature
@@ -257,15 +268,16 @@ enum {
 
 
 /**
- * get the d_type (as in direntry->d_type) for the file at path, using
-* lstat(3)
+ * get the d_type (as in direntry->d_type) for the file at path, using either
+ * stat(3) or lstat(3)
  *
  * @param path full path
+ * @param use_lstat whether to use lstat (otherwise use stat)
  *
- * @return DT_REG, DT_DIR, DT_LNK, or DT_UNKNOWN (other values are not
- * supported currently )
+ * @return DT_REG, DT_DIR, DT_LNK, or DT_UNKNOWN (other values are not supported
+ * currently )
  */
-unsigned char mu_util_get_dtype_with_lstat (const char *path);
+unsigned char mu_util_get_dtype (const char *path, gboolean use_lstat);
 
 
 /**
@@ -294,21 +306,7 @@ typedef gpointer XapianEnquire;
 	} while (0)
 
 
-
-/**
- * log something in the log file; note, we use G_LOG_LEVEL_INFO
- * for such messages
- */
-#define MU_WRITE_LOG(...)			\
-	G_STMT_START {				\
-		g_log (G_LOG_DOMAIN,		\
-		       G_LOG_LEVEL_INFO,	\
-		       __VA_ARGS__);		\
-	} G_STMT_END
-
-
-
-#define MU_G_ERROR_CODE(GE) ((GE)&&(*(GE))?(*(GE))->code:MU_ERROR)
+#define MU_G_ERROR_CODE(GE) ((GE)&&(*(GE))?(MuError)(*(GE))->code:MU_ERROR)
 
 
 enum _MuError {

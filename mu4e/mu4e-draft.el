@@ -7,18 +7,18 @@
 
 ;; This file is not part of GNU Emacs.
 
-;; GNU Emacs is free software: you can redistribute it and/or modify
+;; mu4e is free software: you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
 ;; the Free Software Foundation, either version 3 of the License, or
 ;; (at your option) any later version.
 
-;; GNU Emacs is distributed in the hope that it will be useful,
+;; mu4e is distributed in the hope that it will be useful,
 ;; but WITHOUT ANY WARRANTY; without even the implied warranty of
 ;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with mu4e.  If not, see <http://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -36,7 +36,7 @@
 
 (defcustom mu4e-compose-dont-reply-to-self nil
   "If non-nil, don't include self.
-\(that is, member of `(mu4e-personal-addresses)') in replies."
+(as decided by `mu4e-personal-address-p')"
   :type 'boolean
   :group 'mu4e-compose)
 
@@ -182,10 +182,7 @@ of the original, we simple copy the list form the original."
     (if mu4e-compose-dont-reply-to-self
         (cl-delete-if
          (lambda (to-cell)
-           (cl-member-if
-            (lambda (addr)
-              (string= (downcase addr) (downcase (cdr to-cell))))
-            (mu4e-personal-addresses)))
+           (mu4e-personal-address-p (cdr to-cell)))
          reply-to)
       reply-to)))
 
@@ -246,10 +243,7 @@ REPLY-ALL."
                 cc-lst
               (cl-delete-if
                (lambda (cc-cell)
-                 (cl-member-if
-                  (lambda (addr)
-                    (string= (downcase addr) (downcase (cdr cc-cell))))
-                  (mu4e-personal-addresses)))
+                 (mu4e-personal-address-p (cdr cc-cell)))
                cc-lst))))
       cc-lst)))
 
@@ -396,10 +390,10 @@ You can append flags."
                       (substring sysname
                                  (string-match "^[^.]+" sysname)
                                  (match-end 0))))))
-    (format "%s.%04x%04x%04x%04x.%s:2,%s"
+    (format "%s.%04x%04x%04x%04x.%s%s2,%s"
             (format-time-string "%s" (current-time))
             (random 65535) (random 65535) (random 65535) (random 65535)
-            hostname (or flagstr ""))))
+            hostname mu4e-maildir-info-delimiter (or flagstr ""))))
 
 (defun mu4e~draft-common-construct ()
   "Construct the common headers for each message."
@@ -529,11 +523,15 @@ will be the same as in the original."
   "The drafts-folder for this compose buffer.
 This is based on `mu4e-drafts-folder', which is evaluated once.")
 
-(defun mu4e~draft-open-file (path)
+(defun mu4e~draft-open-file (path switch-function)
   "Open the the draft file at PATH."
-  (if mu4e-compose-in-new-frame
-      (find-file-other-frame path)
-    (find-file path)))
+  (let ((buf (find-file-noselect path)))
+    (funcall (or 
+              switch-function
+              (and mu4e-compose-in-new-frame 'switch-to-buffer-other-frame)
+              'switch-to-buffer)
+             buf)))
+
 
 (defun mu4e~draft-determine-path (draft-dir)
   "Determines the path for a new draft file in DRAFT-DIR."
@@ -541,7 +539,7 @@ This is based on `mu4e-drafts-folder', which is evaluated once.")
           (mu4e-root-maildir) draft-dir (mu4e~draft-message-filename-construct "DS")))
 
 
-(defun mu4e-draft-open (compose-type &optional msg)
+(defun mu4e-draft-open (compose-type &optional msg switch-function)
   "Open a draft file for a message MSG.
 In case of a new message (when COMPOSE-TYPE is `reply', `forward'
  or `new'), open an existing draft (when COMPOSE-TYPE is `edit'),
@@ -561,7 +559,7 @@ will be created from either `mu4e~draft-reply-construct', or
        ;; full path, but we cannot really know 'drafts folder'... we make a
        ;; guess
        (setq draft-dir (mu4e~guess-maildir (mu4e-message-field msg :path)))
-       (mu4e~draft-open-file (mu4e-message-field msg :path)))
+       (mu4e~draft-open-file (mu4e-message-field msg :path) switch-function))
 
       (resend
        ;; case-2: copy some exisisting message to a draft message, then edit
@@ -569,7 +567,7 @@ will be created from either `mu4e~draft-reply-construct', or
        (setq draft-dir (mu4e~guess-maildir (mu4e-message-field msg :path)))
        (let ((draft-path (mu4e~draft-determine-path draft-dir)))
          (copy-file (mu4e-message-field msg :path) draft-path)
-         (mu4e~draft-open-file draft-path)))
+         (mu4e~draft-open-file draft-path switch-function)))
 
       ((reply forward new)
        ;; case-3: creating a new message; in this case, we can determine
@@ -581,7 +579,7 @@ will be created from either `mu4e~draft-reply-construct', or
                 (reply   (mu4e~draft-reply-construct msg))
                 (forward (mu4e~draft-forward-construct msg))
                 (new     (mu4e~draft-newmsg-construct)))))
-         (mu4e~draft-open-file draft-path)
+         (mu4e~draft-open-file draft-path switch-function)
          (insert initial-contents)
          (newline)
          ;; include the message signature (if it's set)

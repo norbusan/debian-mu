@@ -1,4 +1,4 @@
-;;; mu4e-icalendar.el --- reply to iCalendar meeting requests (part of mu4e)  -*- lexical-binding: t; -*- -*- lexical-binding: t -*-
+;;; mu4e-icalendar.el --- reply to iCalendar meeting requests (part of mu4e)  -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 2019- Christophe Troestler
 
@@ -9,18 +9,18 @@
 
 ;; This file is not part of GNU Emacs.
 
-;; GNU Emacs is free software: you can redistribute it and/or modify
+;; mu4e is free software: you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
 ;; the Free Software Foundation, either version 3 of the License, or
 ;; (at your option) any later version.
 
-;; GNU Emacs is distributed in the hope that it will be useful,
+;; mu4e is distributed in the hope that it will be useful,
 ;; but WITHOUT ANY WARRANTY; without even the implied warranty of
 ;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with mu4e.  If not, see <http://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -29,6 +29,16 @@
 ;; (mu4e-icalendar-setup)
 ;; Optional
 ;; (setq mu4e-icalendar-trash-after-reply t)
+
+;; By default, the original message is not cited.  However, if you
+;; would like to reply to it, the citation is in the kill-ring (paste
+;; it with `yank').
+
+;; To add the event to a diary file of your choice:
+;; (setq mu4e-icalendar-diary-file "/path/to/your/diary")
+;; If the file specified is not your main diary file, add
+;; #include "/path/to/your/diary"
+;; to you main diary file to display the events.
 
 ;; To enable optional iCalendar->Org sync functionality
 ;; NOTE: both the capture file and the headline(s) inside must already exist
@@ -42,8 +52,14 @@
 (require 'gnus-icalendar)
 (require 'cl-lib)
 
-(eval-when-compile (require 'mu4e-mark))
-(eval-when-compile (require 'mu4e-vars))
+(require 'mu4e-mark)
+(require 'mu4e-utils)
+(require 'mu4e-headers)
+(require 'mu4e-view)
+(require 'mu4e-vars)
+
+(when mu4e-view-use-old
+  (mu4e-error "iCalender support is not available with the old viewer"))
 
 ;;;###autoload
 (defun mu4e-icalendar-setup ()
@@ -60,16 +76,24 @@
               ("Decline" mu4e-icalendar-reply (,handle declined ,event)))))
       (cl-call-next-method event handle))))
 
+(defun mu4e~icalendar-has-email (email list)
+  "Check that EMAIL is in LIST."
+  (let ((email (downcase email)))
+    (cl-find-if (lambda (c) (let ((e (cdr c)))
+                              (and (stringp e) (string= email (downcase e)))))
+                list)))
+
 (defun mu4e-icalendar-reply (data)
   "Reply to the text/calendar event present in DATA."
   ;; Based on `gnus-icalendar-reply'.
   (let* ((handle (car data))
          (status (cadr data))
          (event (caddr data))
-         (gnus-icalendar-additional-identities (mu4e-personal-addresses))
-         (reply (gnus-icalendar-with-decoded-handle handle
-                                                    (gnus-icalendar-event-reply-from-buffer
-                                                     (current-buffer) status (gnus-icalendar-identities))))
+         (gnus-icalendar-additional-identities (mu4e-personal-addresses 'no-regexp))
+         (reply (gnus-icalendar-with-decoded-handle
+                 handle
+                 (gnus-icalendar-event-reply-from-buffer
+                  (current-buffer) status (gnus-icalendar-identities))))
          (msg (mu4e-message-at-point 'noerror))
          (charset (cdr (assoc 'charset (mm-handle-type handle)))))
     (when reply
@@ -81,25 +105,60 @@
               (replace-match "\\1\n \\2")
               (goto-char (line-beginning-position)))))
 
-        (with-current-buffer (get-buffer-create gnus-icalendar-reply-bufname)
-          (delete-region (point-min) (point-max))
-          (insert reply)
-          (fold-icalendar-buffer)
-          (when (and charset (string= (downcase charset) "utf-8"))
-            (decode-coding-region (point-min) (point-max) 'utf-8))
-          (mu4e-icalendar-reply-ical msg event status (buffer-name)))
+        (let ((ical-name  gnus-icalendar-reply-bufname))
+          (with-current-buffer (get-buffer-create ical-name)
+            (delete-region (point-min) (point-max))
+            (insert reply)
+            (fold-icalendar-buffer)
+            (when (and charset (string= (downcase charset) "utf-8"))
+              (decode-coding-region (point-min) (point-max) 'utf-8)))
+          ;; Compose the reply message.
+          (save-excursion
+            (let ((message-signature nil)
+                  (mu4e-compose-cite-function #'mu4e~icalendar-delete-citation)
+                  (mu4e-sent-messages-behavior 'delete)
+                  (mu4e-compose-reply-recipients 'sender)
+                  (ical-msg (cl-copy-list msg)))
+              ;; Make sure the reply is sent to the organiser.
+              (let* ((organizer (gnus-icalendar-event:organizer event))
+                     (reply-to (plist-get msg :reply-to))
+                     (name (or (caar reply-to)
+                               (caar (plist-get msg :from))))
+                     (email (cons name organizer)))
+                (unless (or (string= organizer "")
+                            (mu4e~icalendar-has-email organizer reply-to))
+                  (plist-put ical-msg :reply-to (cons email reply-to))))
+              (plist-put ical-msg :subject
+                         (concat (capitalize (symbol-name status))
+                                 ": " (gnus-icalendar-event:summary event)))
+              (mu4e~compose-handler
+               'reply ical-msg
+               `((:buffer-name ,ical-name
+                  :mime-type "text/calendar; method=REPLY; charset=utf-8")))
+              (message-goto-body)
+              (set-buffer-modified-p nil); not yet modified by user
+              (when mu4e-icalendar-trash-after-reply
+                ;; Override `mu4e-sent-handler' set by `mu4e-compose-mode' to
+                ;; also trash the message (thus must be appended to hooks).
+                (add-hook 'message-sent-hook
+                          (mu4e~icalendar-trash-message-hook msg)
+                          90 t)))))
 
         ;; Back in article buffer
         (setq-local gnus-icalendar-reply-status status)
+
         (when gnus-icalendar-org-enabled-p
-          (gnus-icalendar--update-org-event event status))
+          (if (gnus-icalendar-find-org-event-file event)
+              (gnus-icalendar--update-org-event event status)
+              (gnus-icalendar:org-event-save event status)))
         (when mu4e-icalendar-diary-file
           (mu4e~icalendar-insert-diary event status
                                        mu4e-icalendar-diary-file))))))
 
 (defun mu4e~icalendar-delete-citation ()
   "Function passed to `mu4e-compose-cite-function' to remove the citation."
-  (delete-region (point-min) (point-max)))
+  (message-cite-original-without-signature)
+  (kill-region (point-min) (point-max)))
 
 (defun mu4e~icalendar-trash-message (original-msg)
   "Trash the message ORIGINAL-MSG and move to the next one."
@@ -119,46 +178,9 @@
         (or (mu4e-view-headers-next)
             (kill-buffer-and-window))))))
 
-(defun mu4e-icalendar-reply-ical (original-msg event status buffer-name)
-  "Reply to ORIGINAL-MSG containing invitation EVENT with STATUS.
-See `gnus-icalendar-event-reply-from-buffer' for the possible
-STATUS values.  BUFFER-NAME is the name of the buffer holding the
-response in icalendar format."
-  (let ((message-signature nil))
-    (let ((mu4e-compose-cite-function #'mu4e~icalendar-delete-citation)
-          (mu4e-sent-messages-behavior 'delete)
-          (mu4e-compose-reply-recipients 'sender))
-      (mu4e~compose-handler 'reply original-msg))
-    ;; Make sure the recipient is the organizer
-    (let ((organizer (gnus-icalendar-event:organizer event)))
-      (unless (string= organizer "")
-        (message-remove-header "To")
-        (message-goto-to)
-        (insert organizer)))
-    ;; Not (message-goto-body) to possibly skip mll sign directive
-    ;; inserted by `mu4e-compose-mode-hook':
-    (goto-char (point-max))
-    (mml-insert-multipart "alternative")
-    (mml-insert-part "text/plain")
-    (let ((reply-event (gnus-icalendar-event-from-buffer
-                        buffer-name (mu4e-personal-addresses))))
-      (insert (gnus-icalendar-event->gnus-calendar reply-event status)))
-    (forward-line 1); move past closing tag
-    (mml-attach-buffer buffer-name "text/calendar; method=REPLY; charset=utf-8")
-    (message-remove-header "Subject")
-    (message-goto-subject)
-    (insert (capitalize (symbol-name status))
-            ": " (gnus-icalendar-event:summary event))
-    (set-buffer-modified-p nil); not yet modified by user
-    (when mu4e-icalendar-trash-after-reply
-      ;; Override `mu4e-sent-handler' set by `mu4e-compose-mode' to
-      ;; also trash the message (thus must be appended to hooks).
-      (add-hook
-       'message-sent-hook
-       (lambda () (setq mu4e-sent-func
-                   (mu4e~icalendar-trash-message original-msg)))
-       t t))))
-
+(defun mu4e~icalendar-trash-message-hook (original-msg)
+  (lambda () (setq mu4e-sent-func
+                   (mu4e~icalendar-trash-message original-msg))))
 
 (defun mu4e~icalendar-insert-diary (event reply-status filename)
   "Insert a diary entry for the EVENT in file named FILENAME.

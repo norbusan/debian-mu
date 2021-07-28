@@ -1,5 +1,5 @@
 /*
-**  Copyright (C) 2017 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+**  Copyright (C) 2020-2021 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 **
 **  This library is free software; you can redistribute it and/or
 **  modify it under the terms of the GNU Lesser General Public License
@@ -23,9 +23,11 @@
 #include <string>
 #include <sstream>
 #include <vector>
+#include <chrono>
 #include <cstdarg>
 #include <glib.h>
 #include <ostream>
+#include <iostream>
 
 namespace Mu {
 
@@ -41,8 +43,6 @@ using StringVec = std::vector<std::string>;
 std::string utf8_flatten (const char *str);
 inline std::string utf8_flatten (const std::string& s) { return utf8_flatten(s.c_str()); }
 
-
-
 /**
  * Replace all control characters with spaces, and remove leading and trailing space.
  *
@@ -54,6 +54,19 @@ std::string utf8_clean (const std::string& dirty);
 
 
 /**
+ * Remove ctrl characters, replacing them with ' '; subsequent
+ * ctrl characters are replaced by a single ' '
+ *
+ * @param str a string
+ *
+ * @return the string without control characters
+ */
+std::string remove_ctrl (const std::string& str);
+
+
+
+
+/**
  * Split a string in parts
  *
  * @param str a string
@@ -62,10 +75,10 @@ std::string utf8_clean (const std::string& dirty);
  * @return the parts.
  */
 std::vector<std::string> split (const std::string& str,
-				const std::string& sepa);
+                                const std::string& sepa);
 
 /**
- * Quote & escape a string
+ * Quote & escape a string for " and \
  *
  * @param str a string
  *
@@ -91,7 +104,7 @@ std::string format (const char *frm, ...) __attribute__((format(printf, 1, 2)));
  *
  * @return a formatted string
  */
-std::string format (const char *frm, va_list args) __attribute__((format(printf, 1, 0)));
+std::string vformat (const char *frm, va_list args) __attribute__((format(printf, 1, 0)));
 
 
 /**
@@ -117,7 +130,46 @@ std::string date_to_time_t_string (const std::string& date, bool first);
  */
 std::string date_to_time_t_string (int64_t t);
 
+using Clock    = std::chrono::steady_clock;
+using Duration = Clock::duration;
 
+template <typename Unit> constexpr int64_t to_unit (Duration d) {
+        using namespace std::chrono;
+        return duration_cast<Unit>(d).count();
+}
+
+constexpr int64_t to_s  (Duration d) { return to_unit<std::chrono::seconds>(d); }
+constexpr int64_t to_ms (Duration d) { return to_unit<std::chrono::milliseconds>(d); }
+constexpr int64_t to_us (Duration d) { return to_unit<std::chrono::microseconds>(d); }
+
+struct StopWatch {
+        using Clock = std::chrono::steady_clock;
+        StopWatch (const std::string name):
+                start_{Clock::now()},
+                name_{name} {}
+        ~StopWatch() {
+                const auto us{to_us(Clock::now()-start_)};
+                if (us > 2000000)
+                        g_debug ("%s: finished after %0.1f s", name_.c_str(), us/1000000.0);
+                else if (us > 2000)
+                        g_debug ("%s: finished after %0.1f ms", name_.c_str(), us/1000.0);
+                else
+                        g_debug ("%s: finished after %" G_GINT64_FORMAT " us", name_.c_str(), us);
+        }
+private:
+        Clock::time_point start_;
+        std::string       name_;
+};
+
+/**
+ * See g_canonicalize_filename
+ *
+ * @param filename
+ * @param relative_to
+ *
+ * @return
+ */
+std::string canonicalize_filename(const std::string& path, const std::string& relative_to);
 
 /**
  * Convert a size string to a size in bytes
@@ -157,6 +209,42 @@ static inline std::string to_string (const T& val)
 }
 
 
+struct MaybeAnsi {
+        explicit MaybeAnsi(bool use_color): color_{use_color} {}
+
+        enum struct Color {
+                Black         = 30,
+                Red           = 31,
+                Green         = 32,
+                Yellow        = 33,
+                Blue          = 34,
+                Magenta       = 35,
+                Cyan          = 36,
+                White         = 37,
+
+                BrightBlack   = 90,
+                BrightRed     = 91,
+                BrightGreen   = 92,
+                BrightYellow  = 93,
+                BrightBlue    = 94,
+                BrightMagenta = 95,
+                BrightCyan    = 96,
+                BrightWhite   = 97,
+        };
+
+        std::string fg(Color c) const { return ansi(c, true); }
+        std::string bg(Color c) const { return ansi(c, false); }
+
+        std::string reset() const { return color_ ? "\x1b[0m" : ""; }
+
+private:
+        std::string ansi(Color c, bool fg=true) const {
+                return color_ ? format("\x1b[%dm", static_cast<int>(c) + (fg ? 0 : 10)) : "";
+        }
+
+        const bool color_;
+};
+
 /**
  *
  * don't repeat these catch blocks everywhere...
@@ -164,69 +252,69 @@ static inline std::string to_string (const T& val)
  */
 
 #define MU_XAPIAN_CATCH_BLOCK						\
-	catch (const Xapian::Error &xerr) {				\
-		g_critical ("%s: xapian error '%s'",			\
-			    __func__, xerr.get_msg().c_str());		\
-	} catch (const std::runtime_error& re) {			\
-		g_critical ("%s: error: %s", __func__, re.what());	\
-	} catch (...) {							\
-		g_critical ("%s: caught exception", __func__);		\
+        catch (const Xapian::Error &xerr) {				\
+                g_critical ("%s: xapian error '%s'",			\
+                            __func__, xerr.get_msg().c_str());		\
+        } catch (const std::runtime_error& re) {			\
+                g_critical ("%s: error: %s", __func__, re.what());	\
+        } catch (...) {							\
+                g_critical ("%s: caught exception", __func__);		\
         }
 
 #define MU_XAPIAN_CATCH_BLOCK_G_ERROR(GE,E)					\
-	catch (const Xapian::DatabaseLockError &xerr) {				\
-		mu_util_g_set_error ((GE),					\
-				     MU_ERROR_XAPIAN_CANNOT_GET_WRITELOCK,	\
-				     "%s: xapian error '%s'",			\
-				     __func__, xerr.get_msg().c_str());		\
-	} catch (const Xapian::DatabaseError &xerr) {				\
-		 mu_util_g_set_error ((GE),MU_ERROR_XAPIAN,			\
-				       "%s: xapian error '%s'",			\
-				       __func__, xerr.get_msg().c_str());	\
-	} catch (const Xapian::Error &xerr) {					\
-		mu_util_g_set_error ((GE),(E),					\
-					 "%s: xapian error '%s'",		\
-					 __func__, xerr.get_msg().c_str());	\
-	} catch (const std::runtime_error& ex) {				\
-		mu_util_g_set_error ((GE),(MU_ERROR_INTERNAL),			\
-				     "%s: error: %s", __func__, ex.what());	\
-										\
-	} catch (...) {								\
-		mu_util_g_set_error ((GE),(MU_ERROR_INTERNAL),			\
-				     "%s: caught exception", __func__);		\
-	}
+        catch (const Xapian::DatabaseLockError &xerr) {				\
+                mu_util_g_set_error ((GE),					\
+                                     MU_ERROR_XAPIAN_CANNOT_GET_WRITELOCK,	\
+                                     "%s: xapian error '%s'",			\
+                                     __func__, xerr.get_msg().c_str());		\
+        } catch (const Xapian::DatabaseError &xerr) {				\
+                 mu_util_g_set_error ((GE),MU_ERROR_XAPIAN,			\
+                                       "%s: xapian error '%s'",			\
+                                       __func__, xerr.get_msg().c_str());	\
+        } catch (const Xapian::Error &xerr) {					\
+                mu_util_g_set_error ((GE),(E),					\
+                                         "%s: xapian error '%s'",		\
+                                         __func__, xerr.get_msg().c_str());	\
+        } catch (const std::runtime_error& ex) {				\
+                mu_util_g_set_error ((GE),(MU_ERROR_INTERNAL),			\
+                                     "%s: error: %s", __func__, ex.what());	\
+                                                                                \
+        } catch (...) {								\
+                mu_util_g_set_error ((GE),(MU_ERROR_INTERNAL),			\
+                                     "%s: caught exception", __func__);		\
+        }
 
 
 #define MU_XAPIAN_CATCH_BLOCK_RETURN(R)						\
-	catch (const Xapian::Error &xerr) {					\
-		g_critical ("%s: xapian error '%s'",				\
-			    __func__, xerr.get_msg().c_str());			\
-		return (R);							\
-	} catch (const std::runtime_error& ex) {				\
-		g_critical("%s: error: %s", __func__, ex.what());	        \
-		return (R);							\
-	} catch (...) {								\
-		g_critical ("%s: caught exception", __func__);			\
-		return (R);							\
-	}
+        catch (const Xapian::Error &xerr) {					\
+                g_critical ("%s: xapian error '%s'",				\
+                            __func__, xerr.get_msg().c_str());			\
+                return (R);							\
+        } catch (const std::runtime_error& ex) {				\
+                g_critical("%s: error: %s", __func__, ex.what());               \
+                return (R);							\
+        } catch (...) {								\
+                g_critical ("%s: caught exception", __func__);			\
+                return (R);							\
+        }
 
 #define MU_XAPIAN_CATCH_BLOCK_G_ERROR_RETURN(GE,E,R)				\
-	catch (const Xapian::Error &xerr) {					\
-		mu_util_g_set_error ((GE),(E),					\
-				     "%s: xapian error '%s'",			\
-				     __func__, xerr.get_msg().c_str());		\
-		return (R);							\
-	} catch (const std::runtime_error& ex) {			        \
-		mu_util_g_set_error ((GE),(MU_ERROR_INTERNAL),			\
-				     "%s: error: %s", __func__, ex.what());	\
-		return (R);							\
-	} catch (...) {								\
-		if ((GE)&&!(*(GE)))						\
-			mu_util_g_set_error ((GE),				\
-					     (MU_ERROR_INTERNAL),		\
-					     "%s: caught exception", __func__);	\
-		return (R);							\
-	  }
+        catch (const Xapian::Error &xerr) {					\
+                mu_util_g_set_error ((GE),(E),					\
+                                     "%s: xapian error '%s'",			\
+                                     __func__, xerr.get_msg().c_str());		\
+                return (R);							\
+        } catch (const std::runtime_error& ex) {                                \
+                mu_util_g_set_error ((GE),(MU_ERROR_INTERNAL),			\
+                                     "%s: error: %s", __func__, ex.what());	\
+                return (R);							\
+        } catch (...) {								\
+                if ((GE)&&!(*(GE)))						\
+                        mu_util_g_set_error ((GE),				\
+                                             (MU_ERROR_INTERNAL),		\
+                                             "%s: caught exception", __func__);	\
+                return (R);							\
+          }
 
 
 

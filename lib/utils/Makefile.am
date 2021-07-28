@@ -45,25 +45,37 @@ AM_LDFLAGS=							\
 noinst_LTLIBRARIES=						\
 	libmu-utils.la
 
+
+third_party=							\
+	optional.hpp						\
+	expected.hpp
+
 libmu_utils_la_SOURCES=						\
+	mu-async-queue.hh					\
+	mu-command-parser.cc					\
+	mu-command-parser.hh					\
 	mu-date.c						\
 	mu-date.h						\
 	mu-error.hh						\
-	mu-log.c						\
-	mu-log.h						\
-	mu-command-parser.cc					\
-	mu-command-parser.hh					\
-	mu-sexp-parser.cc					\
-	mu-sexp-parser.hh					\
+	mu-logger.cc						\
+	mu-logger.hh						\
+	mu-option.hh						\
+	mu-readline.cc						\
+	mu-readline.hh						\
+	mu-result.hh						\
+	mu-sexp.cc						\
+	mu-sexp.hh						\
 	mu-str.c						\
 	mu-str.h						\
 	mu-util.c						\
 	mu-util.h						\
 	mu-utils.cc						\
-	mu-utils.hh
+	mu-utils.hh						\
+	${third_party}
 
 libmu_utils_la_LIBADD=						\
 	$(GLIB_LIBS)						\
+	$(READLINE_LIBS)					\
 	$(CODE_COVERAGE_LIBS)
 
 noinst_PROGRAMS=						\
@@ -91,10 +103,10 @@ test_mu_str_LDADD=						\
 	libmu-utils.la
 
 TEST_PROGS+=							\
-	test-sexp-parser
-test_sexp_parser_SOURCES=					\
-	test-sexp-parser.cc
-test_sexp_parser_LDADD=						\
+	test-sexp
+test_sexp_SOURCES=						\
+	test-sexp.cc
+test_sexp_LDADD=						\
 	libmu-utils.la
 
 TEST_PROGS+=							\
@@ -103,6 +115,14 @@ test_command_parser_SOURCES=					\
 	test-command-parser.cc
 test_command_parser_LDADD=					\
 	libmu-utils.la
+
+TEST_PROGS+=							\
+	test-option
+test_option_SOURCES=						\
+	test-option.cc
+test_option_LDADD=						\
+	libmu-utils.la
+
 
 TESTS=$(TEST_PROGS)
 

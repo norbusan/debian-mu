@@ -1,4 +1,4 @@
-## Copyright (C) 2008-2020 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+## Copyright (C) 2008-2021 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 ##
 ## This program is free software; you can redistribute it and/or modify
 ## it under the terms of the GNU General Public License as published by
@@ -15,7 +15,7 @@
 ## Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
 
 AC_PREREQ([2.68])
-AC_INIT([mu],[1.4.15],[https://github.com/djcb/mu/issues],[mu])
+AC_INIT([mu],[1.6.0],[https://github.com/djcb/mu/issues],[mu])
 AC_COPYRIGHT([Copyright (C) 2008-2020 Dirk-Jan C. Binnema])
 AC_CONFIG_HEADERS([config.h])
 AC_CONFIG_SRCDIR([mu/mu.cc])
@@ -23,9 +23,6 @@ AC_CONFIG_SRCDIR([mu/mu.cc])
 # autotools/libtool setup. you can try to comment this out
 AC_CONFIG_MACRO_DIR([m4])
 AC_CONFIG_AUX_DIR([build-aux])
-
-m4_ifdef([AX_IS_RELEASE],[AX_IS_RELEASE([git-directory])])
-m4_ifdef([AX_CHECK_ENABLE_DEBUG],[AX_CHECK_ENABLE_DEBUG([yes])])
 
 AM_INIT_AUTOMAKE([1.14 foreign no-dist-gzip tar-ustar dist-xz])
 
@@ -39,18 +36,21 @@ AC_SUBST(prefix)
 # when a c++ compiler is not found. Weird, huh?
 AC_PROG_CXX
 AC_PROG_CC
+AC_PROG_CPP
 AC_PROG_CC_STDC
 AC_PROG_CC_C99
 AC_PROG_INSTALL
 AC_HEADER_STDC
 
 extra_flags="-Wformat-security                                        \
-             -Wstack-protector                                        \
-             -Wstack-protector-all                                    \
-             -Wno-cast-function-type"
+         -Wstack-protector                                        \
+         -Wstack-protector-all                                    \
+         -Wno-cast-function-type                                  \
+         -Wno-bad-function-cast"
 
 AX_CXX_COMPILE_STDCXX_14
-m4_ifdef([AX_COMPILER_FLAGS],[AX_COMPILER_FLAGS(,,[yes],${extra_flags})])
+AX_COMPILER_FLAGS_CXXFLAGS([],[],[${extra_cflags}])
+AX_APPEND_COMPILE_FLAGS([-Wno-inline ],[CXXFLAGS])
 AX_VALGRIND_CHECK
 
 LT_INIT
@@ -68,19 +68,24 @@ AC_SYS_LARGEFILE
 # asan is somewhat similar to valgrind, but has low enough overhead so it
 # can be used during normal operation.
 AC_ARG_ENABLE([asan],[AS_HELP_STRING([--enable-asan],
-              [Enable Address Sanitizer])], [use_asan=$enableval], [use_asan=no])
+          [Enable Address Sanitizer])], [use_asan=$enableval], [use_asan=no])
 AS_IF([test "x$use_asan" = "xyes"],[
   AC_SUBST(ASAN_CFLAGS,  "-fsanitize=address -static-libasan -fno-omit-frame-pointer")
   AC_SUBST(ASAN_CXXFLAGS,"-fsanitize=address -static-libasan -fno-omit-frame-pointer")
   AC_SUBST(ASAN_LDFLAGS, "-fsanitize=address -static-libasan -fno-omit-frame-pointer")
 ])
 
+
 # check for makeinfo
 AC_CHECK_PROG(have_makeinfo,makeinfo,yes,no)
 AM_CONDITIONAL(HAVE_MAKEINFO,test "x$have_makeinfo" = "xyes")
+AM_COND_IF(HAVE_MAKEINFO,[],[
+  # seems build *insists* on trying to makeinfo, erroring out
+  # if it does not exist. Let's work around that.
+  AC_SUBST(MAKEINFO,[true])
+])
 
 # we need emacs for byte-compiling mu4e
-
 build_mu4e=no
 AC_ARG_ENABLE([mu4e],
    AS_HELP_STRING([--disable-mu4e],[Disable building mu4e]))
@@ -91,9 +96,9 @@ AS_IF([test "x$enable_mu4e" != "xno"], [
     lispdir="${lispdir}/mu4e/"
   ])
   AS_CASE([$emacs_version],
-    [*24.4*|*24.5*],[build_mu4e=yes],
-    [*25*|*26*|*27*|*28*],[build_mu4e=yes],
-    [AC_WARN([emacs is too old to build mu4e (need emacs >= 24.4)])])
+    [*25.3*],[build_mu4e=yes],
+    [*26*|*27*|*28*],[build_mu4e=yes],
+    [AC_WARN([emacs is too old to build mu4e (need emacs >= 25.3)])])
 ])
 AM_CONDITIONAL(BUILD_MU4E, test "x$build_mu4e" = "xyes")
 
@@ -102,11 +107,11 @@ AM_CONDITIONAL(BUILD_MU4E, test "x$build_mu4e" = "xyes")
 # testing purposes only
 AC_ARG_ENABLE([dirent-d-type],
     AC_HELP_STRING([--disable-dirent-d-type],
-            [Don't use dirent->d_type, even if you have it]),
+        [Don't use dirent->d_type, even if you have it]),
     [], [AC_STRUCT_DIRENT_D_TYPE]
 )
 AS_IF([test "x$ac_cv_member_struct_dirent_d_type" != "xyes"],
-        [use_dirent_d_type="no"], [use_dirent_d_type="yes"])
+    [use_dirent_d_type="no"], [use_dirent_d_type="yes"])
 
 # support for d_ino (inode) in struct dirent is optional; if it's
 # available we can sort direntries by inode and access them in that
@@ -114,15 +119,16 @@ AS_IF([test "x$ac_cv_member_struct_dirent_d_type" != "xyes"],
 # Explicitly disabling it is for testing purposes only.
 AC_ARG_ENABLE([dirent-d-ino],
     AC_HELP_STRING([--disable-dirent-d-ino],
-            [Don't use dirent->d_ino, even if you have it]),
+        [Don't use dirent->d_ino, even if you have it]),
     [], [AC_STRUCT_DIRENT_D_INO]
 )
 AS_IF([test "x$ac_cv_member_struct_dirent_d_ino" != "xyes"],
-        [use_dirent_d_ino="no"], [use_dirent_d_ino="yes"])
+    [use_dirent_d_ino="no"], [use_dirent_d_ino="yes"])
 
 AC_CHECK_FUNCS([memset memcpy realpath setlocale strerror getpass setsid])
 AC_CHECK_FUNCS([vasprintf strptime])
-AC_CHECK_FUNC(timegm,[],AC_MSG_ERROR([missing required function timegm]))
+# timegm is no longer used in the source
+# AC_CHECK_FUNC(timegm,[],AC_MSG_ERROR([missing required function timegm]))
 
 # require pkg-config >= 0.28 (release in 2013; should be old enough...)
 # with that version, we don't need the AC_SUBST stuff after PKG_CHECK.
@@ -138,20 +144,12 @@ AS_IF([test -z "$PKG_CONFIG"],
 )
 
 # glib2?
-PKG_CHECK_MODULES(GLIB,glib-2.0 >= 2.38 gobject-2.0 gio-2.0)
+PKG_CHECK_MODULES(GLIB,glib-2.0 >= 2.50 gobject-2.0 gio-2.0)
 glib_version="$($PKG_CONFIG --modversion glib-2.0)"
 
 # gmime, version 3.0 or higher
 PKG_CHECK_MODULES(GMIME,gmime-3.0)
 gmime_version="$($PKG_CONFIG --modversion gmime-3.0)"
-
-# gmime, version 3.0 or higher
-PKG_CHECK_MODULES(JSON_GLIB,json-glib-1.0 >= 1.4,[have_json_glib=yes],[have_json_glib=no])
-AS_IF([test "x$have_json_glib" = "xyes"],[
-  json_glib_version="$($PKG_CONFIG --modversion json-glib-1.0)"
-  AC_DEFINE(HAVE_JSON_GLIB,[1], [Do we support json-glib?])
-])
-AM_CONDITIONAL(HAVE_JSON_GLIB,[test "x$have_json_glib" = "xyes"])
 
 # xapian checking - we need 1.4 at least
 PKG_CHECK_MODULES(XAPIAN,xapian-core >= 1.4,[
@@ -173,8 +171,8 @@ PKG_CHECK_MODULES(XAPIAN,xapian-core >= 1.4,[
 
   AS_CASE([$xapian_version],
       [1.[[4-9]].[[0-9]]*],
-        [AC_MSG_NOTICE([xapian $xapian_version found.])],
-        [AC_MSG_ERROR([*** xapian version >= 1.4 needed, but version $xapian_version found.])])
+    [AC_MSG_NOTICE([xapian $xapian_version found.])],
+    [AC_MSG_ERROR([*** xapian version >= 1.4 needed, but version $xapian_version found.])])
 
   XAPIAN_CXXFLAGS="$($XAPIAN_CONFIG --cxxflags)"
   XAPIAN_LIBS="$($XAPIAN_CONFIG --libs)"
@@ -212,37 +210,53 @@ AC_ARG_ENABLE([webkit],AS_HELP_STRING([--disable-webkit],[Disable webkit]))
 AS_IF([test "x$enable_webkit" != "xno"],[
        PKG_CHECK_MODULES(WEBKIT,webkit2gtk-4.0 >= 2.0, [have_webkit=yes],[have_webkit=no])
        AS_IF([test "x$have_webkit" = "xyes"],[
-        webkit_version="$($PKG_CONFIG --modversion webkit2gtk-4.0)"])
+    webkit_version="$($PKG_CONFIG --modversion webkit2gtk-4.0)"])
 ])
 AM_CONDITIONAL(HAVE_WEBKIT, [test "x$have_webkit" = "xyes"])
 AM_CONDITIONAL(BUILD_GUI,[test "x$have_webkit" = "xyes" -a "x$have_gtk" = "xyes"])
 ###############################################################################
 
+################################################################################
+# should we try to build an emacs dynamic module?
+#AC_CHECK_HEADER([emacs-module.h],[
+#  AC_DEFINE([HAVE_EMACS_MODULE_H],[1], [Whether we have the emacs-module header])],
+#  AC_MSG_NOTICE([emacs-module.h not found; not building module])
+#)
+#AM_CONDITIONAL([BUILD_EMACS_MODULE],[test "x$ac_cv_header_emacs_module_h" != "x"])
+################################################################################
+
 ###############################################################################
-# build with guile2.2 when available and not disabled.
+# build with guile 3.0/2.2 when available and not disabled.
 AC_ARG_ENABLE([guile], AS_HELP_STRING([--disable-guile],[Disable guile]))
 AS_IF([test "x$enable_guile" != "xno"],[
-  PKG_CHECK_MODULES(GUILE22, guile-2.2, [have_guile22=yes],[have_guile22=no])
-  # this is a bit hacky; GUILE_PKG
-  AS_IF([test "x$have_guile22" = "xyes"],[
-    GUILE_PKG([2.2])
-    GUILE_PROGS
-    GUILE_FLAGS
-    AC_DEFINE_UNQUOTED([GUILE_BINARY],"$GUILE",[guile binary])
-    AC_DEFINE(BUILD_GUILE,[1], [Do we support Guile?])
-    AC_SUBST(GUILE_SNARF, [guile-snarf])
-    guile_version=$($PKG_CONFIG guile-2.2 --modversion)
-  ])
+
+  PKG_CHECK_MODULES(GUILE, [guile-3.0], [have_guile=yes],[
+    PKG_CHECK_MODULES(GUILE, [guile-2.2], [have_guile=yes], [have_guile=no])])
+    AS_IF([test "x$have_guile" = "xyes"],[
+      GUILE_PKG([3.0 2.2])
+      GUILE_PROGS
+      GUILE_FLAGS
+      AC_DEFINE_UNQUOTED([GUILE_BINARY],"$GUILE",[guile binary])
+      vsnarf=guile-snarf${GUILE_EFFECTIVE_VERSION}
+      AC_CHECK_PROGS(GUILE_SNARF,[${vsnarf} guile-snarf], [no])
+      guile_version=$($PKG_CONFIG guile-$GUILE_EFFECTIVE_VERSION --modversion)
+   ])
 ])
-AM_CONDITIONAL(BUILD_GUILE,[test "x$have_guile22" = "xyes"])
+
+AM_CONDITIONAL(BUILD_GUILE,[test "x$have_guile" = "xyes" -a \
+                 "x$ac_cv_prog_GUILE_SNARF" != "xno"])
+AM_COND_IF([BUILD_GUILE],[AC_DEFINE(BUILD_GUILE,[1], [Do we support Guile?])])
 ###############################################################################
 
 ###############################################################################
 # optional readline
-saved_libs=$LIBS
-AX_LIB_READLINE
-AC_SUBST(READLINE_LIBS,${LIBS})
-LIBS=$saved_libs
+AC_ARG_ENABLE([readline], AS_HELP_STRING([--disable-readline],[Disable readline]))
+AS_IF([test "x$enable_readline" != "xno"], [
+  saved_libs=$LIBS
+  AX_LIB_READLINE
+  AC_SUBST(READLINE_LIBS,${LIBS})
+  LIBS=$saved_libs
+])
 ###############################################################################
 
 ###############################################################################
@@ -259,15 +273,13 @@ AC_SUBST(MU_DOC_DIR, "${prefix}/share/doc/mu")
 AC_CONFIG_FILES([
 Makefile
 mu/Makefile
-mu/mu-memcheck
 lib/Makefile
 lib/doxyfile
 lib/utils/Makefile
-lib/query/Makefile
+lib/index/Makefile
 mu4e/Makefile
 mu4e/mu4e-meta.el
 guile/Makefile
-guile/texi.texi
 guile/mu/Makefile
 guile/examples/Makefile
 guile/tests/Makefile
@@ -277,9 +289,9 @@ toys/mug/Makefile
 man/Makefile
 m4/Makefile
 contrib/Makefile
-],[
- [chmod +x mu/mu-memcheck]
 ])
+AC_CONFIG_FILES([mu/mu-memcheck], [chmod +x mu/mu-memcheck])
+
 AC_OUTPUT
 
 dnl toys/msg2pdf/Makefile
@@ -294,10 +306,6 @@ echo "Xapian version                       : $xapian_version"
 echo "GLib version                         : $glib_version"
 echo "GMime version                        : $gmime_version"
 
-AM_COND_IF([HAVE_JSON_GLIB],[
-echo "Json-Glib version                    : $json_glib_version"
-])
-
 AM_COND_IF([BUILD_GUI],[
 echo "GTK+ version                         : $gtk_version"
 echo "Webkit2/GTK+ version                 : $webkit_version"
@@ -307,13 +315,13 @@ AM_COND_IF([BUILD_GUILE],[
 echo "Guile version                        : $guile_version"
 ])
 
-if test "x$build_mu4e" = "xyes"; then
+AS_IF([test "x$build_mu4e" = "xyes"],[
+echo "Build mu4e                           : yes"
 echo "Emacs version                        : $emacs_version"
-fi
-
-echo
-echo "Have wordexp                         : $ac_cv_header_wordexp_h"
-echo "Build mu4e emacs frontend            : $build_mu4e"
+#AM_COND_IF([BUILD_EMACS_MODULE],[
+#echo "Build emacs module                   : yes"],[
+#echo "Build emacs module                   : no"
+#])])
 
 AM_COND_IF([BUILD_GUI],[
 echo "Build 'mug' toy-ui (gtk+/webkit)     : yes"],[
