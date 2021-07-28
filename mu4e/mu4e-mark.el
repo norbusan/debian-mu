@@ -7,18 +7,18 @@
 
 ;; This file is not part of GNU Emacs.
 
-;; GNU Emacs is free software: you can redistribute it and/or modify
+;; mu4e is free software: you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
 ;; the Free Software Foundation, either version 3 of the License, or
 ;; (at your option) any later version.
 
-;; GNU Emacs is distributed in the hope that it will be useful,
+;; mu4e is distributed in the hope that it will be useful,
 ;; but WITHOUT ANY WARRANTY; without even the implied warranty of
 ;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with mu4e.  If not, see <http://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -266,8 +266,8 @@ The following marks are available, and the corresponding props:
         ;; update the hash -- remove everything current, and if add the new
         ;; stuff, unless we're unmarking
         (remhash docid mu4e~mark-map)
-        ;; remove possible overlays
-        (remove-overlays (line-beginning-position) (line-end-position))
+        ;; remove possible mark overlays
+        (remove-overlays (line-beginning-position) (line-end-position) 'mu4e-mark t)
         ;; now, let's set a mark (unless we were unmarking)
         (unless (eql mark 'unmark)
           (puthash docid (cons mark target) mu4e~mark-map)
@@ -282,6 +282,8 @@ The following marks are available, and the corresponding props:
                              (mu4e~headers-goto-docid docid t)))
                    (overlay (make-overlay start (+ start (length targetstr)))))
               (overlay-put overlay 'display targetstr)
+              (overlay-put overlay 'mu4e-mark t)
+              (overlay-put overlay 'evaporate t)
               docid)))))))
 
 (defun mu4e~mark-get-move-target ()
@@ -389,7 +391,7 @@ flow. Therefore, we hide the message, which in practice seems to
 work well.
 
 If NO-CONFIRMATION is non-nil, don't ask user for confirmation."
-  (interactive)
+  (interactive "P")
   (mu4e~mark-in-context
    (let* ((marknum (hash-table-count mu4e~mark-map))
           (prompt (format "Are you sure you want to execute %d mark%s?"

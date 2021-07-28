@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2019 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+** Copyright (C) 2019-2020 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 **
 ** This program is free software; you can redistribute it and/or modify it
 ** under the terms of the GNU General Public License as published by the
@@ -30,7 +30,7 @@ namespace Mu {
 struct Error final: public std::exception {
 
         enum struct Code {
-                AccessDenied,
+                AccessDenied = 100, // don't overlap with MuError
                 Command,
                 File,
                 Index,
@@ -67,7 +67,7 @@ struct Error final: public std::exception {
         Error(Code codearg, const char *frm, ...): code_{codearg} {
                 va_list args;
                 va_start(args, frm);
-                what_ = format(frm, args);
+                what_ = vformat(frm, args);
                 va_end(args);
         }
 
@@ -89,7 +89,7 @@ struct Error final: public std::exception {
 
                 va_list args;
                 va_start(args, frm);
-                what_ = format(frm, args);
+                what_ = vformat(frm, args);
                 va_end(args);
 
                 if (err && *err)
@@ -127,11 +127,8 @@ struct Error final: public std::exception {
 private:
         const Code   code_;
         std::string  what_;
-
 };
 
-
 } // namespace Mu
-
 
 #endif /* MU_ERROR_HH__ */

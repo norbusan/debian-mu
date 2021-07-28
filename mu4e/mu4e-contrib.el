@@ -1,21 +1,21 @@
 ;;; mu4e-contrib.el -- part of mu4e, the mu mail user agent -*- lexical-binding: t -*-
 
-;; Copyright (C) 2013-2020 Dirk-Jan C. Binnema
+;; Copyright (C) 2013-2021 Dirk-Jan C. Binnema
 
 ;; This file is not part of GNU Emacs.
 
-;; GNU Emacs is free software: you can redistribute it and/or modify
+;; mu4e is free software: you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
 ;; the Free Software Foundation, either version 3 of the License, or
 ;; (at your option) any later version.
 
-;; GNU Emacs is distributed in the hope that it will be useful,
+;; mu4e is distributed in the hope that it will be useful,
 ;; but WITHOUT ANY WARRANTY; without even the implied warranty of
 ;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with mu4e.  If not, see <http://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -59,16 +59,18 @@
 ;;
 ;;  Allow bookmarking a mu4e buffer in regular emacs bookmarks.
 
+(defun mu4e~view-set-bookmark-make-record-fn ()
+  (set (make-local-variable 'bookmark-make-record-function)
+       'mu4e-view-bookmark-make-record))
+
+(defun mu4e~headers-set-bookmark-make-record-fn ()
+  (set (make-local-variable 'bookmark-make-record-function)
+       'mu4e-view-bookmark-make-record))
+
 ;; Probably this can be moved to mu4e-view.el.
-(add-hook 'mu4e-view-mode-hook
-          (lambda ()
-            (set (make-local-variable 'bookmark-make-record-function)
-                 'mu4e-view-bookmark-make-record)))
+(add-hook 'mu4e-view-mode-hook #'mu4e~view-set-bookmark-make-record-fn)
 ;; And this can be moved to mu4e-headers.el.
-(add-hook 'mu4e-headers-mode-hook
-          (lambda ()
-            (set (make-local-variable 'bookmark-make-record-function)
-                 'mu4e-view-bookmark-make-record)))
+(add-hook 'mu4e-headers-mode-hook #'mu4e~headers-set-bookmark-make-record-fn)
 
 (defun mu4e-view-bookmark-make-record ()
   "Make a bookmark entry for a mu4e buffer. Note that this is an

@@ -1,24 +1,24 @@
 ;;; mu4e-vars.el -- part of mu4e, the mu mail user agent -*- lexical-binding: t -*-
 
-;; Copyright (C) 2011-2020 Dirk-Jan C. Binnema
+;; Copyright (C) 2011-2021 Dirk-Jan C. Binnema
 
 ;; Author: Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 ;; Maintainer: Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
 
 ;; This file is not part of GNU Emacs.
 
-;; GNU Emacs is free software: you can redistribute it and/or modify
+;; mu4e is free software: you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
 ;; the Free Software Foundation, either version 3 of the License, or
 ;; (at your option) any later version.
 
-;; GNU Emacs is distributed in the hope that it will be useful,
+;; mu4e is distributed in the hope that it will be useful,
 ;; but WITHOUT ANY WARRANTY; without even the implied warranty of
 ;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with mu4e.  If not, see <http://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -51,6 +51,12 @@ path."
   :group 'mu4e
   :safe 'stringp)
 
+(defcustom mu4e-mu-debug nil
+  "Whether to run the mu binary in debug-mode.
+Setting this to t increases the amount of information in the log."
+  :type 'boolean
+  :group 'mu4e)
+
 (make-obsolete-variable 'mu4e-maildir
                         "determined by server; see `mu4e-root-maildir'." "1.3.8")
 
@@ -58,6 +64,18 @@ path."
   "Support org-mode links."
   :type 'boolean
   :group 'mu4e)
+
+(defgroup mu4e-view nil
+  "Settings for the message view."
+  :group 'mu4e)
+
+(defcustom mu4e-view-use-old nil
+  "If non-nil, use the old viewer.
+Otherwise, use the new, Gnus-based viewer."
+  :type 'boolean
+  :group 'mu4e-view)
+
+(make-obsolete-variable 'mu4e-view-use-gnus 'mu4e-view-use-old "1.5.10")
 
 (defcustom mu4e-speedbar-support nil
   "Support having a speedbar to navigate folders/bookmarks."
@@ -202,7 +220,7 @@ Follows the format of `format-time-string'."
   :type 'string
   :group 'mu4e)
 
-(defcustom mu4e-modeline-max-width 30
+(defcustom mu4e-modeline-max-width 42
   "Determines the maximum length of the modeline string.
 If the string exceeds this limit, it will be truncated to fit."
   :type 'integer
@@ -246,7 +264,8 @@ Each of the list elements is a plist with at least:
 Note that the :query parameter can be a function/lambda.
 
 Optionally, you can add the following:
-`:hide'  - if t, bookmark is hdden from the main-view and speedbar.
+`:hide'  - if t, the bookmark is hidden from the main-view and
+ speedbar.
 `:hide-unread' - do not show the counts of unread/total number
  of matches for the query in the main-view. This can be useful
 if a bookmark uses  a very slow query. :hide-unread
@@ -261,6 +280,25 @@ differ from the number you get from a 'real' query."
   :version "1.3.9"
   :group 'mu4e)
 
+(defcustom mu4e-query-rewrite-function 'identity
+  "Function that takes a search expression string, and returns a
+  possibly changed search expression string.
+
+This function is applied on the search expression just before
+searching, and allows users to modify the query.
+
+For instance, we could change and of workmail into
+\"maildir:/long-path-to-work-related-emails\", by setting the function
+
+(setq mu4e-query-rewrite-function
+  (lambda(expr)
+     (replace-regexp-in-string \"workmail\"
+                   \"maildir:/long-path-to-work-related-emails\" expr)))
+
+It is good to remember that the replacement does not understand
+anything about the query, it just does text replacement."
+  :type 'function
+  :group 'mu4e)
 
 (defun mu4e-bookmarks ()
   "Get `mu4e-bookmarks' in the (new) format, converting from the
@@ -298,12 +336,24 @@ and `mu4e-headers-visible-columns'."
   :group 'mu4e-view)
 
 (defcustom mu4e-view-show-images nil
-  "If non-nil, automatically display images in the view buffer."
+  "If non-nil, automatically display images in the view
+buffer. Applies only to the _old_ message view."
   :type 'boolean
   :group 'mu4e-view)
 
-(make-obsolete-variable 'mu4e-show-images
-                        'mu4e-view-show-images "0.9.9.x")
+(defcustom mu4e-view-auto-mark-as-read t
+  "Automatically mark messages are 'read' when you read them.
+This is the default behavior, but can be turned off, for example
+when using a read-only file-system.
+
+This can also be set to a function; if so, receives a message
+plist which should evaluate to nil if the message should *not* be
+marked as read-only, or non-nil otherwise."
+  :type '(choice
+          boolean
+          function)
+  :group 'mu4e-view)
+
 
 (defcustom mu4e-confirm-quit t
   "Whether to confirm to quit mu4e."
@@ -369,7 +419,7 @@ The setting is a symbol:
  * `ask': ask before decrypting anything
  * nil:   don't try to decrypt anything.
 
-Note that this is not used when `mu4e-view-use-gnus' is enabled."
+Note that this is not used unless `mu4e-view-use-old' is enabled."
   :type '(choice (const :tag "Try to decrypt automatically" t)
                  (const :tag "Ask before decrypting anything" ask)
                  (const :tag "Don't try to decrypt anything" nil))
@@ -426,7 +476,10 @@ their canonical counterpart; useful as an example."
 (make-obsolete-variable 'mu4e-compose-complete-ignore-address-regexp
                         "mu4e-contact-process-function (see docstring)" "mu4e 1.3.2")
 
-(defcustom mu4e-contact-process-function nil
+(defcustom mu4e-contact-process-function
+  (lambda(addr) ;; filter-out no-reply addresses
+    (unless (string-match-p "no[t]?[-\\.]?repl\\(y\\|ies\\)" addr)
+      addr))
   "Function for processing contact information for use in auto-completion.
 
 The function receives the contact as a string, e.g
@@ -574,6 +627,13 @@ Each of the list elements is a plist with at least:
 `:maildir'  - the maildir for the shortcut (e.g. \"/archive\")
 `:key'      - the shortcut key.
 
+Optionally, you can add the following:
+`:hide'  - if t, the shortcut is hidden from the main-view and
+speedbar.
+`:hide-unread' - do not show the counts of unread/total number
+ of matches for the maildir in the main-view, and is implied
+from `:hide'.
+
 For backward compatibility, an older form is recognized as well:
 
    (maildir . key), where MAILDIR is a maildir (such as
@@ -588,6 +648,16 @@ Unlike in search queries, folder names with spaces in them must
 NOT be quoted, since mu4e does this for you."
   :type '(repeat (cons (string :tag "Maildir") character))
   :version "1.3.9"
+  :group 'mu4e-folders)
+
+(defcustom mu4e-maildir-info-delimiter
+  (if (member system-type '(ms-dos windows-nt cygwin))
+      ";" ":")
+  "Separator character between message identifier and flags.
+It defaults to ':' on most platforms, except on Windows,
+where it is not allowed and we use ';' for compatibility
+with mbsync, offlineimap and other programs."
+  :type 'string
   :group 'mu4e-folders)
 
 
@@ -614,15 +684,8 @@ from the old format if needed."
   :group 'faces)
 
 (defface mu4e-unread-face
-  '((t :inherit font-lock-keyword-face :bold t))
+  '((t :inherit font-lock-keyword-face :weight bold))
   "Face for an unread message header."
-  :group 'mu4e-faces)
-
-(defface mu4e-moved-face
-  '((t :inherit font-lock-comment-face :slant italic))
-  "Face for a message header that has been moved to some folder.
-\(It's still visible in the search results, since we cannot
-be sure it no longer matches)."
   :group 'mu4e-faces)
 
 (defface mu4e-trashed-face
@@ -637,17 +700,17 @@ I.e. a message with the draft flag set."
   :group 'mu4e-faces)
 
 (defface mu4e-flagged-face
-  '((t :inherit font-lock-constant-face :bold t))
+  '((t :inherit font-lock-constant-face :weight bold))
   "Face for a flagged message header."
   :group 'mu4e-faces)
 
 (defface mu4e-replied-face
-  '((t :inherit font-lock-builtin-face :bold nil))
+  '((t :inherit font-lock-builtin-face :weight normal))
   "Face for a replied message header."
   :group 'mu4e-faces)
 
 (defface mu4e-forwarded-face
-  '((t :inherit font-lock-builtin-face :bold nil))
+  '((t :inherit font-lock-builtin-face :weight normal))
   "Face for a passed (forwarded) message header."
   :group 'mu4e-faces)
 
@@ -673,7 +736,7 @@ I.e. a message with the draft flag set."
   :group 'mu4e-faces)
 
 (defface mu4e-header-key-face
-  '((t :inherit message-header-name :bold t))
+  '((t :inherit message-header-name :weight bold))
   "Face for a header key (such as \"Foo\" in \"Subject:\ Foo\")."
   :group 'mu4e-faces)
 
@@ -703,17 +766,17 @@ I.e. a message with the draft flag set."
   :group 'mu4e-faces)
 
 (defface mu4e-title-face
-  '((t :inherit font-lock-type-face :bold t))
+  '((t :inherit font-lock-type-face :weight bold))
   "Face for a header title in the headers view."
   :group 'mu4e-faces)
 
 (defface mu4e-context-face
-  '((t :inherit mu4e-title-face :bold t))
+  '((t :inherit mu4e-title-face :weight bold))
   "Face for displaying the context in the modeline."
   :group 'mu4e-faces)
 
 (defface mu4e-modeline-face
-  '((t :inherit font-lock-string-face :bold t))
+  '((t :inherit font-lock-string-face :weight bold))
   "Face for the query in the mode-line."
   :group 'mu4e-faces)
 
@@ -728,47 +791,48 @@ I.e. a message with the draft flag set."
   :group 'mu4e-faces)
 
 (defface mu4e-url-number-face
-  '((t :inherit font-lock-constant-face :bold t))
+  '((t :inherit font-lock-constant-face :weight bold))
   "Face for the number tags for URLs."
   :group 'mu4e-faces)
 
 (defface mu4e-attach-number-face
-  '((t :inherit font-lock-variable-name-face :bold t))
+  '((t :inherit font-lock-variable-name-face :weight bold))
   "Face for the number tags for attachments."
   :group 'mu4e-faces)
 
 (defface mu4e-cited-1-face
-  '((t :inherit font-lock-builtin-face :bold nil :italic t))
+  '((t :inherit font-lock-builtin-face :weight normal :slant italic))
   "Face for cited message parts (level 1)."
   :group 'mu4e-faces)
 
 (defface mu4e-cited-2-face
-  '((t :inherit font-lock-preprocessor-face :bold nil :italic t))
+  '((t :inherit font-lock-preprocessor-face :weight normal :slant italic))
   "Face for cited message parts (level 2)."
   :group 'mu4e-faces)
 
 (defface mu4e-cited-3-face
-  '((t :inherit font-lock-variable-name-face :bold nil :italic t))
+  '((t :inherit font-lock-variable-name-face :weight normal :slant italic))
   "Face for cited message parts (level 3)."
   :group 'mu4e-faces)
 
 (defface mu4e-cited-4-face
-  '((t :inherit font-lock-keyword-face :bold nil :italic t))
+  '((t :inherit font-lock-keyword-face :weight normal :slant italic))
   "Face for cited message parts (level 4)."
   :group 'mu4e-faces)
 
 (defface mu4e-cited-5-face
-  '((t :inherit font-lock-comment-face :bold nil :italic t))
+  '((t :inherit font-lock-comment-face :weight normal :slant italic))
   "Face for cited message parts (level 5)."
   :group 'mu4e-faces)
 
 (defface mu4e-cited-6-face
-  '((t :inherit font-lock-comment-delimiter-face :bold nil :italic t))
+  '((t :inherit font-lock-comment-delimiter-face :weight normal :slant italic))
   "Face for cited message parts (level 6)."
   :group 'mu4e-faces)
 
 (defface mu4e-cited-7-face
-  '((t :inherit font-lock-type-face :bold nil :italic t))
+  '((t :inherit font-lock-type-face :weight normal :slant italic
+       ))
   "Face for cited message parts (level 7)."
   :group 'mu4e-faces)
 
@@ -778,12 +842,12 @@ I.e. a message with the draft flag set."
   :group 'mu4e-faces)
 
 (defface mu4e-ok-face
-  '((t :inherit font-lock-comment-face :bold t :slant normal))
+  '((t :inherit font-lock-comment-face :weight bold :slant normal))
   "Face for things that are okay."
   :group 'mu4e-faces)
 
 (defface mu4e-warning-face
-  '((t :inherit font-lock-warning-face :bold t :slant normal))
+  '((t :inherit font-lock-warning-face :weight bold :slant normal))
   "Face for warnings / error."
   :group 'mu4e-faces)
 
@@ -938,27 +1002,54 @@ in `mu4e-view-fields.'
 Note, `:sortable' is not supported for custom header fields.")
 
 (defvar mu4e-header-info-custom
-  '( (:recipnum .
-                ( :name "Number of recipients"
-                        :shortname "Recip#"
-                        :help "Number of recipients for this message"
-                        :function
-                        (lambda (msg)
-                          (format "%d"
-                                  (+ (length (mu4e-message-field msg :to))
-                                     (length (mu4e-message-field msg :cc))))))))
+  '(
+    ;; some examples & debug helpers.
+
+    (:thread-path . ;; Shows the internal thread-path
+                  ( :name "Thread-path"
+                    :shortname "Thp"
+                    :help "The thread-path"
+                    :function (lambda (msg)
+                                (let ((thread (mu4e-message-field msg :thread)))
+                                  (or (and thread (plist-get thread :path)) "")))))
+
+    (:thread-date . ;; Shows the internal thread-date
+                  ( :name "Thread-date"
+                    :shortname "Thd"
+                    :help "The thread-date"
+                    :function (lambda (msg)
+                                (let* ((thread (mu4e-message-field msg :thread))
+                                       (tdate (and thread (plist-get thread :date-tstamp))))
+                                  (format-time-string "%F %T " (or tdate 0))))))
+    (:recipnum .
+               ( :name "Number of recipients"
+                 :shortname "Recip#"
+                 :help "Number of recipients for this message"
+                 :function
+                 (lambda (msg)
+                   (format "%d"
+                           (+ (length (mu4e-message-field msg :to))
+                              (length (mu4e-message-field msg :cc))))))))
+
   "A list of custom (user-defined) headers.
 The format is similar to `mu4e-header-info', but adds a :function
 property, which should point to a function that takes a message
 plist as argument, and returns a string. See the default value of
 `mu4e-header-info-custom for an example.
 
-Note that when using the gnus-based view (see
-`mu4e-view-use-gnus'), you only have access to a limited set of
-message fields: only the ones used in the header-view, not
-including, for instance, the message body.")
+Note that when using the gnus-based view, you only have access to
+a limited set of message fields: only the ones used in the
+header-view, not including, for instance, the message body.")
 
-;;; Run-time variables
+;;; Run-time variables / constants
+
+;;;; Main
+
+(defvar mu4e-main-buffer-name " *mu4e-main*"
+  "Name of the mu4e main view buffer. The default name starts
+with SPC and therefore is not visible in buffer list.")
+
+
 ;;;; Headers
 
 (defconst mu4e~headers-buffer-name "*mu4e-headers*"
@@ -977,7 +1068,7 @@ including, for instance, the message body.")
 
 ;;;; Other
 
-(defvar mu4e~contacts nil
+(defvar mu4e~contacts-hash nil
   "Hash that maps contacts (ie. 'name <e-mail>') to an integer for sorting.
 We need to keep this information around to quickly re-sort
 subsets of the contacts in the completions function in
@@ -1002,9 +1093,14 @@ mu4e-compose.")
       (mu4e-error "database-path unknown; did you start mu4e?"))
     path))
 
-(defun mu4e-personal-addresses()
-  "Get the user's personal addresses, if any."
-  (when mu4e~server-props (plist-get mu4e~server-props :personal-addresses)))
+(defun mu4e-personal-addresses(&optional no-regexp)
+  "Get the list user's personal addresses, as passed to `mu init --my-address=...'.
+ The address are either plain e-mail address or /regular
+ expressions/. When NO_REGEXP is non-nil, do not include regexp
+ address patterns (if any)."
+  (seq-remove
+   (lambda(addr) (and no-regexp (string-match-p "^/.*/" addr)))
+   (when mu4e~server-props (plist-get mu4e~server-props :personal-addresses))))
 
 (defun mu4e-server-version()
   "Get the server version, which should match mu4e's."
@@ -1089,6 +1185,18 @@ sexp received from the server process.")
 (defvar mu4e-temp-func 'mu4e~view-temp-handler
   "A function called for each (:temp <file> <cookie>) sexp.")
 
+;;; Internals
+
+(defvar mu4e~headers-view-win nil
+  "The view window connected to this headers view.")
+
+;; It's useful to have the current view message available to
+;; `mu4e-view-mode-hooks' functions, and we set up this variable
+;; before calling `mu4e-view-mode'.  However, changing the major mode
+;; clobbers any local variables.  Work around that by declaring the
+;; variable permanent-local.
+(defvar mu4e~view-message nil "The message being viewed in view mode.")
+(put 'mu4e~view-message 'permanent-local t)
 ;;; _
 (provide 'mu4e-vars)
 ;;; mu4e-vars.el ends here

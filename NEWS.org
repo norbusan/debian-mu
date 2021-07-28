@@ -1,5 +1,87 @@
 #+STARTUP:showall
-* NEWS (user visible changes)
+* NEWS (user visible changes & bigger non-visible ones)
+
+* 1.6 (released, as of July 27 2021)
+
+*** mu
+
+    - Where available (and with suitably equiped ~libglib~), log to the ~systemd~
+      journal instead of ~~/.cache/mu.log~. Passing the ~--debug~ option to ~mu~
+      increases the amount that is logged.
+
+    - Follow symlinks in maildirs, and support moving messsages across
+      filesystems. Obviously, that is typically quite a bit slower than the
+      single-filesystem case, but can be still be useful.
+
+    - Optionally provide readline support for the ~mu~ server (when in tty-mode)
+
+    - Reworked the way mu generates s-expressions for mu4e; they are created
+      programmatically now instead of through string building.
+
+    - The indexer (the part of mu that scans maildirs and updates the message
+      store) has been rewritten so it can work asynchronously and take advantage
+      of multiple cores. Note that for now, indexing in ~mu4e~ is still a blocking
+      operation.
+
+    - Portability updates for dealing with non-POSIX systems, and in particular
+      VFAT filesystem, and building using Clang/libc++.
+
+    - The personal addresses (as per ~--my-address=~ for ~mu init~) can now also
+      include regular expressions (basic POSIX); wrap the expression in ~/~, e.g.,
+      ~--my-address='/.*@example.*/~'.
+
+    - Modernized the querying/threading machinery; this makes some old code a
+      lot easier to understand and maintain, and even while not an explicit
+      goal, is also faster.
+
+    - Experimental support for the Meson build system.
+
+*** mu4e
+
+    - Use the gnus-based message viewer as the default; the new viewer has quite
+      a few extra features compared to the old, mu4e-specific one, such as
+      faster crypto, support for S/MIME, syntax-highlighting, calendar
+      invitations and more.
+
+      The new view is superior in most ways, but if you still depend on
+      something from the old one, you can use:
+      #+begin_example
+      ;; set *before* loading mu4e; and restart emacs if you want to change it
+      ;; users of use-packag~ should can use the :init section for this.
+      (setq mu4e-view-use-old t)
+      #+end_example
+
+      (The older variable ~mu4e-view-use-gnus~ with the opposite meaning is
+      obsolete now, and no longer in use).
+
+    - Include maildir-shortcuts in the main-view with overall/unread counts,
+      similar to bookmarks, and with the same ~:hide~ and ~:hide-unread~ properties.
+      Note that for the latter, you need to update your maildir-shortcuts to the
+      new format, as explained in the ~mu4e-maildir-shortcuts~ docstring.
+
+      You can set ~mu4e-main-hide-fully-read~ to hide any bookmarks/maildirs that
+      have no unread messages.
+
+    - Add some more properties for use in capturing org-mode links to messages /
+      queries. See [[info:mu4e#Org-mode links][the mu4e manual]] for details.
+
+    - Honor ~truncate-string-ellipsis~ so you can now use 'fancy' ellipses for
+      truncated strings with ~(setq truncate-string-ellipsis "…")~
+
+    - Add a variable ~mu4e-mu-debug~ which, when set to non-~nil,~ makes the ~mu~
+      server log more verbosely (to ~mu.log~ or the journal)
+
+    - Better alignment in headers-buffers; this looks nicer, but is also a bit
+      slower, hence you need to enable ~mu4e-headers-precise-alignment~ for this.
+
+    - Support ~mu~'s new regexp-based personal addresses, and add
+      ~mu4e-personal-address-p~ to check whether a given string matches a personal
+      address.
+
+    - TAB-Completion for writing ~mu~ queries
+
+    - Switch the context for existing draft messages using
+      ~mu4e-compose-context-switch~ or ~C-c C-;~ in ~mu4e-compose-mode~.
 
 * 1.4 (released, as of April 18 2020)
 
@@ -108,6 +190,10 @@
     - The mu4e <-> mu interaction has been rewritten to communicate using
       s-expressions, with a repl for testing.
 
+*** guile
+
+    - guile 3.0 is now supported; guile 2.2 still works.
+
 *** toys
 
     - Updated the ~mug~ toy UI to use Webkit2/GTK+. Note that this is just a toy
@@ -168,7 +254,7 @@
 
       For now this is experimental ("tech preview"), but might replace the
       current message-view in a future release. Enable it with:
-               (setq mu4e-view-use-gnus t)
+	       (setq mu4e-view-use-gnus t)
 
       Thanks to Christophe Troestler for his work on fixing various encoding
       issues.
