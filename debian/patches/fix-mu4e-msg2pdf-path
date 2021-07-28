@@ -2,25 +2,11 @@ mu4e expects msg2pdf in some strange path, fix that
 also remove the reference to the build path
 See bug #760598
 ---
- mu4e/mu4e-actions.el |    4 +---
  mu4e/mu4e-meta.el.in |    2 +-
- 2 files changed, 2 insertions(+), 4 deletions(-)
+ 1 file changed, 1 insertion(+), 1 deletion(-)
 
---- maildir-utils.git.orig/mu4e/mu4e-actions.el
-+++ maildir-utils.git/mu4e/mu4e-actions.el
-@@ -54,9 +54,7 @@ Works for headers view and message-view.
- 
- ;;; To PDF
- 
--(defvar mu4e-msg2pdf
--  (let ((exec-path (cons (concat mu4e-builddir "/toys/msg2pdf/") exec-path)))
--    (locate-file "msg2pdf" exec-path exec-suffixes))
-+(defvar mu4e-msg2pdf "/usr/bin/msg2pdf"
-   "Path to the msg2pdf toy.")
- 
- (defun mu4e-action-view-as-pdf (msg)
---- maildir-utils.git.orig/mu4e/mu4e-meta.el.in
-+++ maildir-utils.git/mu4e/mu4e-meta.el.in
+--- a/mu4e/mu4e-meta.el.in
++++ b/mu4e/mu4e-meta.el.in
 @@ -2,7 +2,7 @@
  (defconst mu4e-mu-version "@VERSION@"
    "Required mu binary version; mu4e's version must agree with this.")

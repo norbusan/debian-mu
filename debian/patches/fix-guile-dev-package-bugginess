@@ -2,14 +2,14 @@
  configure.ac |    2 ++
  1 file changed, 2 insertions(+)
 
---- maildir-utils.git.orig/configure.ac
-+++ maildir-utils.git/configure.ac
-@@ -219,6 +219,8 @@ AS_IF([test "x$enable_guile" != "xno"],[
-     GUILE_PKG([2.2])
-     GUILE_PROGS
-     GUILE_FLAGS
-+    GUILE_SNARF=guile-snarf
-+    GUILE_TOOLS=guile-tools
-     AC_DEFINE_UNQUOTED([GUILE_BINARY],"$GUILE",[guile binary])
-     AC_DEFINE(BUILD_GUILE,[1], [Do we support Guile?])
-     AC_SUBST(GUILE_SNARF, [guile-snarf])
+--- a/configure.ac
++++ b/configure.ac
+@@ -226,6 +226,8 @@ AS_IF([test "x$enable_guile" != "xno"],[
+       GUILE_PKG([3.0 2.2])
+       GUILE_PROGS
+       GUILE_FLAGS
++      GUILE_SNARF=guile-snarf
++      GUILE_TOOLS=guile-tools
+       AC_DEFINE_UNQUOTED([GUILE_BINARY],"$GUILE",[guile binary])
+       vsnarf=guile-snarf${GUILE_EFFECTIVE_VERSION}
+       AC_CHECK_PROGS(GUILE_SNARF,[${vsnarf} guile-snarf], [no])

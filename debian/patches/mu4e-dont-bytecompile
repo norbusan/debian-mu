@@ -1,10 +1,10 @@
 ---
- configure.ac     |   17 ++++-------------
+ configure.ac     |   18 ++++--------------
  mu4e/Makefile.am |    2 +-
- 2 files changed, 5 insertions(+), 14 deletions(-)
+ 2 files changed, 5 insertions(+), 15 deletions(-)
 
---- maildir-utils.git.orig/mu4e/Makefile.am
-+++ maildir-utils.git/mu4e/Makefile.am
+--- a/mu4e/Makefile.am
++++ b/mu4e/Makefile.am
 @@ -21,7 +21,7 @@ SUBDIRS=
  info_TEXINFOS=mu4e.texi
  mu4e_TEXINFOS=fdl.texi
@@ -14,12 +14,13 @@
  	mu4e-actions.el		\
  	mu4e-compose.el		\
  	mu4e-context.el		\
---- maildir-utils.git.orig/configure.ac
-+++ maildir-utils.git/configure.ac
-@@ -81,19 +81,10 @@ AM_CONDITIONAL(HAVE_MAKEINFO,test "x$hav
+--- a/configure.ac
++++ b/configure.ac
+@@ -85,20 +85,10 @@ AM_COND_IF(HAVE_MAKEINFO,[],[
+   AC_SUBST(MAKEINFO,[true])
+ ])
  
- # we need emacs for byte-compiling mu4e
- 
+-# we need emacs for byte-compiling mu4e
 -build_mu4e=no
 -AC_ARG_ENABLE([mu4e],
 -   AS_HELP_STRING([--disable-mu4e],[Disable building mu4e]))
@@ -30,9 +31,9 @@
 -    lispdir="${lispdir}/mu4e/"
 -  ])
 -  AS_CASE([$emacs_version],
--    [*24.4*|*24.5*],[build_mu4e=yes],
--    [*25*|*26*|*27*|*28*],[build_mu4e=yes],
--    [AC_WARN([emacs is too old to build mu4e (need emacs >= 24.4)])])
+-    [*25.3*],[build_mu4e=yes],
+-    [*26*|*27*|*28*],[build_mu4e=yes],
+-    [AC_WARN([emacs is too old to build mu4e (need emacs >= 25.3)])])
 +build_mu4e=yes
 +AM_PATH_LISPDIR
 +AS_IF([test "x$lispdir" != "xno"], [
