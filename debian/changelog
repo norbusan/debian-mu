@@ -4,8 +4,9 @@ maildir-utils (1.6.0-1~1) UNRELEASED; urgency=medium
   * Update list of installed files.
   * Add libreadline-dev to B-D.
   * Update patches.
+  * Cherry-pick several fixes from upstream.
 
- -- Norbert Preining <norbert@preining.info>  Wed, 28 Jul 2021 09:42:40 +0900
+ -- Norbert Preining <norbert@preining.info>  Fri, 30 Jul 2021 09:23:45 +0900
 
 maildir-utils (1.4.15-1) unstable; urgency=medium
 
