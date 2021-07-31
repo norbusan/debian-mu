@@ -233,8 +233,8 @@ Indexer::Private::cleanup()
         });
 
         g_debug("remove %zu message(s) from store", orphans.size());
-
         store_.remove_messages (orphans);
+        progress_.removed += orphans.size();
 
         return true;
 }
@@ -273,20 +273,11 @@ Indexer::Private::start(const Indexer::Config& conf)
                 }
 
 
-                {
-                        // now there may still be messages in the work queue...
-                        // finish those, but only for a while.
-                        const auto start{std::chrono::steady_clock::now()};
-                        while (!fq_.empty() && std::chrono::steady_clock::now() - start < 10s) {
-                                std::this_thread::sleep_for(100ms);
-                        }
-                }
-
-                if (!fq_.empty()) {
-                        g_warning ("scan takes too long; dropping %zu file(s) from queue",
-                                   fq_.size());
-                        fq_.clear();
-                }
+                // now there may still be messages in the work queue...
+                // finish those; this is a bit ugly; perhaps we should
+                // handle SIGTERM etc.
+                while (!fq_.empty())
+                        std::this_thread::sleep_for(100ms);
 
                 if (conf_.cleanup) {
                         g_debug ("starting cleanup");
@@ -339,7 +330,7 @@ Indexer::start(const Indexer::Config& conf)
 {
         const auto mdir{priv_->store_.metadata().root_maildir};
         if (G_UNLIKELY(access (mdir.c_str(), R_OK) != 0)) {
-                g_critical("'%s' is not readable: %s", mdir.c_str(), strerror (errno));
+                g_critical("'%s' is not readable: %s", mdir.c_str(), g_strerror (errno));
                 return false;
         }
 
