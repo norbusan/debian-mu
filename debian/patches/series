@@ -6,6 +6,3 @@ mu4e-dont-bytecompile
 adjust-mu-docdir
 fix-guile-dev-package-bugginess
 #guile-3.0
-upstream-7fa80f77e9-fix-index
-0001-mu4e-main-refresh-after-context-switch.patch
-0002-index-update-removed-value-in-progress-report.patch
