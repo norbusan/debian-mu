@@ -2,8 +2,10 @@ maildir-utils (1.6.1-1) experimental; urgency=medium
 
   * New upstream version 1.6.1
   * Drop upstream patches.
+  * Cherry-pick upstream fix for schemata warning
+  * Add a NEWS entry for database schemata
 
- -- Norbert Preining <norbert@preining.info>  Sat, 31 Jul 2021 22:47:34 +0900
+ -- Norbert Preining <norbert@preining.info>  Sun, 01 Aug 2021 10:04:26 +0900
 
 maildir-utils (1.6.0-1) experimental; urgency=medium
 
