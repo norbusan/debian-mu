@@ -129,10 +129,13 @@ shown but can slow with large message stores on slow file-systems."
 (defcustom mu4e-index-lazy-check nil
   "Whether to only use a 'lazy check' during reindexing.
 This influences how we decide whether a message
-needs (re)indexing or not. When this is set to t, mu only uses
-the directory timestamps to decide whether it needs to check the
-messages beneath it, which would miss messages that are modified
-outside mu. On the other hand, it's significantly faster."
+needs (re)indexing or not.
+
+When this is set to non-nil, mu only uses the directory
+timestamps to decide whether it needs to check the messages
+beneath it. This makes indexing much faster, but might miss some
+changes. For this, you might want to occasionally call
+`mu4e-update-index-nonlazy'."
   :type 'boolean
   :group 'mu4e
   :safe 'booleanp)

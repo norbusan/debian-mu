@@ -73,8 +73,10 @@ etc."
     (buffer-substring-no-properties (point-min) (point-max))))
 
 (defun mu4e-action-view-in-browser (msg)
-  "Show current message MSG in browser, if it contains an html body."
-;;  (with-temp-buffer
+  "Show current MSG in browser if it includes an HTML-part.
+The variables `browse-url-browser-function',
+`browse-url-handlers', and `browse-url-default-handlers'
+determine which browser function to use."
   (with-temp-buffer
     (insert-file-contents-literally
      (mu4e-message-field msg :path) nil nil nil t)
@@ -422,6 +424,13 @@ Gnus' article-mode."
   (advice-add 'gnus-set-mode-line :around #'mu4e~view-nop)
   (advice-add 'gnus-button-reply :around #'mu4e~view-button-reply)
   (advice-add 'gnus-msg-mail :around #'mu4e~view-msg-mail)
+
+  ;; advice gnus-block-private-groups to always return "."
+  ;; so that by default we block images.
+  (advice-add 'gnus-block-private-groups :around
+              (lambda(func &rest args)
+                (if (mu4e~view-mode-p)
+                    "." (apply func args))))
   (mu4e~view-mode-body))
 
 ;;; Massaging the message view

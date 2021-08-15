@@ -366,6 +366,22 @@ to_string (const ThreadPath& tpath, size_t digits)
         return str;
 }
 
+static bool // compare subjects, ignore anything before the last ':<space>*'
+subject_matches (const std::string& sub1, const std::string& sub2)
+{
+	auto search_str =[](const std::string&s) -> const char* {
+		const auto pos = s.find_last_of(':');
+		if (pos == std::string::npos)
+			return s.c_str();
+		else {
+			const auto pos2 = s.find_first_not_of(' ', pos + 1);
+			return s.c_str() + (pos2 == std::string::npos ? pos : pos2);
+		}
+	};
+
+	//g_debug ("'%s' '%s'", search_str(sub1), search_str(sub2));
+	return g_strcmp0(search_str(sub1), search_str(sub2)) == 0;
+}
 
 static bool
 update_container (Container& container, bool descending,
@@ -385,7 +401,6 @@ update_container (Container& container, bool descending,
                 return false; // nothing else to do.
 
         auto& qmatch(*container.query_match);
-
         if (!container.parent)
                 qmatch.flags |= QueryMatch::Flags::Root;
         else if (!container.parent->query_match)
@@ -394,20 +409,9 @@ update_container (Container& container, bool descending,
         if (!container.children.empty())
                 qmatch.flags |= QueryMatch::Flags::HasChild;
 
-        // see whether this message has the has the thread
-        // subject, ie.. the first message in this thread with the
-        // given subject.
-        if (qmatch.has_flag(QueryMatch::Flags::Root) ||
-            //qmatch.has_flag(QueryMatch::Flags::Orphan) ||
-            prev_subject.empty() ||
-            (qmatch.subject.find(prev_subject) > 5))
+        if (qmatch.has_flag(QueryMatch::Flags::Root) || prev_subject.empty() ||
+	    !subject_matches(prev_subject, qmatch.subject))
                 qmatch.flags |= QueryMatch::Flags::ThreadSubject;
-
-        // g_debug ("%c%c: '%s' vs '%s'",
-        //          any_of(qmatch.flags & QueryMatch::Flags::Root) ? 'r' : 'c',
-        //          any_of(qmatch.flags & QueryMatch::Flags::ThreadSubject) ? 'y' : 'n',
-        //          qmatch.subject.c_str(),
-        //          prev_subject.c_str());
 
         if (descending && container.parent) {
                 // trick xapian by giving it "inverse" sorting key so our
@@ -428,20 +432,19 @@ update_container (Container& container, bool descending,
 
 static void
 update_containers (Containers& children, bool descending, ThreadPath& tpath,
-                   size_t seg_size)
+                   size_t seg_size, std::string& prev_subject)
 {
         size_t idx{0};
-        std::string last_subject;
 
         for (auto&& c: children) {
                 tpath.emplace_back(idx++);
-
                 if (c->query_match) {
-                        update_container(*c, descending, tpath, seg_size,
-                                         last_subject);
-                        last_subject = c->query_match->subject;
+			update_container(*c, descending, tpath, seg_size,
+                                         prev_subject);
+			prev_subject = c->query_match->subject;
                 }
-                update_containers(c->children, descending, tpath, seg_size);
+                update_containers(c->children, descending, tpath, seg_size,
+				  prev_subject);
                 tpath.pop_back();
         }
 }
@@ -457,9 +460,12 @@ update_containers (ContainerVec& root_vec, bool descending, size_t n)
 
         size_t idx{0};
         for (auto&& c: root_vec) {
-                tpath.emplace_back(idx++);
-                update_container(*c, descending, tpath, seg_size);
-                update_containers(c->children, descending, tpath, seg_size);
+		tpath.emplace_back(idx++);
+		std::string prev_subject;
+		if (update_container(*c, descending, tpath, seg_size))
+			prev_subject = c->query_match->subject;
+		update_containers(c->children, descending, tpath, seg_size,
+				  prev_subject);
                 tpath.pop_back();
         }
 }
