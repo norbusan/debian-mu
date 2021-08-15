@@ -6,4 +6,3 @@ mu4e-dont-bytecompile
 adjust-mu-docdir
 fix-guile-dev-package-bugginess
 #guile-3.0
-upstream-78ef8ddc-fix-schema-warning
