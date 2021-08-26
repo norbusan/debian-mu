@@ -281,6 +281,7 @@ This is useful for advising some Gnus-functionality that does not work in mu4e."
     (define-key map (kbd "<C-kp-subtract>") #'mu4e-headers-split-view-shrink)
 
     ;; intra-message navigation
+    (define-key map (kbd "S-SPC") #'scroll-down)
     (define-key map (kbd "SPC") #'mu4e-view-scroll-up-or-next)
     (define-key map (kbd "RET")  #'mu4e-scroll-up)
     (define-key map (kbd "<backspace>") #'mu4e-scroll-down)
@@ -465,7 +466,7 @@ The alist uniquely maps the number to the gnus-part."
     parts))
 
 
-(defun mu4e-view-save-attachments (&optional _arg)
+(defun mu4e-view-save-attachments (&optional arg)
   "Save mime parts from current mu4e gnus view buffer.
 
 When helm-mode is enabled provide completion on attachments and
@@ -500,7 +501,20 @@ containing commas."
                 dir (if arg (read-directory-name "Save to directory: ") mu4e-attachment-dir))
           (cl-loop for (f . h) in handles
                    when (member f files)
-                   do (mm-save-part h (expand-file-name f dir))))
+                   do (mm-save-part-to-file
+                       h (let ((file (expand-file-name f dir)))
+                           (if (file-exists-p file)
+                               (let (newname (count 1))
+                                 (while (and
+                                         (setq newname
+                                               (concat
+                                                (file-name-sans-extension file)
+                                                (format "(%s)" count)
+                                                (file-name-extension file t)))
+                                         (file-exists-p newname))
+                                   (cl-incf count))
+                                 newname)
+                             file)))))
       (mu4e-message "No attached files found"))))
 
 
