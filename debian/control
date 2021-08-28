@@ -9,7 +9,6 @@ Vcs-Git: https://github.com/norbusan/debian-mu.git
 Vcs-Browser: https://github.com/norbusan/debian-mu
 
 Package: maildir-utils
-Section: mail
 Priority: optional
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}, dpkg (>= 1.15.4) | install-info
@@ -27,7 +26,6 @@ Description: Set of utilities to deal with Maildirs (upstream name mu)
 
 Package: mu4e
 Section: lisp
-Priority: optional
 Architecture: all
 Replaces: maildir-utils (<< 0.9.8.4)
 Conflicts: maildir-utils (<< 0.9.8.4)
