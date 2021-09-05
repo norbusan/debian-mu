@@ -54,6 +54,7 @@
     (kill-buffer gnus-article-buffer))
   (with-current-buffer (get-buffer-create gnus-article-buffer)
     (let ((inhibit-read-only t))
+      (remove-overlays (point-min) (point-max) 'mu4e-overlay t)
       (erase-buffer)
       (insert-file-contents-literally
        (mu4e-message-field msg :path) nil nil nil t)))
@@ -490,7 +491,10 @@ containing commas."
                    #'completing-read-multiple))
         dir)
     (dolist (part parts)
-      (let ((fname (cdr (assoc 'filename (assoc "attachment" (cdr part))))))
+      (let ((fname (or (cdr (assoc 'filename (assoc "attachment" (cdr part))))
+                       (cl-loop for item in part
+                                for name = (and (listp item) (assoc-default 'name item))
+                                thereis (and (stringp name) name)))))
         (when fname
           (push `(,fname . ,(cdr part)) handles)
           (push fname files))))
