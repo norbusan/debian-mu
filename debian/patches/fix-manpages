@@ -3,7 +3,7 @@
  man/mu-cfind.1   |    5 ++---
  man/mu-easy.1    |    2 +-
  man/mu-extract.1 |    5 ++---
- man/mu-find.1    |    6 +++---
+ man/mu-find.1    |    4 ++--
  man/mu-help.1    |    5 ++---
  man/mu-index.1   |    2 +-
  man/mu-mkdir.1   |    4 ++--
@@ -13,7 +13,7 @@
  man/mu-server.1  |    2 +-
  man/mu-verify.1  |    4 ++--
  man/mu-view.1    |    4 ++--
- 14 files changed, 26 insertions(+), 29 deletions(-)
+ 14 files changed, 25 insertions(+), 28 deletions(-)
 
 --- a/man/mu-add.1
 +++ b/man/mu-add.1
@@ -158,13 +158,13 @@
 --- a/man/mu-script.1
 +++ b/man/mu-script.1
 @@ -1,8 +1,8 @@
--.TH MU SCRIPT 1 "June 2013" "User Manuals"
-+.TH MU-SCRIPT 1 "June 2013" "User Manuals"
+-.TH MU SCRIPT 1 "October 2021" "User Manuals"
++.TH MU-SCRIPT 1 "October 2021" "User Manuals"
  
  .SH NAME
  
--mu script\- show the available mu scripts, and run them.
-+mu_script \- show the available mu scripts, and run them.
+-mu script\- show the available mu scripts, and/or run them.
++mu_script \- show the available mu scripts, and/or run them.
  
  .SH SYNOPSIS
  
